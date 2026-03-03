@@ -396,6 +396,127 @@ table tr:hover {
     font-weight: 500;
 }
 
+.my-shifts-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.my-shift-section {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem;
+    background: #f8fafc;
+}
+
+.my-shift-section-title {
+    font-size: 1rem;
+    color: #2d3748;
+    margin-bottom: 0.75rem;
+}
+
+.my-shifts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 0.75rem;
+}
+
+.my-shift-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+.my-shift-card-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.my-shift-title {
+    font-size: 1rem;
+    color: #2d3748;
+    margin: 0;
+}
+
+.my-shift-role {
+    margin-top: 0.25rem;
+    color: #4a5568;
+    font-size: 0.875rem;
+}
+
+.my-shift-badges {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.status-badge {
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 0.2rem 0.55rem;
+    background: #edf2f7;
+    color: #2d3748;
+    display: flex;
+    align-items: center;
+}
+
+.signup-status-confirmed {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.signup-status-no-show {
+    background: #feebc8;
+    color: #7b341e;
+}
+
+.signup-status-cancelled {
+    background: #fed7d7;
+    color: #742a2a;
+}
+
+.shift-status-open {
+    background: #bee3f8;
+    color: #2a4365;
+}
+
+.shift-status-full {
+    background: #e9d8fd;
+    color: #553c9a;
+}
+
+.shift-status-cancelled {
+    background: #fed7d7;
+    color: #742a2a;
+}
+
+.my-shift-meta p {
+    margin-bottom: 0.3rem;
+    color: #4a5568;
+    font-size: 0.875rem;
+}
+
+.my-shift-actions {
+    margin-top: 0.75rem;
+}
+
+.my-shift-empty,
+.my-shift-empty-all {
+    color: #718096;
+    font-size: 0.9rem;
+}
+
+.my-shift-load-error {
+    color: #c53030;
+    font-weight: 500;
+}
+
 /* Messages */
 .message {
     padding: 1rem;
@@ -638,5 +759,13 @@ table tr:hover {
     .shift-actions {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .my-shift-card-header {
+        flex-direction: column;
+    }
+
+    .my-shift-badges {
+        justify-content: flex-start;
     }
 }

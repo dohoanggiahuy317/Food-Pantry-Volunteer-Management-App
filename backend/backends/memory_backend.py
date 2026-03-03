@@ -270,6 +270,47 @@ class MemoryBackend(StoreBackend):
     def list_shift_signups(self, shift_role_id: int) -> list[dict[str, Any]]:
         return [dict(ss) for ss in self.store["shift_signups"] if ss.get("shift_role_id") == shift_role_id]
 
+    def list_signups_by_user(self, user_id: int) -> list[dict[str, Any]]:
+        signups = [dict(ss) for ss in self.store["shift_signups"] if ss.get("user_id") == user_id]
+        rows: list[dict[str, Any]] = []
+
+        for signup in signups:
+            shift_role_id = int(signup.get("shift_role_id"))
+            role = next((sr for sr in self.store["shift_roles"] if sr.get("shift_role_id") == shift_role_id), None)
+            if not role:
+                continue
+
+            shift_id = int(role.get("shift_id"))
+            shift = next((s for s in self.store["shifts"] if s.get("shift_id") == shift_id), None)
+            if not shift:
+                continue
+
+            pantry_id = int(shift.get("pantry_id"))
+            pantry = next((p for p in self.store["pantries"] if p.get("pantry_id") == pantry_id), None)
+
+            rows.append({
+                "signup_id": int(signup.get("signup_id")),
+                "user_id": int(signup.get("user_id")),
+                "signup_status": signup.get("signup_status"),
+                "created_at": signup.get("created_at"),
+                "shift_role_id": int(role.get("shift_role_id")),
+                "role_title": role.get("role_title"),
+                "required_count": int(role.get("required_count", 0)),
+                "filled_count": int(role.get("filled_count", 0)),
+                "role_status": role.get("status"),
+                "shift_id": int(shift.get("shift_id")),
+                "shift_name": shift.get("shift_name"),
+                "start_time": shift.get("start_time"),
+                "end_time": shift.get("end_time"),
+                "shift_status": shift.get("status"),
+                "pantry_id": int(shift.get("pantry_id")),
+                "pantry_name": pantry.get("name") if pantry else None,
+                "pantry_location": pantry.get("location_address") if pantry else None,
+            })
+
+        rows.sort(key=lambda row: str(row.get("start_time", "")))
+        return rows
+
     def get_signup_by_id(self, signup_id: int) -> dict[str, Any] | None:
         return self._copy(next((ss for ss in self.store["shift_signups"] if ss.get("signup_id") == signup_id), None))
 
