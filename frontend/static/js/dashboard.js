@@ -58,18 +58,19 @@ window.addEventListener('load', async function () {
 function setupRoleBasedUI() {
     const isAdmin = currentUser.roles.includes('ADMIN');
     const isPantryLead = currentUser.roles.includes('PANTRY_LEAD');
+    const isVolunteer = currentUser.roles.includes('VOLUNTEER');
 
     // Show/hide tabs based on role
+    if (isAdmin || isPantryLead) {
+        document.getElementById('tab-shifts').classList.remove('hidden');
+    }
+
     if (isAdmin) {
-        // Admin sees everything
-        document.getElementById('tab-shifts').classList.remove('hidden');
         document.getElementById('tab-admin').classList.remove('hidden');
-    } else if (isPantryLead) {
-        // Pantry lead can manage shifts
-        document.getElementById('tab-shifts').classList.remove('hidden');
-    } else {
-        // Volunteer only sees calendar
-        // (already default view)
+    }
+
+    if (isVolunteer) {
+        document.getElementById('tab-my-shifts').classList.remove('hidden');
     }
 }
 
@@ -330,6 +331,12 @@ async function signupForRole(roleId) {
         await signupForShift(roleId);
         showMessage('calendar', 'Successfully signed up!', 'success');
         await loadCalendarShifts(); // Reload to show updated counts
+
+        const myShiftsTab = document.getElementById('content-my-shifts');
+        const isVolunteer = currentUser && currentUser.roles.includes('VOLUNTEER');
+        if (isVolunteer && myShiftsTab && myShiftsTab.classList.contains('active')) {
+            await loadMyRegisteredShifts();
+        }
     } catch (error) {
         showMessage('calendar', `Signup failed: ${error.message}`, 'error');
     }
@@ -343,6 +350,141 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+function toStatusClass(prefix, status) {
+    const normalized = String(status || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    return `${prefix}-${normalized}`;
+}
+
+function safeDateValue(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function sortByDate(a, b, field, direction = 'asc') {
+    const aDate = safeDateValue(a[field]);
+    const bDate = safeDateValue(b[field]);
+    const aMs = aDate ? aDate.getTime() : Number.POSITIVE_INFINITY;
+    const bMs = bDate ? bDate.getTime() : Number.POSITIVE_INFINITY;
+    return direction === 'asc' ? aMs - bMs : bMs - aMs;
+}
+
+function formatShiftRange(startTime, endTime) {
+    const start = safeDateValue(startTime);
+    const end = safeDateValue(endTime);
+    if (!start || !end) return 'Time unavailable';
+
+    return `${start.toLocaleDateString()} | ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function renderMyShiftCard(signup, now) {
+    const signupStatus = String(signup.signup_status || 'UNKNOWN').toUpperCase();
+    const shiftStatus = String(signup.shift_status || 'OPEN').toUpperCase();
+    const showCancel = canCancelSignup(signup, now);
+
+    return `
+        <article class="my-shift-card">
+            <div class="my-shift-card-header">
+                <div>
+                    <h4 class="my-shift-title">${escapeHtml(signup.shift_name || 'Untitled Shift')}</h4>
+                    <p class="my-shift-role">Role: ${escapeHtml(signup.role_title || 'Unassigned')}</p>
+                </div>
+                <div class="my-shift-badges">
+                    <span class="status-badge ${toStatusClass('signup-status', signupStatus)}">${escapeHtml(signupStatus)}</span>
+                    <span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span>
+                </div>
+            </div>
+            <div class="my-shift-meta">
+                <p><strong>When:</strong> ${escapeHtml(formatShiftRange(signup.start_time, signup.end_time))}</p>
+                <p><strong>Pantry:</strong> ${escapeHtml(signup.pantry_name || 'Unknown Pantry')}</p>
+                <p><strong>Location:</strong> ${escapeHtml(signup.pantry_location || 'No location listed')}</p>
+            </div>
+            ${showCancel
+            ? `
+                <div class="my-shift-actions">
+                    <button class="btn btn-danger" onclick="cancelMySignup(${signup.signup_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Cancel Signup</button>
+                </div>
+            `
+            : ''
+        }
+        </article>
+    `;
+}
+
+function renderMyShiftSection(sectionId, title, signups, now) {
+    if (!signups || signups.length === 0) {
+        return `
+            <section class="my-shift-section" id="my-shift-section-${sectionId}">
+                <h3 class="my-shift-section-title">${title}</h3>
+                <p class="my-shift-empty">No ${title.toLowerCase()}.</p>
+            </section>
+        `;
+    }
+
+    return `
+        <section class="my-shift-section" id="my-shift-section-${sectionId}">
+            <h3 class="my-shift-section-title">${title}</h3>
+            <div class="my-shifts-grid">
+                ${signups.map(signup => renderMyShiftCard(signup, now)).join('')}
+            </div>
+        </section>
+    `;
+}
+
+async function loadMyRegisteredShifts() {
+    const container = document.getElementById('my-shifts-container');
+    if (!container || !currentUser) return;
+
+    container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading your registered shifts...</p></div>';
+
+    try {
+        const signups = await getUserSignups(currentUser.user_id);
+        if (!signups || signups.length === 0) {
+            container.innerHTML = '<p class="my-shift-empty-all">You have no registered shifts yet.</p>';
+            return;
+        }
+
+        const now = new Date();
+        const buckets = {
+            incoming: [],
+            ongoing: [],
+            past: [],
+        };
+
+        signups.forEach(signup => {
+            const bucket = classifyShiftBucket(signup, now);
+            buckets[bucket].push(signup);
+        });
+
+        buckets.incoming.sort((a, b) => sortByDate(a, b, 'start_time', 'asc'));
+        buckets.ongoing.sort((a, b) => sortByDate(a, b, 'end_time', 'asc'));
+        buckets.past.sort((a, b) => sortByDate(a, b, 'end_time', 'desc'));
+
+        container.innerHTML = `
+            <div class="my-shifts-sections">
+                ${renderMyShiftSection('incoming', 'Incoming Shifts', buckets.incoming, now)}
+                ${renderMyShiftSection('ongoing', 'Ongoing Shifts', buckets.ongoing, now)}
+                ${renderMyShiftSection('past', 'Past Shifts', buckets.past, now)}
+            </div>
+        `;
+    } catch (error) {
+        console.error('Failed to load my shifts:', error);
+        container.innerHTML = `<p class="my-shift-load-error">Failed to load your registered shifts: ${escapeHtml(error.message)}</p>`;
+        showMessage('my-shifts', `Failed to load shifts: ${error.message}`, 'error');
+    }
+}
+
+async function cancelMySignup(signupId) {
+    if (!confirm('Cancel this signup?')) return;
+
+    try {
+        await cancelSignup(signupId);
+        showMessage('my-shifts', 'Signup cancelled successfully!', 'success');
+        await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
+    } catch (error) {
+        showMessage('my-shifts', `Cancel failed: ${error.message}`, 'error');
+    }
 }
 
 function renderRegistrationsRowContent(shiftRegistrations) {
@@ -552,7 +694,7 @@ function setupEventListeners() {
 
             // Show/hide pantry selector based on tab
             const pantrySelector = document.getElementById('pantry-selector');
-            if (targetTab === 'calendar') {
+            if (targetTab === 'calendar' || targetTab === 'my-shifts') {
                 pantrySelector.style.display = 'none';
             } else {
                 pantrySelector.style.display = 'block';
@@ -561,6 +703,8 @@ function setupEventListeners() {
             // Load tab-specific data
             if (targetTab === 'shifts') {
                 await loadShiftsTable();
+            } else if (targetTab === 'my-shifts') {
+                await loadMyRegisteredShifts();
             }
         });
     });
@@ -744,3 +888,4 @@ function showMessage(target, text, type = 'info') {
 window.signupForRole = signupForRole;
 window.deleteShiftConfirm = deleteShiftConfirm;
 window.toggleShiftRegistrations = toggleShiftRegistrations;
+window.cancelMySignup = cancelMySignup;

@@ -117,6 +117,10 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_signups_by_user(self, user_id: int) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_signup_by_id(self, signup_id: int) -> dict[str, Any] | None:
         raise NotImplementedError
 

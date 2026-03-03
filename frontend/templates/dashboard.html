@@ -29,6 +29,7 @@
     <div class="nav-tabs">
         <div class="nav-tabs-container">
             <button class="nav-tab" data-tab="calendar">📅 Calendar</button>
+            <button class="nav-tab hidden" data-tab="my-shifts" id="tab-my-shifts">🧾 My Shifts</button>
             <button class="nav-tab hidden" data-tab="shifts" id="tab-shifts">🔧 Manage Shifts</button>
             <button class="nav-tab hidden" data-tab="admin" id="tab-admin">👥 Admin Panel</button>
         </div>
@@ -56,6 +57,20 @@
                 <div id="shifts-container" class="loading">
                     <div class="spinner"></div>
                     <p>Loading shifts...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- My Shifts Tab (Volunteer) -->
+        <div class="tab-content" id="content-my-shifts">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">My Registered Shifts</h2>
+                </div>
+                <div id="message-my-shifts" class="message"></div>
+                <div id="my-shifts-container" class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading your registered shifts...</p>
                 </div>
             </div>
         </div>

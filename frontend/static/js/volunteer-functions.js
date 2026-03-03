@@ -27,6 +27,22 @@ async function getUserSignups(userId) {
 }
 
 /**
+ * Classify a shift-like object into incoming/ongoing/past buckets
+ */
+function classifyShiftBucket(shift, now = new Date()) {
+    const start = new Date(shift.start_time);
+    const end = new Date(shift.end_time);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return 'past';
+    }
+
+    if (start > now) return 'incoming';
+    if (start <= now && now < end) return 'ongoing';
+    return 'past';
+}
+
+/**
  * Sign up for a shift role
  * If userId is not provided, uses current user from query param
  */
@@ -150,6 +166,13 @@ function formatShiftDate(shift) {
 function isShiftPast(shift) {
     const end = new Date(shift.end_time);
     return end < new Date();
+}
+
+/**
+ * Check whether a signup can still be canceled
+ */
+function canCancelSignup(signupItem, now = new Date()) {
+    return classifyShiftBucket(signupItem, now) === 'incoming';
 }
 
 /**

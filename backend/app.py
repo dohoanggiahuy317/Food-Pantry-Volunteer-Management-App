@@ -126,6 +126,26 @@ def list_users() -> Any:
     return jsonify(users)
 
 
+@app.get("/api/users/<int:user_id>/signups")
+def list_user_signups(user_id: int) -> Any:
+    """List signups for a specific user (self or ADMIN)."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Forbidden"}), 403
+
+    current_user_id = int(user.get("user_id"))
+    is_admin = user_has_role(current_user_id, "ADMIN")
+    if current_user_id != user_id and not is_admin:
+        return jsonify({"error": "Forbidden"}), 403
+
+    target_user = find_user_by_id(user_id)
+    if not target_user:
+        return jsonify({"error": "User not found"}), 404
+
+    signups = backend.list_signups_by_user(user_id)
+    return jsonify(signups)
+
+
 @app.get("/api/roles")
 def list_roles() -> Any:
     """List all available roles."""

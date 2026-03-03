@@ -478,6 +478,63 @@ class MySQLBackend(StoreBackend):
             )
             return [_serialize_signup(row) for row in cursor.fetchall()]
 
+    def list_signups_by_user(self, user_id: int) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT
+                    ss.signup_id,
+                    ss.user_id,
+                    ss.signup_status,
+                    ss.created_at,
+                    sr.shift_role_id,
+                    sr.role_title,
+                    sr.required_count,
+                    sr.filled_count,
+                    sr.status AS role_status,
+                    s.shift_id,
+                    s.shift_name,
+                    s.start_time,
+                    s.end_time,
+                    s.status AS shift_status,
+                    p.pantry_id,
+                    p.name AS pantry_name,
+                    p.location_address AS pantry_location
+                FROM shift_signups ss
+                JOIN shift_roles sr ON sr.shift_role_id = ss.shift_role_id
+                JOIN shifts s ON s.shift_id = sr.shift_id
+                JOIN pantries p ON p.pantry_id = s.pantry_id
+                WHERE ss.user_id = %s
+                ORDER BY s.start_time ASC, ss.signup_id ASC
+                """,
+                (user_id,),
+            )
+            rows = cursor.fetchall()
+
+        return [
+            {
+                "signup_id": int(row["signup_id"]),
+                "user_id": int(row["user_id"]),
+                "signup_status": row["signup_status"],
+                "created_at": _to_iso_z(row["created_at"]),
+                "shift_role_id": int(row["shift_role_id"]),
+                "role_title": row["role_title"],
+                "required_count": int(row["required_count"]),
+                "filled_count": int(row["filled_count"]),
+                "role_status": row["role_status"],
+                "shift_id": int(row["shift_id"]),
+                "shift_name": row["shift_name"],
+                "start_time": _to_iso_z(row["start_time"]),
+                "end_time": _to_iso_z(row["end_time"]),
+                "shift_status": row["shift_status"],
+                "pantry_id": int(row["pantry_id"]),
+                "pantry_name": row["pantry_name"],
+                "pantry_location": row["pantry_location"],
+            }
+            for row in rows
+        ]
+
     def get_signup_by_id(self, signup_id: int) -> dict[str, Any] | None:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
