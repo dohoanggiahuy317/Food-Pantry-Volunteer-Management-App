@@ -5,6 +5,7 @@ let allPantries = [];
 let allPublicPantries = [];
 let expandedShiftId = null;
 let registrationsCache = {};
+let editingShiftSnapshot = null;
 
 // Wait for all scripts to load before initializing
 window.addEventListener('load', async function () {
@@ -286,6 +287,9 @@ function displayShiftCard(grid, shift) {
             const required = role.required_count || 1;
             const percentage = (filled / required) * 100;
             const isFull = filled >= required;
+            const shiftCancelled = String(shift.status || 'OPEN').toUpperCase() === 'CANCELLED';
+            const roleCancelled = String(role.status || 'OPEN').toUpperCase() === 'CANCELLED';
+            const isUnavailable = shiftCancelled || roleCancelled;
             const capacityClass = isFull ? 'capacity-full' : 'capacity-available';
 
             return `
@@ -298,7 +302,9 @@ function displayShiftCard(grid, shift) {
                                 </div>
                             </div>
                             <div>
-                                ${isFull
+                                ${isUnavailable
+                    ? '<button class="btn btn-secondary" disabled>Unavailable</button>'
+                    : isFull
                     ? '<button class="btn btn-secondary" disabled>Full</button>'
                     : `<button class="btn btn-success" onclick="signupForRole(${role.shift_role_id})">Sign Up</button>`
                 }
@@ -352,6 +358,18 @@ function escapeHtml(value) {
         .replace(/'/g, '&#39;');
 }
 
+function parseApiErrorDetails(error) {
+    const raw = String(error && error.message ? error.message : '');
+    const jsonStart = raw.indexOf('{');
+    if (jsonStart === -1) return null;
+
+    try {
+        return JSON.parse(raw.slice(jsonStart));
+    } catch (_err) {
+        return null;
+    }
+}
+
 function toStatusClass(prefix, status) {
     const normalized = String(status || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-');
     return `${prefix}-${normalized}`;
@@ -390,6 +408,11 @@ function getAttendanceInfo(signupStatus) {
 }
 
 function getAttendanceWindowInfo(startTime, endTime, now = new Date()) {
+    // TODO(dev): Re-enable client-side attendance window UX before production.
+    // Server-side checks are currently disabled for dev, so keep UI unrestricted too.
+    return { canMark: true, message: 'Attendance window is open (dev mode).' };
+
+    /*
     const start = safeDateValue(startTime);
     const end = safeDateValue(endTime);
     if (!start || !end) {
@@ -405,6 +428,7 @@ function getAttendanceWindowInfo(startTime, endTime, now = new Date()) {
         return { canMark: false, message: 'Attendance window is closed (6 hours after shift end).' };
     }
     return { canMark: true, message: 'Attendance window is open.' };
+    */
 }
 
 function renderCredibilitySummary(attendedCount, totalMarkedPast) {
@@ -434,6 +458,27 @@ function renderMyShiftCard(signup, now) {
     const attendanceInfo = getAttendanceInfo(signupStatus);
     const showCancel = canCancelSignup(signup, now);
     const showSignupStatusBadge = !attendanceInfo.isMarked;
+    const isPendingReconfirm = signupStatus === 'PENDING_CONFIRMATION';
+    const reconfirmAvailable = Boolean(signup.reconfirm_available);
+
+    let actionsHtml = '';
+    if (isPendingReconfirm) {
+        actionsHtml = `
+            <div class="my-shift-actions">
+                ${reconfirmAvailable
+                ? `<button class="btn btn-success" onclick="reconfirmMySignup(${signup.signup_id}, 'CONFIRM')" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Confirm</button>`
+                : `<span class="reconfirm-note">Role is full or unavailable for reconfirmation.</span>`
+            }
+                <button class="btn btn-danger" onclick="reconfirmMySignup(${signup.signup_id}, 'CANCEL')" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Cancel</button>
+            </div>
+        `;
+    } else if (showCancel) {
+        actionsHtml = `
+            <div class="my-shift-actions">
+                <button class="btn btn-danger" onclick="cancelMySignup(${signup.signup_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Cancel Signup</button>
+            </div>
+        `;
+    }
 
     return `
         <article class="my-shift-card">
@@ -456,14 +501,7 @@ function renderMyShiftCard(signup, now) {
                 <p><strong>Pantry:</strong> ${escapeHtml(signup.pantry_name || 'Unknown Pantry')}</p>
                 <p><strong>Location:</strong> ${escapeHtml(signup.pantry_location || 'No location listed')}</p>
             </div>
-            ${showCancel
-            ? `
-                <div class="my-shift-actions">
-                    <button class="btn btn-danger" onclick="cancelMySignup(${signup.signup_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Cancel Signup</button>
-                </div>
-            `
-            : ''
-        }
+            ${actionsHtml}
         </article>
     `;
 }
@@ -552,6 +590,26 @@ async function cancelMySignup(signupId) {
         await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
     } catch (error) {
         showMessage('my-shifts', `Cancel failed: ${error.message}`, 'error');
+    }
+}
+
+async function reconfirmMySignup(signupId, action) {
+    const normalizedAction = String(action || '').toUpperCase();
+    const actionLabel = normalizedAction === 'CONFIRM' ? 'confirm this updated shift' : 'cancel this updated shift signup';
+    if (!confirm(`Do you want to ${actionLabel}?`)) return;
+
+    try {
+        await reconfirmSignup(signupId, normalizedAction);
+        showMessage('my-shifts', normalizedAction === 'CONFIRM' ? 'Shift reconfirmed successfully!' : 'Signup cancelled successfully!', 'success');
+        await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
+    } catch (error) {
+        const details = parseApiErrorDetails(error);
+        if (details && details.code === 'ROLE_FULL_OR_UNAVAILABLE') {
+            showMessage('my-shifts', 'This role is full or unavailable. Please cancel or pick another shift.', 'error');
+        } else {
+            showMessage('my-shifts', `Action failed: ${error.message}`, 'error');
+        }
+        await loadMyRegisteredShifts();
     }
 }
 
@@ -758,15 +816,17 @@ async function loadShiftsTable() {
         shifts.forEach(shift => {
             console.log('Shift data for table:', shift);
             const startDate = new Date(shift.start_time);
+            const endDate = new Date(shift.end_time);
             const rolesText = shift.roles && shift.roles.length > 0
                 ? shift.roles.map(r => `${r.role_title} (${r.filled_count || 0}/${r.required_count})`).join(', ')
                 : 'No roles';
+            const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
 
             const tr = document.createElement('tr');
             tr.dataset.shiftId = String(shift.shift_id);
             tr.innerHTML = `
-                        <td><strong>${shift.shift_name}</strong></td>
-                        <td>${startDate.toLocaleString()}</td>
+                        <td><strong>${shift.shift_name}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${shiftStatus}</span></td>
+                        <td>${startDate.toLocaleString()} - ${endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                         <td>${rolesText}</td>
                         <td>
                             <div class="shift-actions">
@@ -778,7 +838,8 @@ async function loadShiftsTable() {
                                 >
                                     View Registrations
                                 </button>
-                                <button class="btn btn-danger" onclick="deleteShiftConfirm(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Delete</button>
+                                <button class="btn btn-primary" onclick="openEditShift(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Edit</button>
+                                <button class="btn btn-danger" onclick="cancelShiftConfirm(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;" ${shiftStatus === 'CANCELLED' ? 'disabled' : ''}>Cancel Shift</button>
                             </div>
                         </td>
                     `;
@@ -789,17 +850,106 @@ async function loadShiftsTable() {
     }
 }
 
-// Delete shift with confirmation
-async function deleteShiftConfirm(shiftId) {
-    if (!confirm('Delete this shift? This will also delete all roles and signups.')) return;
+function buildEditRoleRow(role = null) {
+    const roleId = role && role.shift_role_id ? String(role.shift_role_id) : '';
+    const roleTitle = role && role.role_title ? role.role_title : '';
+    const roleCount = role && role.required_count ? Number(role.required_count) : 1;
+
+    const roleGroup = document.createElement('div');
+    roleGroup.className = 'role-input-group';
+    roleGroup.style.marginTop = '1rem';
+    roleGroup.dataset.roleId = roleId;
+    roleGroup.innerHTML = `
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Role Title *</label>
+                <input type="text" class="edit-role-title" value="${escapeHtml(roleTitle)}" placeholder="e.g., Food Sorter" required>
+            </div>
+            <div class="form-group">
+                <label>Required Count *</label>
+                <input type="number" class="edit-role-count" min="1" value="${roleCount}" required>
+            </div>
+            <div class="form-group" style="display: flex; align-items: flex-end;">
+                <button type="button" class="btn btn-danger remove-edit-role-btn" style="width: 100%;">Remove</button>
+            </div>
+        </div>
+    `;
+    roleGroup.querySelector('.remove-edit-role-btn').addEventListener('click', () => {
+        roleGroup.remove();
+    });
+    return roleGroup;
+}
+
+function resetEditShiftForm() {
+    editingShiftSnapshot = null;
+    document.getElementById('edit-shift-id').value = '';
+    document.getElementById('edit-shift-name').value = '';
+    document.getElementById('edit-shift-start').value = '';
+    document.getElementById('edit-shift-end').value = '';
+    document.getElementById('edit-roles-container').innerHTML = '';
+    document.getElementById('edit-shift-card').style.display = 'none';
+}
+
+async function openEditShift(shiftId) {
+    try {
+        const shift = await getShift(shiftId);
+        editingShiftSnapshot = shift;
+
+        document.getElementById('edit-shift-id').value = String(shift.shift_id);
+        document.getElementById('edit-shift-name').value = shift.shift_name || '';
+        document.getElementById('edit-shift-start').value = formatDateTimeForInput(shift.start_time);
+        document.getElementById('edit-shift-end').value = formatDateTimeForInput(shift.end_time);
+
+        const container = document.getElementById('edit-roles-container');
+        container.innerHTML = '';
+        const roles = shift.roles || [];
+        if (roles.length === 0) {
+            container.appendChild(buildEditRoleRow(null));
+        } else {
+            roles.forEach(role => {
+                container.appendChild(buildEditRoleRow(role));
+            });
+        }
+
+        document.getElementById('edit-shift-card').style.display = 'block';
+        document.getElementById('edit-shift-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+        showMessage('shifts', `Failed to load shift for editing: ${error.message}`, 'error');
+    }
+}
+
+function collectAffectedContacts(responses) {
+    const seen = new Set();
+    let affectedCount = 0;
+
+    responses.forEach(response => {
+        if (!response) return;
+        affectedCount += Number(response.affected_signup_count || 0);
+        const contacts = response.affected_volunteer_contacts || [];
+        contacts.forEach(contact => {
+            if (!contact || !contact.email) return;
+            seen.add(contact.email);
+        });
+    });
+
+    return {
+        affectedCount,
+        uniqueVolunteers: seen.size
+    };
+}
+
+// Cancel shift with confirmation
+async function cancelShiftConfirm(shiftId) {
+    if (!confirm('Cancel this shift? Volunteers will need to reconfirm and no new signups will be accepted.')) return;
 
     try {
-        await deleteShift(shiftId);
-        showMessage('shifts', 'Shift deleted successfully!', 'success');
+        const response = await deleteShift(shiftId);
+        const affected = response.affected_signup_count || 0;
+        showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation.`, 'success');
         await loadShiftsTable();
         await loadCalendarShifts(); // Update calendar view too
     } catch (error) {
-        showMessage('shifts', `Delete failed: ${error.message}`, 'error');
+        showMessage('shifts', `Cancel failed: ${error.message}`, 'error');
     }
 }
 
@@ -840,6 +990,7 @@ function setupEventListeners() {
     // Pantry selection
     document.getElementById('pantry-select').addEventListener('change', async (e) => {
         currentPantryId = parseInt(e.target.value);
+        resetEditShiftForm();
         await loadCalendarShifts();
         if (currentUser.roles.includes('ADMIN') || currentUser.roles.includes('PANTRY_LEAD')) {
             await loadShiftsTable();
@@ -929,6 +1080,111 @@ function setupEventListeners() {
         container.appendChild(roleGroup);
     });
 
+    document.getElementById('cancel-edit-shift-btn').addEventListener('click', () => {
+        resetEditShiftForm();
+    });
+
+    document.getElementById('add-edit-role-btn').addEventListener('click', () => {
+        const container = document.getElementById('edit-roles-container');
+        container.appendChild(buildEditRoleRow(null));
+    });
+
+    document.getElementById('edit-shift-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!editingShiftSnapshot) {
+            showMessage('shifts', 'No shift selected for editing', 'error');
+            return;
+        }
+
+        const shiftId = parseInt(document.getElementById('edit-shift-id').value, 10);
+        if (!shiftId) {
+            showMessage('shifts', 'Invalid shift selected', 'error');
+            return;
+        }
+
+        const updatedShiftPayload = {
+            shift_name: document.getElementById('edit-shift-name').value.trim(),
+            start_time: new Date(document.getElementById('edit-shift-start').value).toISOString(),
+            end_time: new Date(document.getElementById('edit-shift-end').value).toISOString(),
+            status: String(editingShiftSnapshot.status || 'OPEN').toUpperCase()
+        };
+
+        if (!updatedShiftPayload.shift_name || Number.isNaN(new Date(updatedShiftPayload.start_time).getTime()) || Number.isNaN(new Date(updatedShiftPayload.end_time).getTime())) {
+            showMessage('shifts', 'Please provide valid shift name and time range', 'error');
+            return;
+        }
+
+        const roleRows = Array.from(document.querySelectorAll('#edit-roles-container .role-input-group'));
+        if (roleRows.length === 0) {
+            showMessage('shifts', 'Shift must include at least one role', 'error');
+            return;
+        }
+
+        const roleInputs = roleRows.map((row) => {
+            const roleIdRaw = row.dataset.roleId || '';
+            const roleTitle = row.querySelector('.edit-role-title')?.value.trim() || '';
+            const requiredCount = parseInt(row.querySelector('.edit-role-count')?.value || '0', 10);
+            return {
+                shift_role_id: roleIdRaw ? parseInt(roleIdRaw, 10) : null,
+                role_title: roleTitle,
+                required_count: requiredCount
+            };
+        });
+
+        const invalidRole = roleInputs.find((role) => !role.role_title || Number.isNaN(role.required_count) || role.required_count < 1);
+        if (invalidRole) {
+            showMessage('shifts', 'Each role requires a title and required count >= 1', 'error');
+            return;
+        }
+
+        const existingRoleIds = new Set((editingShiftSnapshot.roles || []).map(role => Number(role.shift_role_id)));
+        const submittedRoleIds = new Set(roleInputs.filter(role => role.shift_role_id).map(role => Number(role.shift_role_id)));
+        const roleIdsToDelete = Array.from(existingRoleIds).filter(roleId => !submittedRoleIds.has(roleId));
+
+        try {
+            const responses = [];
+
+            const shiftResponse = await updateShift(shiftId, updatedShiftPayload);
+            responses.push(shiftResponse);
+
+            for (const role of roleInputs) {
+                if (role.shift_role_id) {
+                    const updatedRole = await updateShiftRole(role.shift_role_id, {
+                        role_title: role.role_title,
+                        required_count: role.required_count
+                    });
+                    responses.push(updatedRole);
+                } else {
+                    await createShiftRole(shiftId, {
+                        role_title: role.role_title,
+                        required_count: role.required_count
+                    });
+                }
+            }
+
+            for (const roleId of roleIdsToDelete) {
+                const deletedRoleResponse = await deleteShiftRole(roleId);
+                responses.push(deletedRoleResponse);
+            }
+
+            const impacted = collectAffectedContacts(responses);
+            const impactedMsg = impacted.uniqueVolunteers > 0
+                ? ` ${impacted.uniqueVolunteers} volunteer(s) need reconfirmation.`
+                : '';
+            showMessage('shifts', `Shift updated successfully.${impactedMsg}`, 'success');
+
+            resetEditShiftForm();
+            await loadShiftsTable();
+            await loadCalendarShifts();
+            const myShiftsTab = document.getElementById('content-my-shifts');
+            if (myShiftsTab && myShiftsTab.classList.contains('active')) {
+                await loadMyRegisteredShifts();
+            }
+        } catch (error) {
+            showMessage('shifts', `Update failed: ${error.message}`, 'error');
+        }
+    });
+
     // Create shift form
     document.getElementById('create-shift-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1014,7 +1270,9 @@ function showMessage(target, text, type = 'info') {
 
 // Make functions globally available
 window.signupForRole = signupForRole;
-window.deleteShiftConfirm = deleteShiftConfirm;
+window.cancelShiftConfirm = cancelShiftConfirm;
+window.openEditShift = openEditShift;
 window.toggleShiftRegistrations = toggleShiftRegistrations;
 window.cancelMySignup = cancelMySignup;
+window.reconfirmMySignup = reconfirmMySignup;
 window.markSignupAttendance = markSignupAttendance;

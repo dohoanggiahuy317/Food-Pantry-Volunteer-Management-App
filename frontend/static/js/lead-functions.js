@@ -67,11 +67,12 @@ async function updateShift(shiftId, shiftData) {
 }
 
 /**
- * Delete a shift (cascades to roles and signups)
+ * Cancel a shift (soft-cancel with volunteer reconfirmation flow)
  */
 async function deleteShift(shiftId) {
     try {
-        await apiDelete(`/api/shifts/${shiftId}`);
+        const data = await apiDelete(`/api/shifts/${shiftId}`);
+        return data;
     } catch (error) {
         console.error('Failed to delete shift:', error);
         throw error;

@@ -70,6 +70,22 @@ async function cancelSignup(signupId) {
 }
 
 /**
+ * Reconfirm or cancel a pending signup after shift edits
+ */
+async function reconfirmSignup(signupId, action) {
+    try {
+        const normalizedAction = String(action || '').toUpperCase();
+        const updated = await apiPatch(`/api/signups/${signupId}/reconfirm`, {
+            action: normalizedAction
+        });
+        return updated;
+    } catch (error) {
+        console.error('Failed to reconfirm signup:', error);
+        throw error;
+    }
+}
+
+/**
  * Check if user is signed up for a specific role
  */
 async function isUserSignedUp(shiftRoleId, userId) {

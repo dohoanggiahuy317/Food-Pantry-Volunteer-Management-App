@@ -27,6 +27,12 @@ backend: StoreBackend = create_backend()
 # Mock current user (no auth yet): default to user id=4 (admin)
 DEFAULT_USER_ID = 4
 ATTENDANCE_STATUSES = {"SHOW_UP", "NO_SHOW"}
+SIGNUP_STATUS_PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
+SIGNUP_STATUS_CONFIRMED = "CONFIRMED"
+SIGNUP_STATUS_WAITLISTED = "WAITLISTED"
+SIGNUP_STATUS_CANCELLED = "CANCELLED"
+ACTIVE_SIGNUP_STATUSES = {SIGNUP_STATUS_CONFIRMED, "SHOW_UP", "NO_SHOW"}
+NON_RECONFIRMABLE_SIGNUP_STATUSES = {SIGNUP_STATUS_CANCELLED, SIGNUP_STATUS_WAITLISTED}
 
 
 @app.before_request
@@ -79,8 +85,11 @@ def get_pantry_leads(pantry_id: int) -> list[dict[str, Any]]:
     return backend.get_pantry_leads(pantry_id)
 
 
-def get_shift_roles(shift_id: int) -> list[dict[str, Any]]:
-    return backend.list_shift_roles(shift_id)
+def get_shift_roles(shift_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
+    roles = backend.list_shift_roles(shift_id)
+    if include_cancelled:
+        return roles
+    return [role for role in roles if str(role.get("status", "")).upper() != "CANCELLED"]
 
 
 def get_shift_signups(shift_role_id: int) -> list[dict[str, Any]]:
@@ -115,6 +124,178 @@ def parse_iso_datetime_to_utc(value: Any) -> datetime | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+
+def is_upcoming_shift(shift: dict[str, Any]) -> bool:
+    start_time = parse_iso_datetime_to_utc(shift.get("start_time"))
+    if not start_time:
+        return False
+    return start_time > datetime.now(timezone.utc)
+
+
+def shift_has_started(shift: dict[str, Any]) -> bool:
+    start_time = parse_iso_datetime_to_utc(shift.get("start_time"))
+    if not start_time:
+        return False
+    return datetime.now(timezone.utc) >= start_time
+
+
+def ensure_shift_manager_permission(user_id: int, shift: dict[str, Any]) -> bool:
+    if user_has_role(user_id, "ADMIN"):
+        return True
+    pantry_id = int(shift.get("pantry_id"))
+    return backend.is_pantry_lead(pantry_id, user_id)
+
+
+def should_include_cancelled_shift_data(user: dict[str, Any] | None, pantry_id: int) -> bool:
+    if not user:
+        return False
+    user_id = int(user.get("user_id"))
+    if user_has_role(user_id, "ADMIN"):
+        return True
+    return backend.is_pantry_lead(pantry_id, user_id)
+
+
+def collect_shift_signups(shift_id: int) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    rows: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for role in get_shift_roles(shift_id, include_cancelled=True):
+        role_id = int(role.get("shift_role_id"))
+        for signup in get_shift_signups(role_id):
+            rows.append((signup, role))
+    return rows
+
+
+def recalculate_shift_role_capacity(shift_role_id: int) -> dict[str, Any] | None:
+    role = backend.get_shift_role_by_id(shift_role_id)
+    if not role:
+        return None
+
+    signups = backend.list_shift_signups(shift_role_id)
+    active_count = 0
+    for signup in signups:
+        signup_status = str(signup.get("signup_status", "")).upper()
+        if signup_status in ACTIVE_SIGNUP_STATUSES:
+            active_count += 1
+
+    role_status = str(role.get("status", "OPEN")).upper()
+    required_count = int(role.get("required_count", 0))
+    if role_status == "CANCELLED":
+        next_status = "CANCELLED"
+    else:
+        next_status = "FULL" if active_count >= required_count else "OPEN"
+
+    updated = backend.update_shift_role(
+        shift_role_id,
+        {"filled_count": active_count, "status": next_status},
+    )
+    return updated
+
+
+def recalculate_shift_capacities(shift_id: int) -> None:
+    for role in get_shift_roles(shift_id, include_cancelled=True):
+        recalculate_shift_role_capacity(int(role.get("shift_role_id")))
+
+
+def affected_contacts_from_signups(signups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen_user_ids: set[int] = set()
+    contacts: list[dict[str, Any]] = []
+    for signup in signups:
+        user_id = int(signup.get("user_id"))
+        if user_id in seen_user_ids:
+            continue
+        seen_user_ids.add(user_id)
+        user = find_user_by_id(user_id)
+        if not user:
+            continue
+        contacts.append(
+            {
+                "user_id": user.get("user_id"),
+                "full_name": user.get("full_name"),
+                "email": user.get("email"),
+            }
+        )
+    return contacts
+
+
+def mark_shift_signups_pending(shift_id: int) -> dict[str, Any]:
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift or not is_upcoming_shift(shift):
+        return {"affected_signup_count": 0, "affected_volunteer_contacts": []}
+
+    changed_signups: list[dict[str, Any]] = []
+    for signup, _role in collect_shift_signups(shift_id):
+        current_status = str(signup.get("signup_status", "")).upper()
+        if current_status in NON_RECONFIRMABLE_SIGNUP_STATUSES:
+            continue
+        if current_status == SIGNUP_STATUS_PENDING_CONFIRMATION:
+            continue
+
+        updated = backend.update_signup(int(signup.get("signup_id")), SIGNUP_STATUS_PENDING_CONFIRMATION)
+        if updated:
+            changed_signups.append(updated)
+
+    recalculate_shift_capacities(shift_id)
+    contacts = affected_contacts_from_signups(changed_signups)
+    return {
+        "affected_signup_count": len(changed_signups),
+        "affected_volunteer_contacts": contacts,
+    }
+
+
+def expire_pending_signups_if_started(shift_id: int) -> int:
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift or not shift_has_started(shift):
+        return 0
+
+    expired = 0
+    for signup, _role in collect_shift_signups(shift_id):
+        signup_id = int(signup.get("signup_id"))
+        status = str(signup.get("signup_status", "")).upper()
+        if status != SIGNUP_STATUS_PENDING_CONFIRMATION:
+            continue
+        updated = backend.update_signup(signup_id, SIGNUP_STATUS_CANCELLED)
+        if updated:
+            expired += 1
+
+    if expired:
+        recalculate_shift_capacities(shift_id)
+    return expired
+
+
+def signup_reconfirm_availability(signup_row: dict[str, Any]) -> tuple[bool, str | None]:
+    signup_status = str(signup_row.get("signup_status", "")).upper()
+    if signup_status != SIGNUP_STATUS_PENDING_CONFIRMATION:
+        return False, "SIGNUP_NOT_PENDING"
+
+    shift_status = str(signup_row.get("shift_status", "")).upper()
+    if shift_status == "CANCELLED":
+        return False, "SHIFT_CANCELLED"
+
+    role_status = str(signup_row.get("role_status", "")).upper()
+    if role_status in {"CANCELLED", "FULL"}:
+        return False, "ROLE_FULL_OR_UNAVAILABLE"
+
+    start_time = parse_iso_datetime_to_utc(signup_row.get("start_time"))
+    if start_time and datetime.now(timezone.utc) >= start_time:
+        return False, "SHIFT_ALREADY_STARTED"
+
+    filled_count = int(signup_row.get("filled_count", 0))
+    required_count = int(signup_row.get("required_count", 0))
+    if filled_count >= required_count:
+        return False, "ROLE_FULL_OR_UNAVAILABLE"
+
+    return True, None
+
+
+def enrich_signup_rows_for_reconfirm(signups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for row in signups:
+        row_copy = dict(row)
+        can_reconfirm, reason = signup_reconfirm_availability(row_copy)
+        row_copy["reconfirm_available"] = can_reconfirm
+        row_copy["reconfirm_reason"] = reason
+        enriched.append(row_copy)
+    return enriched
 
 
 def get_signup_shift_context(signup_id: int) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
@@ -226,7 +407,18 @@ def list_user_signups(user_id: int) -> Any:
         return jsonify({"error": "User not found"}), 404
 
     signups = backend.list_signups_by_user(user_id)
-    return jsonify(signups)
+    unique_shift_ids = {int(row.get("shift_id")) for row in signups}
+
+    expired_any = False
+    for shift_id in unique_shift_ids:
+        expired_count = expire_pending_signups_if_started(shift_id)
+        if expired_count > 0:
+            expired_any = True
+
+    if expired_any:
+        signups = backend.list_signups_by_user(user_id)
+
+    return jsonify(enrich_signup_rows_for_reconfirm(signups))
 
 
 @app.get("/api/roles")
@@ -370,10 +562,15 @@ def remove_pantry_lead(pantry_id: int, lead_id: int) -> Any:
 
 @app.get("/api/pantries/<int:pantry_id>/shifts")
 def get_shifts(pantry_id: int) -> Any:
-    """Get all shifts for a pantry (public - no authorization required)."""
-    shifts = backend.list_shifts_by_pantry(pantry_id, include_cancelled=True)
+    """Get all shifts for a pantry."""
+    user = current_user()
+    include_cancelled = should_include_cancelled_shift_data(user, pantry_id)
+    shifts = backend.list_shifts_by_pantry(pantry_id, include_cancelled=include_cancelled)
+
     for shift in shifts:
-        shift["roles"] = get_shift_roles(int(shift.get("shift_id")))
+        shift_id = int(shift.get("shift_id"))
+        expire_pending_signups_if_started(shift_id)
+        shift["roles"] = get_shift_roles(shift_id, include_cancelled=include_cancelled)
     return jsonify(shifts)
 
 
@@ -418,12 +615,17 @@ def create_shift(pantry_id: int) -> Any:
 
 @app.get("/api/shifts/<int:shift_id>")
 def get_shift(shift_id: int) -> Any:
-    """Get a single shift with its roles (public - no authorization required)."""
+    """Get a single shift with its roles."""
     shift = backend.get_shift_by_id(shift_id)
     if not shift:
         return jsonify({"error": "Not found"}), 404
 
-    shift["roles"] = get_shift_roles(shift_id)
+    expire_pending_signups_if_started(shift_id)
+
+    user = current_user()
+    pantry_id = int(shift.get("pantry_id"))
+    include_cancelled = should_include_cancelled_shift_data(user, pantry_id)
+    shift["roles"] = get_shift_roles(shift_id, include_cancelled=include_cancelled)
     return jsonify(shift)
 
 
@@ -445,8 +647,10 @@ def get_shift_registrations(shift_id: int) -> Any:
     if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
         return jsonify({"error": "Forbidden"}), 403
 
+    expire_pending_signups_if_started(shift_id)
+
     roles_with_signups: list[dict[str, Any]] = []
-    for role in get_shift_roles(shift_id):
+    for role in get_shift_roles(shift_id, include_cancelled=True):
         role_id = int(role.get("shift_role_id"))
         signups = get_shift_signups(role_id)
 
@@ -484,23 +688,29 @@ def update_shift(shift_id: int) -> Any:
         return jsonify({"error": "Not found"}), 404
 
     user_id = int(user.get("user_id"))
-    is_admin = user_has_role(user_id, "ADMIN")
-    pantry_id = int(shift.get("pantry_id"))
-
-    if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
+    if not ensure_shift_manager_permission(user_id, shift):
         return jsonify({"error": "Forbidden"}), 403
 
     payload = request.get_json(silent=True) or {}
+    allowed_keys = {"shift_name", "start_time", "end_time", "status"}
+    payload = {key: value for key, value in payload.items() if key in allowed_keys}
+    if not payload:
+        return jsonify({"error": "No valid fields to update"}), 400
+
     updated = backend.update_shift(shift_id, payload)
     if not updated:
         return jsonify({"error": "Not found"}), 404
-    updated["roles"] = get_shift_roles(shift_id)
+
+    affected = mark_shift_signups_pending(shift_id)
+    recalculate_shift_capacities(shift_id)
+    updated["roles"] = get_shift_roles(shift_id, include_cancelled=True)
+    updated.update(affected)
     return jsonify(updated)
 
 
 @app.delete("/api/shifts/<int:shift_id>")
 def delete_shift(shift_id: int) -> Any:
-    """Delete a shift (PANTRY_LEAD or ADMIN)."""
+    """Cancel a shift (PANTRY_LEAD or ADMIN)."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
@@ -510,14 +720,18 @@ def delete_shift(shift_id: int) -> Any:
         return jsonify({"error": "Not found"}), 404
 
     user_id = int(user.get("user_id"))
-    is_admin = user_has_role(user_id, "ADMIN")
-    pantry_id = int(shift.get("pantry_id"))
-
-    if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
+    if not ensure_shift_manager_permission(user_id, shift):
         return jsonify({"error": "Forbidden"}), 403
 
-    backend.delete_shift(shift_id)
-    return jsonify({"success": True}), 200
+    updated_shift = backend.update_shift(shift_id, {"status": "CANCELLED"})
+    if not updated_shift:
+        return jsonify({"error": "Not found"}), 404
+
+    affected = mark_shift_signups_pending(shift_id)
+    recalculate_shift_capacities(shift_id)
+    updated_shift["roles"] = get_shift_roles(shift_id, include_cancelled=True)
+    updated_shift.update(affected)
+    return jsonify(updated_shift), 200
 
 
 # ========== SHIFT ROLES ==========
@@ -532,6 +746,8 @@ def create_shift_role(shift_id: int) -> Any:
     shift = backend.get_shift_by_id(shift_id)
     if not shift:
         return jsonify({"error": "Shift not found"}), 404
+    if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
+        return jsonify({"error": "Cannot add roles to a cancelled shift"}), 400
 
     user_id = int(user.get("user_id"))
     is_admin = user_has_role(user_id, "ADMIN")
@@ -577,13 +793,15 @@ def update_shift_role(shift_role_id: int) -> Any:
         return jsonify({"error": "Shift not found"}), 404
 
     user_id = int(user.get("user_id"))
-    is_admin = user_has_role(user_id, "ADMIN")
-    pantry_id = int(shift.get("pantry_id"))
-
-    if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
+    if not ensure_shift_manager_permission(user_id, shift):
         return jsonify({"error": "Forbidden"}), 403
 
     payload = request.get_json(silent=True) or {}
+    allowed_keys = {"role_title", "required_count", "status"}
+    payload = {key: value for key, value in payload.items() if key in allowed_keys}
+    if not payload:
+        return jsonify({"error": "No valid fields to update"}), 400
+
     if "required_count" in payload:
         try:
             required_count = int(payload["required_count"])
@@ -596,12 +814,18 @@ def update_shift_role(shift_role_id: int) -> Any:
     updated = backend.update_shift_role(shift_role_id, payload)
     if not updated:
         return jsonify({"error": "Not found"}), 404
+
+    shift_id = int(shift.get("shift_id"))
+    affected = mark_shift_signups_pending(shift_id)
+    recalculate_shift_role_capacity(shift_role_id)
+    updated = backend.get_shift_role_by_id(shift_role_id) or updated
+    updated.update(affected)
     return jsonify(updated)
 
 
 @app.delete("/api/shift-roles/<int:shift_role_id>")
 def delete_shift_role(shift_role_id: int) -> Any:
-    """Delete a shift role and its signups."""
+    """Delete or disable a shift role with reconfirmation behavior."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
@@ -615,14 +839,25 @@ def delete_shift_role(shift_role_id: int) -> Any:
         return jsonify({"error": "Shift not found"}), 404
 
     user_id = int(user.get("user_id"))
-    is_admin = user_has_role(user_id, "ADMIN")
-    pantry_id = int(shift.get("pantry_id"))
-
-    if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
+    if not ensure_shift_manager_permission(user_id, shift):
         return jsonify({"error": "Forbidden"}), 403
 
-    backend.delete_shift_role(shift_role_id)
-    return jsonify({"success": True}), 200
+    signups = backend.list_shift_signups(shift_role_id)
+    if not signups:
+        backend.delete_shift_role(shift_role_id)
+        return jsonify({"success": True, "affected_signup_count": 0, "affected_volunteer_contacts": []}), 200
+
+    updated_role = backend.update_shift_role(shift_role_id, {"status": "CANCELLED", "filled_count": 0})
+    affected = mark_shift_signups_pending(int(shift.get("shift_id")))
+    recalculate_shift_role_capacity(shift_role_id)
+    updated_role = backend.get_shift_role_by_id(shift_role_id) or updated_role
+
+    response = {
+        "success": True,
+        "role": updated_role,
+        **affected,
+    }
+    return jsonify(response), 200
 
 
 # ========== SHIFT SIGNUPS ==========
@@ -638,11 +873,25 @@ def create_signup(shift_role_id: int) -> Any:
     if not shift_role:
         return jsonify({"error": "Shift role not found"}), 404
 
+    shift = backend.get_shift_by_id(int(shift_role.get("shift_id")))
+    if not shift:
+        return jsonify({"error": "Shift not found"}), 404
+
+    expire_pending_signups_if_started(int(shift.get("shift_id")))
+
+    if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
+        return jsonify({"error": "Shift is cancelled"}), 400
+    if str(shift_role.get("status", "OPEN")).upper() == "CANCELLED":
+        return jsonify({"error": "Shift role is cancelled"}), 400
+
     payload = request.get_json(silent=True) or {}
     payload_user_id = payload.get("user_id")
 
-    # Users can only sign themselves up, unless authenticated (future)
-    user_id = int(payload_user_id or user.get("user_id"))
+    # Users can only sign themselves up.
+    current_user_id = int(user.get("user_id"))
+    if payload_user_id and int(payload_user_id) != current_user_id:
+        return jsonify({"error": "Users can only sign themselves up"}), 403
+    user_id = int(payload_user_id or current_user_id)
 
     try:
         signup = backend.create_signup(
@@ -657,6 +906,7 @@ def create_signup(shift_role_id: int) -> Any:
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
 
+    recalculate_shift_role_capacity(shift_role_id)
     signup["user"] = find_user_by_id(user_id)
     return jsonify(signup), 201
 
@@ -668,6 +918,7 @@ def get_signups_for_role(shift_role_id: int) -> Any:
     if not shift_role:
         return jsonify({"error": "Not found"}), 404
 
+    expire_pending_signups_if_started(int(shift_role.get("shift_id")))
     signups = get_shift_signups(shift_role_id)
     for signup in signups:
         signup["user"] = find_user_by_id(int(signup.get("user_id")))
@@ -695,6 +946,82 @@ def delete_signup(signup_id: int) -> Any:
 
     backend.delete_signup(signup_id)
     return jsonify({"success": True}), 200
+
+
+@app.patch("/api/signups/<int:signup_id>/reconfirm")
+def reconfirm_signup(signup_id: int) -> Any:
+    """Volunteer reconfirm/cancel after shift edits."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Forbidden"}), 403
+
+    signup = backend.get_signup_by_id(signup_id)
+    if not signup:
+        return jsonify({"error": "Not found"}), 404
+
+    current_user_id = int(user.get("user_id"))
+    signup_user_id = int(signup.get("user_id"))
+    is_admin = user_has_role(current_user_id, "ADMIN")
+    if current_user_id != signup_user_id and not is_admin:
+        return jsonify({"error": "Forbidden"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    action = str(payload.get("action", "")).strip().upper()
+    if action not in {"CONFIRM", "CANCEL"}:
+        return jsonify({"error": "action must be CONFIRM or CANCEL"}), 400
+
+    signup, shift_role, shift = get_signup_shift_context(signup_id)
+    if not signup:
+        return jsonify({"error": "Not found"}), 404
+    if not shift_role or not shift:
+        return jsonify({"error": "Shift context not found"}), 404
+
+    shift_id = int(shift.get("shift_id"))
+    expire_pending_signups_if_started(shift_id)
+    signup = backend.get_signup_by_id(signup_id)
+    if not signup:
+        return jsonify({"error": "Not found"}), 404
+
+    current_status = str(signup.get("signup_status", "")).upper()
+    if action == "CANCEL":
+        updated = backend.update_signup(signup_id, SIGNUP_STATUS_CANCELLED)
+        recalculate_shift_role_capacity(int(shift_role.get("shift_role_id")))
+        if not updated:
+            return jsonify({"error": "Not found"}), 404
+        return jsonify(updated), 200
+
+    if current_status != SIGNUP_STATUS_PENDING_CONFIRMATION:
+        return jsonify({"error": "Signup is not pending confirmation"}), 400
+
+    shift_role = backend.get_shift_role_by_id(int(shift_role.get("shift_role_id")))
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift_role or not shift:
+        return jsonify({"error": "Shift context not found"}), 404
+
+    if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
+        updated = backend.update_signup(signup_id, SIGNUP_STATUS_WAITLISTED)
+        recalculate_shift_role_capacity(int(shift_role.get("shift_role_id")))
+        return (
+            jsonify({"error": "ROLE_FULL_OR_UNAVAILABLE", "code": "ROLE_FULL_OR_UNAVAILABLE", "signup": updated}),
+            409,
+        )
+
+    role_status = str(shift_role.get("status", "OPEN")).upper()
+    filled_count = int(shift_role.get("filled_count", 0))
+    required_count = int(shift_role.get("required_count", 0))
+    if role_status != "OPEN" or filled_count >= required_count:
+        updated = backend.update_signup(signup_id, SIGNUP_STATUS_WAITLISTED)
+        recalculate_shift_role_capacity(int(shift_role.get("shift_role_id")))
+        return (
+            jsonify({"error": "ROLE_FULL_OR_UNAVAILABLE", "code": "ROLE_FULL_OR_UNAVAILABLE", "signup": updated}),
+            409,
+        )
+
+    updated = backend.update_signup(signup_id, SIGNUP_STATUS_CONFIRMED)
+    recalculate_shift_role_capacity(int(shift_role.get("shift_role_id")))
+    if not updated:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(updated), 200
 
 
 @app.patch("/api/signups/<int:signup_id>/attendance")
@@ -771,7 +1098,9 @@ def get_public_shifts(slug: str) -> Any:
     shifts = backend.list_shifts_by_pantry(pantry_id, include_cancelled=False)
 
     for shift in shifts:
-        shift["roles"] = get_shift_roles(int(shift.get("shift_id")))
+        shift_id = int(shift.get("shift_id"))
+        expire_pending_signups_if_started(shift_id)
+        shift["roles"] = get_shift_roles(shift_id, include_cancelled=False)
 
     return jsonify(shifts)
 

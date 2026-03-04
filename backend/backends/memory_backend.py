@@ -7,6 +7,8 @@ from typing import Any
 
 from backends.base import StoreBackend
 
+ACTIVE_SIGNUP_STATUSES = {"CONFIRMED", "SHOW_UP", "NO_SHOW"}
+
 
 def _utc_now_iso() -> str:
     return datetime.utcnow().isoformat() + "Z"
@@ -32,6 +34,24 @@ class MemoryBackend(StoreBackend):
 
     def _copy(self, row: dict[str, Any] | None) -> dict[str, Any] | None:
         return dict(row) if row else None
+
+    def _recalculate_role_capacity(self, shift_role_id: int) -> None:
+        role = next((sr for sr in self.store["shift_roles"] if sr.get("shift_role_id") == shift_role_id), None)
+        if not role:
+            return
+
+        active_count = 0
+        for signup in self.store["shift_signups"]:
+            if signup.get("shift_role_id") != shift_role_id:
+                continue
+            status = str(signup.get("signup_status", "")).upper()
+            if status in ACTIVE_SIGNUP_STATUSES:
+                active_count += 1
+
+        role["filled_count"] = active_count
+        if str(role.get("status", "OPEN")).upper() == "CANCELLED":
+            return
+        role["status"] = "FULL" if active_count >= int(role.get("required_count", 0)) else "OPEN"
 
     def _load_seed_data(self) -> None:
         if not self._data_path.exists():
@@ -258,9 +278,11 @@ class MemoryBackend(StoreBackend):
         role = next((sr for sr in self.store["shift_roles"] if sr.get("shift_role_id") == shift_role_id), None)
         if not role:
             return None
-        for key in ["role_title", "required_count", "status"]:
+        for key in ["role_title", "required_count", "status", "filled_count"]:
             if key in payload:
                 role[key] = payload[key]
+        if "required_count" in payload or "status" in payload:
+            self._recalculate_role_capacity(shift_role_id)
         return dict(role)
 
     def delete_shift_role(self, shift_role_id: int) -> None:
@@ -318,6 +340,14 @@ class MemoryBackend(StoreBackend):
         shift_role = next((sr for sr in self.store["shift_roles"] if sr.get("shift_role_id") == shift_role_id), None)
         if not shift_role:
             raise LookupError("Shift role not found")
+        if str(shift_role.get("status", "OPEN")).upper() == "CANCELLED":
+            raise RuntimeError("This role is unavailable")
+
+        shift = next((s for s in self.store["shifts"] if s.get("shift_id") == int(shift_role.get("shift_id"))), None)
+        if not shift:
+            raise LookupError("Shift not found")
+        if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
+            raise RuntimeError("This shift is cancelled")
 
         if any(
             ss.get("shift_role_id") == shift_role_id and ss.get("user_id") == user_id
@@ -325,7 +355,8 @@ class MemoryBackend(StoreBackend):
         ):
             raise ValueError("Already signed up")
 
-        if shift_role.get("filled_count", 0) >= shift_role.get("required_count", 0):
+        self._recalculate_role_capacity(shift_role_id)
+        if int(shift_role.get("filled_count", 0)) >= int(shift_role.get("required_count", 0)):
             raise RuntimeError("This role is full")
 
         signup = {
@@ -337,10 +368,7 @@ class MemoryBackend(StoreBackend):
         }
         self.next_signup_id += 1
         self.store["shift_signups"].append(signup)
-
-        shift_role["filled_count"] = shift_role.get("filled_count", 0) + 1
-        if shift_role["filled_count"] >= shift_role.get("required_count", 0):
-            shift_role["status"] = "FULL"
+        self._recalculate_role_capacity(shift_role_id)
 
         return dict(signup)
 
@@ -351,18 +379,14 @@ class MemoryBackend(StoreBackend):
 
         shift_role_id = signup.get("shift_role_id")
         self.store["shift_signups"] = [ss for ss in self.store["shift_signups"] if ss.get("signup_id") != signup_id]
-
-        shift_role = next((sr for sr in self.store["shift_roles"] if sr.get("shift_role_id") == shift_role_id), None)
-        if shift_role:
-            shift_role["filled_count"] = max(0, shift_role.get("filled_count", 0) - 1)
-            if shift_role["filled_count"] < shift_role.get("required_count", 0):
-                shift_role["status"] = "OPEN"
+        self._recalculate_role_capacity(int(shift_role_id))
 
     def update_signup(self, signup_id: int, signup_status: str) -> dict[str, Any] | None:
         signup = next((ss for ss in self.store["shift_signups"] if ss.get("signup_id") == signup_id), None)
         if not signup:
             return None
         signup["signup_status"] = signup_status
+        self._recalculate_role_capacity(int(signup.get("shift_role_id")))
         return dict(signup)
 
     def is_empty(self) -> bool:

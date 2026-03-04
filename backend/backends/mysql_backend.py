@@ -8,6 +8,8 @@ from mysql.connector import IntegrityError
 from backends.base import StoreBackend
 from db.mysql import get_connection
 
+ACTIVE_SIGNUP_STATUSES = ("CONFIRMED", "SHOW_UP", "NO_SHOW")
+
 
 def _now_utc_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -88,6 +90,37 @@ def _serialize_signup(row: dict[str, Any]) -> dict[str, Any]:
 
 
 class MySQLBackend(StoreBackend):
+    def _recalculate_role_capacity(self, cursor: Any, shift_role_id: int) -> None:
+        cursor.execute(
+            "SELECT required_count, status FROM shift_roles WHERE shift_role_id = %s FOR UPDATE",
+            (shift_role_id,),
+        )
+        role_row = cursor.fetchone()
+        if not role_row:
+            return
+
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS active_count
+            FROM shift_signups
+            WHERE shift_role_id = %s
+              AND UPPER(signup_status) IN ('CONFIRMED', 'SHOW_UP', 'NO_SHOW')
+            """,
+            (shift_role_id,),
+        )
+        active_count = int(cursor.fetchone()["active_count"])
+        required_count = int(role_row["required_count"])
+        role_status = str(role_row["status"]).upper()
+        if role_status == "CANCELLED":
+            next_status = "CANCELLED"
+        else:
+            next_status = "FULL" if active_count >= required_count else "OPEN"
+
+        cursor.execute(
+            "UPDATE shift_roles SET filled_count = %s, status = %s WHERE shift_role_id = %s",
+            (active_count, next_status, shift_role_id),
+        )
+
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -450,6 +483,9 @@ class MySQLBackend(StoreBackend):
         if "status" in payload:
             updates.append("status = %s")
             values.append(payload["status"])
+        if "filled_count" in payload:
+            updates.append("filled_count = %s")
+            values.append(int(payload["filled_count"]))
 
         if updates:
             values.append(shift_role_id)
@@ -555,6 +591,21 @@ class MySQLBackend(StoreBackend):
             if not role_row:
                 conn.rollback()
                 raise LookupError("Shift role not found")
+            if str(role_row["status"]).upper() == "CANCELLED":
+                conn.rollback()
+                raise RuntimeError("This role is unavailable")
+
+            cursor.execute(
+                "SELECT status FROM shifts WHERE shift_id = %s",
+                (int(role_row["shift_id"]),),
+            )
+            shift_row = cursor.fetchone()
+            if not shift_row:
+                conn.rollback()
+                raise LookupError("Shift not found")
+            if str(shift_row["status"]).upper() == "CANCELLED":
+                conn.rollback()
+                raise RuntimeError("This shift is cancelled")
 
             cursor.execute(
                 "SELECT 1 FROM shift_signups WHERE shift_role_id = %s AND user_id = %s",
@@ -564,7 +615,16 @@ class MySQLBackend(StoreBackend):
                 conn.rollback()
                 raise ValueError("Already signed up")
 
-            filled_count = int(role_row["filled_count"])
+            cursor.execute(
+                """
+                SELECT COUNT(*) AS active_count
+                FROM shift_signups
+                WHERE shift_role_id = %s
+                  AND UPPER(signup_status) IN ('CONFIRMED', 'SHOW_UP', 'NO_SHOW')
+                """,
+                (shift_role_id,),
+            )
+            filled_count = int(cursor.fetchone()["active_count"])
             required_count = int(role_row["required_count"])
             if filled_count >= required_count:
                 conn.rollback()
@@ -582,12 +642,7 @@ class MySQLBackend(StoreBackend):
                 conn.rollback()
                 raise ValueError("Already signed up")
 
-            new_filled = filled_count + 1
-            new_status = "FULL" if new_filled >= required_count else "OPEN"
-            cursor.execute(
-                "UPDATE shift_roles SET filled_count = %s, status = %s WHERE shift_role_id = %s",
-                (new_filled, new_status, shift_role_id),
-            )
+            self._recalculate_role_capacity(cursor, shift_role_id)
             signup_id = int(cursor.lastrowid)
             conn.commit()
 
@@ -613,25 +668,32 @@ class MySQLBackend(StoreBackend):
             role_row = cursor.fetchone()
 
             cursor.execute("DELETE FROM shift_signups WHERE signup_id = %s", (signup_id,))
-
             if role_row:
-                required_count = int(role_row["required_count"])
-                new_filled = max(0, int(role_row["filled_count"]) - 1)
-                new_status = "FULL" if new_filled >= required_count else "OPEN"
-                cursor.execute(
-                    "UPDATE shift_roles SET filled_count = %s, status = %s WHERE shift_role_id = %s",
-                    (new_filled, new_status, shift_role_id),
-                )
+                self._recalculate_role_capacity(cursor, shift_role_id)
 
             conn.commit()
 
     def update_signup(self, signup_id: int, signup_status: str) -> dict[str, Any] | None:
         with get_connection() as conn:
-            cursor = conn.cursor()
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM shift_signups WHERE signup_id = %s FOR UPDATE", (signup_id,))
+            signup_row = cursor.fetchone()
+            if not signup_row:
+                conn.rollback()
+                return None
+
+            shift_role_id = int(signup_row["shift_role_id"])
+            cursor.execute("SELECT * FROM shift_roles WHERE shift_role_id = %s FOR UPDATE", (shift_role_id,))
+            role_row = cursor.fetchone()
+            if not role_row:
+                conn.rollback()
+                return None
+
             cursor.execute(
                 "UPDATE shift_signups SET signup_status = %s WHERE signup_id = %s",
                 (signup_status, signup_id),
             )
+            self._recalculate_role_capacity(cursor, shift_role_id)
             conn.commit()
         return self.get_signup_by_id(signup_id)
 

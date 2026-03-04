@@ -529,6 +529,16 @@ table tr:hover {
     color: #22543d;
 }
 
+.signup-status-pending-confirmation {
+    background: #fefcbf;
+    color: #744210;
+}
+
+.signup-status-waitlisted {
+    background: #e9d8fd;
+    color: #553c9a;
+}
+
 .signup-status-no-show {
     background: #feebc8;
     color: #7b341e;
@@ -562,6 +572,19 @@ table tr:hover {
 
 .my-shift-actions {
     margin-top: 0.75rem;
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.reconfirm-note {
+    font-size: 0.8rem;
+    color: #975a16;
+    background: #fefcbf;
+    border: 1px solid #ecc94b;
+    border-radius: 8px;
+    padding: 0.35rem 0.55rem;
 }
 
 .my-shift-empty,
