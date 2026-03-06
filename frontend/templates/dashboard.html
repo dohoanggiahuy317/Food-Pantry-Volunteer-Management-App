@@ -77,110 +77,188 @@
 
         <!-- Manage Shifts Tab (Admin Only) -->
         <div class="tab-content" id="content-shifts">
-            <!-- Create Shift Form -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Create New Shift</h2>
-                </div>
-                <div id="message-shifts" class="message"></div>
-                <form id="create-shift-form">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="shift-name">Shift Name *</label>
-                            <input type="text" id="shift-name" name="shift_name" placeholder="e.g., Food Distribution"
-                                required>
-                        </div>
-                        <div class="form-group">
-                            <label for="shift-start">Start Time *</label>
-                            <input type="datetime-local" id="shift-start" name="start_time" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="shift-end">End Time *</label>
-                            <input type="datetime-local" id="shift-end" name="end_time" required>
-                        </div>
-                    </div>
+            <div id="message-shifts" class="message"></div>
 
-                    <div class="card" style="background: #f7fafc; margin-bottom: 1rem;">
-                        <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
-                            <h3 style="font-size: 1rem; color: #4a5568;">Roles/Positions for this Shift</h3>
-                            <button type="button" class="btn btn-secondary" id="add-role-btn">+ Add Role</button>
+            <div class="manage-shifts-subtabs" id="manage-shifts-subtabs">
+                <button class="manage-shifts-subtab active" type="button" data-manage-subtab="create">Create Shifts</button>
+                <button class="manage-shifts-subtab" type="button" data-manage-subtab="view">Shifts View</button>
+            </div>
+
+            <div class="manage-shifts-subcontent active" id="manage-shifts-subcontent-create">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Create New Shift</h2>
+                    </div>
+                    <form id="create-shift-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="shift-name">Shift Name *</label>
+                                <input type="text" id="shift-name" name="shift_name" placeholder="e.g., Food Distribution"
+                                    required>
+                            </div>
+                            <div class="form-group">
+                                <label for="shift-start">Start Time *</label>
+                                <input type="datetime-local" id="shift-start" name="start_time" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="shift-end">End Time *</label>
+                                <input type="datetime-local" id="shift-end" name="end_time" required>
+                            </div>
                         </div>
-                        <div id="roles-container">
-                            <div class="role-input-group">
-                                <div class="form-grid">
-                                    <div class="form-group">
-                                        <label>Role Title *</label>
-                                        <input type="text" class="role-title" placeholder="e.g., Greeter" required>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>Required Count *</label>
-                                        <input type="number" class="role-count" min="1" value="1" required>
+
+                        <div class="card" style="background: #f7fafc; margin-bottom: 1rem;">
+                            <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
+                                <h3 style="font-size: 1rem; color: #4a5568;">Roles/Positions for this Shift</h3>
+                                <button type="button" class="btn btn-secondary" id="add-role-btn">+ Add Role</button>
+                            </div>
+                            <div id="roles-container">
+                                <div class="role-input-group">
+                                    <div class="form-grid">
+                                        <div class="form-group">
+                                            <label>Role Title *</label>
+                                            <input type="text" class="role-title" placeholder="e.g., Greeter" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Required Count *</label>
+                                            <input type="number" class="role-count" min="1" value="1" required>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <button type="submit" class="btn btn-primary">✓ Create Shift with Roles</button>
-                </form>
+                        <button type="submit" class="btn btn-primary">✓ Create Shift with Roles</button>
+                    </form>
+                </div>
             </div>
 
-            <!-- Edit Shift Form -->
-            <div class="card" id="edit-shift-card" style="display: none;">
-                <div class="card-header">
-                    <h2 class="card-title">Edit Shift</h2>
-                    <button type="button" class="btn btn-secondary" id="cancel-edit-shift-btn">Cancel Edit</button>
+            <div class="manage-shifts-subcontent" id="manage-shifts-subcontent-view">
+                <div class="card" id="edit-shift-card" style="display: none;">
+                    <div class="card-header">
+                        <h2 class="card-title">Edit Shift</h2>
+                        <button type="button" class="btn btn-secondary" id="cancel-edit-shift-btn">Cancel Edit</button>
+                    </div>
+                    <form id="edit-shift-form">
+                        <input type="hidden" id="edit-shift-id">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="edit-shift-name">Shift Name *</label>
+                                <input type="text" id="edit-shift-name" name="shift_name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-shift-start">Start Time *</label>
+                                <input type="datetime-local" id="edit-shift-start" name="start_time" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit-shift-end">End Time *</label>
+                                <input type="datetime-local" id="edit-shift-end" name="end_time" required>
+                            </div>
+                        </div>
+
+                        <div class="card" style="background: #f7fafc; margin-bottom: 1rem;">
+                            <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
+                                <h3 style="font-size: 1rem; color: #4a5568;">Roles/Positions for this Shift</h3>
+                                <button type="button" class="btn btn-secondary" id="add-edit-role-btn">+ Add Role</button>
+                            </div>
+                            <div id="edit-roles-container"></div>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">✓ Save Shift Changes</button>
+                    </form>
                 </div>
-                <form id="edit-shift-form">
-                    <input type="hidden" id="edit-shift-id">
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="edit-shift-name">Shift Name *</label>
-                            <input type="text" id="edit-shift-name" name="shift_name" required>
+
+                <div class="shift-view-sections">
+                    <div class="card shift-view-section">
+                        <div class="card-header">
+                            <h2 class="card-title">Incoming Shifts</h2>
                         </div>
-                        <div class="form-group">
-                            <label for="edit-shift-start">Start Time *</label>
-                            <input type="datetime-local" id="edit-shift-start" name="start_time" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="edit-shift-end">End Time *</label>
-                            <input type="datetime-local" id="edit-shift-end" name="end_time" required>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Shift Name</th>
+                                        <th>Date & Time</th>
+                                        <th>Roles</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shifts-incoming-table-body">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; color: #718096;">No incoming shifts.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
-                    <div class="card" style="background: #f7fafc; margin-bottom: 1rem;">
-                        <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
-                            <h3 style="font-size: 1rem; color: #4a5568;">Roles/Positions for this Shift</h3>
-                            <button type="button" class="btn btn-secondary" id="add-edit-role-btn">+ Add Role</button>
+                    <div class="card shift-view-section">
+                        <div class="card-header">
+                            <h2 class="card-title">Ongoing Shifts</h2>
                         </div>
-                        <div id="edit-roles-container"></div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Shift Name</th>
+                                        <th>Date & Time</th>
+                                        <th>Roles</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shifts-ongoing-table-body">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; color: #718096;">No ongoing shifts.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">✓ Save Shift Changes</button>
-                </form>
-            </div>
+                    <div class="card shift-view-section">
+                        <div class="card-header">
+                            <h2 class="card-title">Past Shifts</h2>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Shift Name</th>
+                                        <th>Date & Time</th>
+                                        <th>Roles</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shifts-past-table-body">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; color: #718096;">No past shifts.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
-            <!-- List Existing Shifts -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Existing Shifts</h2>
-                </div>
-                <div class="table-container">
-                    <table id="shifts-table">
-                        <thead>
-                            <tr>
-                                <th>Shift Name</th>
-                                <th>Date & Time</th>
-                                <th>Roles</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="shifts-table-body">
-                            <tr>
-                                <td colspan="4" style="text-align: center; color: #718096;">No shifts created yet</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="card shift-view-section">
+                        <div class="card-header">
+                            <h2 class="card-title">Canceled Shifts</h2>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Shift Name</th>
+                                        <th>Date & Time</th>
+                                        <th>Roles</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shifts-cancelled-table-body">
+                                    <tr>
+                                        <td colspan="4" style="text-align: center; color: #718096;">No canceled shifts.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
