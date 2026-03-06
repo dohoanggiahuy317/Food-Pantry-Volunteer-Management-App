@@ -15,6 +15,20 @@ async function getShifts(pantryId) {
 }
 
 /**
+ * Get all shifts for a pantry without expire
+ * Returns shifts with nested shift_roles
+ */
+async function getShiftsWithoutExpire(pantryId) {
+    try {
+        const shifts = await apiGet(`/api/pantries/valid/${pantryId}/shifts`);
+        return shifts;
+    } catch (error) {
+        console.error('Failed to get shifts:', error);
+        throw error;
+    }
+}
+
+/**
  * Get specific shift by ID
  */
 async function getShift(shiftId) {

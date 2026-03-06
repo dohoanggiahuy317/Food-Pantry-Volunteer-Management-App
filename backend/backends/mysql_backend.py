@@ -353,6 +353,21 @@ class MySQLBackend(StoreBackend):
             cursor.execute("SELECT * FROM shifts WHERE shift_id = %s", (shift_id,))
             row = cursor.fetchone()
             return _serialize_shift(row) if row else None
+    
+    def list_shifts_pantries_without_expired(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
+            with get_connection() as conn:
+                cursor = conn.cursor(dictionary=True)
+                if include_cancelled:
+                    cursor.execute(
+                        "SELECT * FROM shifts WHERE pantry_id = %s AND end_time >= NOW() ORDER BY shift_id",
+                        (pantry_id,),
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT * FROM shifts WHERE pantry_id = %s AND status != 'CANCELLED' ORDER BY shift_id",
+                        (pantry_id,),
+                    )
+                return [_serialize_shift(row) for row in cursor.fetchall()]
 
     def create_shift(
         self,

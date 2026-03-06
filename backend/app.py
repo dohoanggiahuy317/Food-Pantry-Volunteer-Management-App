@@ -484,6 +484,8 @@ def list_all_pantries() -> Any:
     return jsonify(pantries)
 
 
+
+
 @app.get("/api/pantries/<int:pantry_id>")
 def get_pantry(pantry_id: int) -> Any:
     """Get pantry by ID (public - no authorization required)."""
@@ -583,6 +585,15 @@ def get_shifts(pantry_id: int) -> Any:
         shift_id = int(shift.get("shift_id"))
         expire_pending_signups_if_started(shift_id)
         shift["roles"] = get_shift_roles(shift_id, include_cancelled=include_cancelled)
+    return jsonify(shifts)
+
+@app.get("/api/pantries/valid/<int:pantry_id>/shifts")
+def get_shifts_valid(pantry_id: int) -> Any:
+    """Get all shifts for a pantry (public - no authorization required)."""
+    shifts = backend.list_shifts_pantries_without_expired(pantry_id, include_cancelled=True)
+    for shift in shifts:
+        shift["roles"] = get_shift_roles(int(shift.get("shift_id")))
+    
     return jsonify(shifts)
 
 

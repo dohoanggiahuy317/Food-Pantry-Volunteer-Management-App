@@ -177,7 +177,7 @@ async function loadCalendarShifts() {
 
         for (const pantry of allPublicPantries) {
             try {
-                const shifts = await getShifts(pantry.pantry_id);
+                const shifts = await getShiftsWithoutExpire(pantry.pantry_id);
 
                 if (shifts && shifts.length > 0) {
                     for (const shift of shifts) {
