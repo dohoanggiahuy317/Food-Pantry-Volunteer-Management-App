@@ -31,6 +31,7 @@ SIGNUP_STATUS_PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
 SIGNUP_STATUS_CONFIRMED = "CONFIRMED"
 SIGNUP_STATUS_WAITLISTED = "WAITLISTED"
 SIGNUP_STATUS_CANCELLED = "CANCELLED"
+PAST_SHIFT_LOCK_CODE = "PAST_SHIFT_LOCKED"
 ACTIVE_SIGNUP_STATUSES = {SIGNUP_STATUS_CONFIRMED, "SHOW_UP", "NO_SHOW"}
 NON_RECONFIRMABLE_SIGNUP_STATUSES = {SIGNUP_STATUS_CANCELLED, SIGNUP_STATUS_WAITLISTED}
 
@@ -138,6 +139,17 @@ def shift_has_started(shift: dict[str, Any]) -> bool:
     if not start_time:
         return False
     return datetime.now(timezone.utc) >= start_time
+
+
+def shift_has_ended(shift: dict[str, Any]) -> bool:
+    end_time = parse_iso_datetime_to_utc(shift.get("end_time"))
+    if not end_time:
+        return False
+    return datetime.now(timezone.utc) >= end_time
+
+
+def past_shift_locked_response() -> tuple[Any, int]:
+    return jsonify({"error": "Past shifts are locked", "code": PAST_SHIFT_LOCK_CODE}), 409
 
 
 def ensure_shift_manager_permission(user_id: int, shift: dict[str, Any]) -> bool:
@@ -690,6 +702,8 @@ def update_shift(shift_id: int) -> Any:
     user_id = int(user.get("user_id"))
     if not ensure_shift_manager_permission(user_id, shift):
         return jsonify({"error": "Forbidden"}), 403
+    if shift_has_ended(shift):
+        return past_shift_locked_response()
 
     payload = request.get_json(silent=True) or {}
     allowed_keys = {"shift_name", "start_time", "end_time", "status"}
@@ -722,6 +736,8 @@ def delete_shift(shift_id: int) -> Any:
     user_id = int(user.get("user_id"))
     if not ensure_shift_manager_permission(user_id, shift):
         return jsonify({"error": "Forbidden"}), 403
+    if shift_has_ended(shift):
+        return past_shift_locked_response()
 
     updated_shift = backend.update_shift(shift_id, {"status": "CANCELLED"})
     if not updated_shift:
@@ -746,8 +762,6 @@ def create_shift_role(shift_id: int) -> Any:
     shift = backend.get_shift_by_id(shift_id)
     if not shift:
         return jsonify({"error": "Shift not found"}), 404
-    if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
-        return jsonify({"error": "Cannot add roles to a cancelled shift"}), 400
 
     user_id = int(user.get("user_id"))
     is_admin = user_has_role(user_id, "ADMIN")
@@ -755,6 +769,10 @@ def create_shift_role(shift_id: int) -> Any:
 
     if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
         return jsonify({"error": "Forbidden"}), 403
+    if shift_has_ended(shift):
+        return past_shift_locked_response()
+    if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
+        return jsonify({"error": "Cannot add roles to a cancelled shift"}), 400
 
     payload = request.get_json(silent=True) or {}
     required = ["role_title", "required_count"]
@@ -795,6 +813,8 @@ def update_shift_role(shift_role_id: int) -> Any:
     user_id = int(user.get("user_id"))
     if not ensure_shift_manager_permission(user_id, shift):
         return jsonify({"error": "Forbidden"}), 403
+    if shift_has_ended(shift):
+        return past_shift_locked_response()
 
     payload = request.get_json(silent=True) or {}
     allowed_keys = {"role_title", "required_count", "status"}
@@ -841,6 +861,8 @@ def delete_shift_role(shift_role_id: int) -> Any:
     user_id = int(user.get("user_id"))
     if not ensure_shift_manager_permission(user_id, shift):
         return jsonify({"error": "Forbidden"}), 403
+    if shift_has_ended(shift):
+        return past_shift_locked_response()
 
     signups = backend.list_shift_signups(shift_role_id)
     if not signups:

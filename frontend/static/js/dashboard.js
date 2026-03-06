@@ -3,9 +3,10 @@ let currentUser = null;
 let currentPantryId = null;
 let allPantries = [];
 let allPublicPantries = [];
-let expandedShiftId = null;
+let expandedShiftContext = null;
 let registrationsCache = {};
 let editingShiftSnapshot = null;
+let activeManageShiftsSubtab = 'create';
 
 // Wait for all scripts to load before initializing
 window.addEventListener('load', async function () {
@@ -388,6 +389,61 @@ function sortByDate(a, b, field, direction = 'asc') {
     return direction === 'asc' ? aMs - bMs : bMs - aMs;
 }
 
+function classifyManagedShiftBucket(shift, now = new Date()) {
+    const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
+    const start = safeDateValue(shift.start_time);
+    const end = safeDateValue(shift.end_time);
+    if (!start || !end) return 'past';
+
+    // Cancelled shifts that already ended should be treated as past (locked),
+    // not actionable cancelled shifts.
+    if (shiftStatus === 'CANCELLED') {
+        return end <= now ? 'past' : 'cancelled';
+    }
+
+    if (start > now) return 'incoming';
+    if (start <= now && now < end) return 'ongoing';
+    return 'past';
+}
+
+function getManagedShiftBuckets(shifts, now = new Date()) {
+    const buckets = {
+        incoming: [],
+        ongoing: [],
+        past: [],
+        cancelled: [],
+    };
+
+    shifts.forEach((shift) => {
+        const bucket = classifyManagedShiftBucket(shift, now);
+        buckets[bucket].push(shift);
+    });
+
+    buckets.incoming.sort((a, b) => sortByDate(a, b, 'start_time', 'asc'));
+    buckets.ongoing.sort((a, b) => sortByDate(a, b, 'end_time', 'asc'));
+    buckets.past.sort((a, b) => sortByDate(a, b, 'end_time', 'desc'));
+    buckets.cancelled.sort((a, b) => sortByDate(a, b, 'start_time', 'desc'));
+    return buckets;
+}
+
+function setManageShiftsSubtab(target) {
+    const normalized = target === 'view' ? 'view' : 'create';
+    activeManageShiftsSubtab = normalized;
+
+    document.querySelectorAll('.manage-shifts-subtab').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.manageSubtab === normalized);
+    });
+
+    const createContent = document.getElementById('manage-shifts-subcontent-create');
+    const viewContent = document.getElementById('manage-shifts-subcontent-view');
+    if (createContent) {
+        createContent.classList.toggle('active', normalized === 'create');
+    }
+    if (viewContent) {
+        viewContent.classList.toggle('active', normalized === 'view');
+    }
+}
+
 function formatShiftRange(startTime, endTime) {
     const start = safeDateValue(startTime);
     const end = safeDateValue(endTime);
@@ -622,8 +678,11 @@ async function markSignupAttendance(signupId, attendanceStatus, shiftId) {
             delete registrationsCache[shiftId];
         }
 
-        if (expandedShiftId === shiftId) {
-            const detailsRow = document.querySelector('.shift-registrations-row');
+        if (expandedShiftContext && expandedShiftContext.shiftId === shiftId) {
+            const activeTbody = document.getElementById(expandedShiftContext.tbodyId);
+            const detailsRow = activeTbody
+                ? activeTbody.querySelector(`.shift-registrations-row[data-shift-id="${shiftId}"]`)
+                : null;
             if (detailsRow) {
                 const refreshedRegistrations = await getShiftRegistrations(shiftId);
                 registrationsCache[shiftId] = refreshedRegistrations;
@@ -734,39 +793,48 @@ function renderRegistrationsRowContent(shiftRegistrations) {
 }
 
 async function toggleShiftRegistrations(shiftId, buttonEl) {
-    const tbody = document.getElementById('shifts-table-body');
+    const tbody = buttonEl ? buttonEl.closest('tbody') : null;
     if (!tbody) return;
+    const tbodyId = tbody.id;
 
     const targetRow = tbody.querySelector(`tr[data-shift-id="${shiftId}"]`);
     if (!targetRow) return;
 
-    const previousExpandedShiftId = expandedShiftId;
-    const isTogglingSameShift = previousExpandedShiftId === shiftId;
+    const isTogglingSameShift = expandedShiftContext
+        && expandedShiftContext.shiftId === shiftId
+        && expandedShiftContext.tbodyId === tbodyId;
 
-    const existingDetailsRow = tbody.querySelector('.shift-registrations-row');
-    if (existingDetailsRow) {
-        existingDetailsRow.remove();
-    }
+    if (expandedShiftContext) {
+        const previousTbody = document.getElementById(expandedShiftContext.tbodyId);
+        if (previousTbody) {
+            const previousDetailsRow = previousTbody.querySelector(`.shift-registrations-row[data-shift-id="${expandedShiftContext.shiftId}"]`);
+            if (previousDetailsRow) {
+                previousDetailsRow.remove();
+            }
 
-    if (previousExpandedShiftId !== null) {
-        const previousButton = tbody.querySelector(`button[data-registrations-btn="${previousExpandedShiftId}"]`);
-        if (previousButton) {
-            previousButton.textContent = 'View Registrations';
+            const previousButton = previousTbody.querySelector(`button[data-registrations-btn="${expandedShiftContext.shiftId}"]`);
+            if (previousButton) {
+                previousButton.textContent = 'View Registrations';
+            }
         }
     }
 
     if (isTogglingSameShift) {
-        expandedShiftId = null;
+        expandedShiftContext = null;
         return;
     }
 
-    expandedShiftId = shiftId;
+    expandedShiftContext = {
+        shiftId,
+        tbodyId,
+    };
     if (buttonEl) {
         buttonEl.textContent = 'Hide Registrations';
     }
 
     const detailsRow = document.createElement('tr');
     detailsRow.className = 'shift-registrations-row';
+    detailsRow.dataset.shiftId = String(shiftId);
     detailsRow.innerHTML = `
         <td colspan="4">
             <div class="shift-registrations shift-registrations-loading">Loading registrations...</div>
@@ -779,11 +847,11 @@ async function toggleShiftRegistrations(shiftId, buttonEl) {
             registrationsCache[shiftId] = await getShiftRegistrations(shiftId);
         }
 
-        if (expandedShiftId !== shiftId) return;
+        if (!expandedShiftContext || expandedShiftContext.shiftId !== shiftId || expandedShiftContext.tbodyId !== tbodyId) return;
         detailsRow.innerHTML = `<td colspan="4">${renderRegistrationsRowContent(registrationsCache[shiftId])}</td>`;
     } catch (error) {
         console.error('Failed to load registrations:', error);
-        if (expandedShiftId !== shiftId) return;
+        if (!expandedShiftContext || expandedShiftContext.shiftId !== shiftId || expandedShiftContext.tbodyId !== tbodyId) return;
 
         detailsRow.innerHTML = `
             <td colspan="4">
@@ -796,57 +864,121 @@ async function toggleShiftRegistrations(shiftId, buttonEl) {
     }
 }
 
+function collapseExpandedRegistrations() {
+    if (!expandedShiftContext) return;
+
+    const previousTbody = document.getElementById(expandedShiftContext.tbodyId);
+    if (previousTbody) {
+        const previousDetailsRow = previousTbody.querySelector(`.shift-registrations-row[data-shift-id="${expandedShiftContext.shiftId}"]`);
+        if (previousDetailsRow) {
+            previousDetailsRow.remove();
+        }
+
+        const previousButton = previousTbody.querySelector(`button[data-registrations-btn="${expandedShiftContext.shiftId}"]`);
+        if (previousButton) {
+            previousButton.textContent = 'View Registrations';
+        }
+    }
+
+    expandedShiftContext = null;
+}
+
+function setShiftBucketEmptyState(tbody, text) {
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #718096;">${escapeHtml(text)}</td></tr>`;
+}
+
+function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    const isPastBucket = bucketKey === 'past';
+
+    if (!shifts || shifts.length === 0) {
+        setShiftBucketEmptyState(tbody, emptyText);
+        return;
+    }
+
+    shifts.forEach((shift) => {
+        const startDate = safeDateValue(shift.start_time);
+        const endDate = safeDateValue(shift.end_time);
+        const timeText = startDate && endDate
+            ? `${startDate.toLocaleString()} - ${endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : 'Time unavailable';
+        const rolesText = shift.roles && shift.roles.length > 0
+            ? shift.roles.map((role) => `${escapeHtml(role.role_title || 'Untitled Role')} (${role.filled_count || 0}/${role.required_count || 0})`).join(', ')
+            : 'No roles';
+        const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
+        const lockHint = 'Past shifts are locked';
+        const registrationsButton = `<button
+                        class="btn btn-secondary"
+                        data-registrations-btn="${shift.shift_id}"
+                        onclick="toggleShiftRegistrations(${shift.shift_id}, this)"
+                        style="padding: 0.5rem 1rem; font-size: 0.875rem;"
+                    >
+                        View Registrations
+                    </button>`;
+        const editButton = isPastBucket
+            ? `<button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;" disabled title="${lockHint}">Edit</button>`
+            : `<button class="btn btn-primary" onclick="openEditShift(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Edit</button>`;
+        let actionButton = '';
+        if (isPastBucket) {
+            actionButton = `<button class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;" disabled title="${lockHint}">Locked</button>`;
+        } else if (shiftStatus === 'CANCELLED') {
+            actionButton = `<button class="btn btn-success" onclick="revokeShiftConfirm(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Revoke</button>`;
+        } else {
+            actionButton = `<button class="btn btn-danger" onclick="cancelShiftConfirm(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Cancel Shift</button>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.dataset.shiftId = String(shift.shift_id);
+        tr.innerHTML = `
+            <td><strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span></td>
+            <td>${escapeHtml(timeText)}</td>
+            <td>${rolesText}</td>
+            <td>
+                <div class="shift-actions">
+                    ${registrationsButton}
+                    ${editButton}
+                    ${actionButton}
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
 // Load shifts table (admin)
 async function loadShiftsTable() {
-    if (!currentPantryId) return;
+    const incomingTbody = document.getElementById('shifts-incoming-table-body');
+    const ongoingTbody = document.getElementById('shifts-ongoing-table-body');
+    const pastTbody = document.getElementById('shifts-past-table-body');
+    const cancelledTbody = document.getElementById('shifts-cancelled-table-body');
 
     try {
-        expandedShiftId = null;
+        collapseExpandedRegistrations();
         registrationsCache = {};
 
-        const shifts = await getShifts(currentPantryId);
-        const tbody = document.getElementById('shifts-table-body');
-        tbody.innerHTML = '';
-
-        if (shifts.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #718096;">No shifts created yet</td></tr>';
+        if (!currentPantryId) {
+            setShiftBucketEmptyState(incomingTbody, 'Please select a pantry first.');
+            setShiftBucketEmptyState(ongoingTbody, 'Please select a pantry first.');
+            setShiftBucketEmptyState(pastTbody, 'Please select a pantry first.');
+            setShiftBucketEmptyState(cancelledTbody, 'Please select a pantry first.');
             return;
         }
 
-        shifts.forEach(shift => {
-            console.log('Shift data for table:', shift);
-            const startDate = new Date(shift.start_time);
-            const endDate = new Date(shift.end_time);
-            const rolesText = shift.roles && shift.roles.length > 0
-                ? shift.roles.map(r => `${r.role_title} (${r.filled_count || 0}/${r.required_count})`).join(', ')
-                : 'No roles';
-            const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
-
-            const tr = document.createElement('tr');
-            tr.dataset.shiftId = String(shift.shift_id);
-            tr.innerHTML = `
-                        <td><strong>${shift.shift_name}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${shiftStatus}</span></td>
-                        <td>${startDate.toLocaleString()} - ${endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                        <td>${rolesText}</td>
-                        <td>
-                            <div class="shift-actions">
-                                <button
-                                    class="btn btn-secondary"
-                                    data-registrations-btn="${shift.shift_id}"
-                                    onclick="toggleShiftRegistrations(${shift.shift_id}, this)"
-                                    style="padding: 0.5rem 1rem; font-size: 0.875rem;"
-                                >
-                                    View Registrations
-                                </button>
-                                <button class="btn btn-primary" onclick="openEditShift(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Edit</button>
-                                <button class="btn btn-danger" onclick="cancelShiftConfirm(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;" ${shiftStatus === 'CANCELLED' ? 'disabled' : ''}>Cancel Shift</button>
-                            </div>
-                        </td>
-                    `;
-            tbody.appendChild(tr);
-        });
+        const shifts = await getShifts(currentPantryId);
+        const buckets = getManagedShiftBuckets(shifts, new Date());
+        renderShiftBucketRows(incomingTbody, buckets.incoming, 'No incoming shifts.', 'incoming');
+        renderShiftBucketRows(ongoingTbody, buckets.ongoing, 'No ongoing shifts.', 'ongoing');
+        renderShiftBucketRows(pastTbody, buckets.past, 'No past shifts.', 'past');
+        renderShiftBucketRows(cancelledTbody, buckets.cancelled, 'No canceled shifts.', 'cancelled');
     } catch (error) {
         console.error('Failed to load shifts table:', error);
+        setShiftBucketEmptyState(incomingTbody, `Failed to load shifts: ${error.message}`);
+        setShiftBucketEmptyState(ongoingTbody, `Failed to load shifts: ${error.message}`);
+        setShiftBucketEmptyState(pastTbody, `Failed to load shifts: ${error.message}`);
+        setShiftBucketEmptyState(cancelledTbody, `Failed to load shifts: ${error.message}`);
+        showMessage('shifts', `Failed to load shifts: ${error.message}`, 'error');
     }
 }
 
@@ -892,6 +1024,7 @@ function resetEditShiftForm() {
 
 async function openEditShift(shiftId) {
     try {
+        setManageShiftsSubtab('view');
         const shift = await getShift(shiftId);
         editingShiftSnapshot = shift;
 
@@ -948,13 +1081,46 @@ async function cancelShiftConfirm(shiftId) {
         showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation.`, 'success');
         await loadShiftsTable();
         await loadCalendarShifts(); // Update calendar view too
+        const myShiftsTab = document.getElementById('content-my-shifts');
+        if (myShiftsTab && myShiftsTab.classList.contains('active')) {
+            await loadMyRegisteredShifts();
+        }
     } catch (error) {
         showMessage('shifts', `Cancel failed: ${error.message}`, 'error');
     }
 }
 
+async function revokeShiftConfirm(shiftId) {
+    if (!confirm('Revoke this cancelled shift? Previously signed-up volunteers will stay pending confirmation.')) return;
+
+    try {
+        await updateShift(shiftId, { status: 'OPEN' });
+        showMessage('shifts', 'Shift revoked successfully! Volunteers remain pending confirmation until they reconfirm.', 'success');
+        await loadShiftsTable();
+        await loadCalendarShifts();
+        const myShiftsTab = document.getElementById('content-my-shifts');
+        if (myShiftsTab && myShiftsTab.classList.contains('active')) {
+            await loadMyRegisteredShifts();
+        }
+    } catch (error) {
+        showMessage('shifts', `Revoke failed: ${error.message}`, 'error');
+    }
+}
+
 // Setup event listeners
 function setupEventListeners() {
+    setManageShiftsSubtab(activeManageShiftsSubtab);
+
+    document.querySelectorAll('.manage-shifts-subtab').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const targetSubtab = button.dataset.manageSubtab === 'view' ? 'view' : 'create';
+            setManageShiftsSubtab(targetSubtab);
+            if (targetSubtab === 'view') {
+                await loadShiftsTable();
+            }
+        });
+    });
+
     // Tab navigation
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', async () => {
@@ -980,6 +1146,7 @@ function setupEventListeners() {
 
             // Load tab-specific data
             if (targetTab === 'shifts') {
+                setManageShiftsSubtab(activeManageShiftsSubtab);
                 await loadShiftsTable();
             } else if (targetTab === 'my-shifts') {
                 await loadMyRegisteredShifts();
@@ -1271,6 +1438,7 @@ function showMessage(target, text, type = 'info') {
 // Make functions globally available
 window.signupForRole = signupForRole;
 window.cancelShiftConfirm = cancelShiftConfirm;
+window.revokeShiftConfirm = revokeShiftConfirm;
 window.openEditShift = openEditShift;
 window.toggleShiftRegistrations = toggleShiftRegistrations;
 window.cancelMySignup = cancelMySignup;
