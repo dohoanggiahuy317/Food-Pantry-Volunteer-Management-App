@@ -208,6 +208,12 @@ class MemoryBackend(StoreBackend):
         if not include_cancelled:
             shifts = [s for s in shifts if s.get("status") != "CANCELLED"]
         return shifts
+    
+    def list_shifts_pantries_without_expired(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
+        shifts = [dict(s) for s in self.store["shifts"] if s.get("pantry_id") == pantry_id and s.get("end_time") >= datetime.now()]
+        if not include_cancelled:
+            shifts = [s for s in shifts if s.get("status") != "CANCELLED"]
+        return shifts
 
     def get_shift_by_id(self, shift_id: int) -> dict[str, Any] | None:
         return self._copy(next((s for s in self.store["shifts"] if s.get("shift_id") == shift_id), None))
