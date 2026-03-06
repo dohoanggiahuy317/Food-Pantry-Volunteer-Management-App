@@ -277,6 +277,8 @@ function displayShiftCard(grid, shift) {
     const startDate = new Date(shift.start_time);
     const endDate = new Date(shift.end_time);
 
+    const isAdminOrLead = currentUser && (currentUser.roles.includes('ADMIN') || currentUser.roles.includes('PANTRY_LEAD'));
+
     let rolesHTML = '';
     // API returns roles in 'roles' field, not 'shift_roles'
     const shiftRoles = shift.roles || shift.shift_roles || [];
@@ -303,9 +305,11 @@ function displayShiftCard(grid, shift) {
                             </div>
                             <div>
                                 ${isUnavailable
-                    ? '<button class="btn btn-secondary" disabled>Unavailable</button>'
-                    : isFull
-                    ? '<button class="btn btn-secondary" disabled>Full</button>'
+                   ? '<button class="btn btn-secondary" disabled>Unavailable</button>'
+                   : isFull
+                   ? '<button class="btn btn-secondary" disabled>Full</button>'
+                    : isAdminOrLead
+                    ? ''
                     : `<button class="btn btn-success" onclick="signupForRole(${role.shift_role_id})">Sign Up</button>`
                 }
                             </div>
