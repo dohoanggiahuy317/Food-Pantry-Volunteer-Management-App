@@ -24,8 +24,8 @@ window.addEventListener('load', async function () {
         const roleNames = currentUser.roles.join(', ');
         document.getElementById('user-role').textContent = roleNames;
 
-        // Setup UI based on role
-        setupRoleBasedUI();
+        // Setup UI based on role and choose default tab
+        const defaultTab = setupRoleBasedUI();
 
         // Load pantries
         await loadPantries();
@@ -34,7 +34,7 @@ window.addEventListener('load', async function () {
         setupEventListeners();
 
         // Load initial tab content
-        await loadCalendarShifts();
+        await activateTab(defaultTab);
 
     } catch (error) {
         console.error('Failed to initialize:', error);
@@ -61,6 +61,16 @@ function setupRoleBasedUI() {
     const isAdmin = currentUser.roles.includes('ADMIN');
     const isPantryLead = currentUser.roles.includes('PANTRY_LEAD');
     const isVolunteer = currentUser.roles.includes('VOLUNTEER');
+    const calendarTab = document.querySelector('.nav-tab[data-tab="calendar"]');
+    const calendarContent = document.getElementById('content-calendar');
+    let defaultTab = 'calendar';
+
+    const hideCalendarForLead = isPantryLead && !isAdmin && !isVolunteer;
+    if (hideCalendarForLead && calendarTab) {
+        calendarTab.classList.add('hidden');
+        calendarContent?.classList.remove('active');
+        defaultTab = 'shifts';
+    }
 
     // Show/hide tabs based on role
     if (isAdmin || isPantryLead) {
@@ -73,6 +83,37 @@ function setupRoleBasedUI() {
 
     if (isVolunteer) {
         document.getElementById('tab-my-shifts').classList.remove('hidden');
+    }
+
+    return defaultTab;
+}
+
+async function activateTab(targetTab) {
+    // Update active tab style
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    const targetButton = document.querySelector(`.nav-tab[data-tab="${targetTab}"]`);
+    targetButton?.classList.add('active');
+
+    // Show target content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`content-${targetTab}`)?.classList.add('active');
+
+    // Show/hide pantry selector based on tab
+    const pantrySelector = document.getElementById('pantry-selector');
+    if (pantrySelector) {
+        pantrySelector.style.display = (targetTab === 'calendar' || targetTab === 'my-shifts') ? 'none' : 'block';
+    }
+
+    // Load tab-specific data
+    if (targetTab === 'shifts') {
+        setManageShiftsSubtab(activeManageShiftsSubtab);
+        await loadShiftsTable();
+    } else if (targetTab === 'my-shifts') {
+        await loadMyRegisteredShifts();
+    } else if (targetTab === 'calendar') {
+        await loadCalendarShifts();
     }
 }
 
@@ -1125,32 +1166,7 @@ function setupEventListeners() {
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', async () => {
             const targetTab = tab.dataset.tab;
-
-            // Update active tab style
-            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            // Show target content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`content-${targetTab}`).classList.add('active');
-
-            // Show/hide pantry selector based on tab
-            const pantrySelector = document.getElementById('pantry-selector');
-            if (targetTab === 'calendar' || targetTab === 'my-shifts') {
-                pantrySelector.style.display = 'none';
-            } else {
-                pantrySelector.style.display = 'block';
-            }
-
-            // Load tab-specific data
-            if (targetTab === 'shifts') {
-                setManageShiftsSubtab(activeManageShiftsSubtab);
-                await loadShiftsTable();
-            } else if (targetTab === 'my-shifts') {
-                await loadMyRegisteredShifts();
-            }
+            await activateTab(targetTab);
         });
     });
 
