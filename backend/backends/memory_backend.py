@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +12,25 @@ ACTIVE_SIGNUP_STATUSES = {"CONFIRMED", "SHOW_UP", "NO_SHOW"}
 
 def _utc_now_iso() -> str:
     return datetime.utcnow().isoformat() + "Z"
+
+
+def _parse_iso_to_utc(value: Any) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        normalized = value.replace("Z", "+00:00")
+        try:
+            dt = datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 class MemoryBackend(StoreBackend):
@@ -206,7 +225,19 @@ class MemoryBackend(StoreBackend):
     def list_shifts_by_pantry(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
         shifts = [dict(s) for s in self.store["shifts"] if s.get("pantry_id") == pantry_id]
         if not include_cancelled:
-            shifts = [s for s in shifts if s.get("status") != "CANCELLED"]
+            shifts = [s for s in shifts if str(s.get("status", "")).upper() != "CANCELLED"]
+        return shifts
+
+    def list_non_expired_shifts_by_pantry(
+        self,
+        pantry_id: int,
+        include_cancelled: bool = True,
+    ) -> list[dict[str, Any]]:
+        shifts = [dict(s) for s in self.store["shifts"] if s.get("pantry_id") == pantry_id]
+        now_utc = datetime.now(timezone.utc)
+        shifts = [s for s in shifts if (end_time := _parse_iso_to_utc(s.get("end_time"))) and end_time >= now_utc]
+        if not include_cancelled:
+            shifts = [s for s in shifts if str(s.get("status", "")).upper() != "CANCELLED"]
         return shifts
 
     def get_shift_by_id(self, shift_id: int) -> dict[str, Any] | None:

@@ -15,6 +15,20 @@ async function getShifts(pantryId) {
 }
 
 /**
+ * Get non-expired, non-cancelled shifts for a pantry.
+ * Returns shifts with nested shift_roles
+ */
+async function getActiveShifts(pantryId) {
+    try {
+        const shifts = await apiGet(`/api/pantries/${pantryId}/active-shifts`);
+        return shifts;
+    } catch (error) {
+        console.error('Failed to get shifts:', error);
+        throw error;
+    }
+}
+
+/**
  * Get specific shift by ID
  */
 async function getShift(shiftId) {
