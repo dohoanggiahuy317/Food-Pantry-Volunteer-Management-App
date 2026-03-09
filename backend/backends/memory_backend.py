@@ -72,6 +72,32 @@ class MemoryBackend(StoreBackend):
             return
         role["status"] = "FULL" if active_count >= int(role.get("required_count", 0)) else "OPEN"
 
+    def _calculate_user_attendance_score(self, user_id: int) -> int:
+        attended_count = 0
+        marked_count = 0
+        for signup in self.store["shift_signups"]:
+            if int(signup.get("user_id", 0)) != user_id:
+                continue
+            status = str(signup.get("signup_status", "")).upper()
+            if status == "SHOW_UP":
+                attended_count += 1
+            if status in {"SHOW_UP", "NO_SHOW"}:
+                marked_count += 1
+
+        if marked_count == 0:
+            return 100
+        return round((attended_count * 100) / marked_count)
+
+    def _recalculate_user_attendance_score(self, user_id: int) -> None:
+        user = next((u for u in self.store["users"] if int(u.get("user_id", 0)) == user_id), None)
+        if not user:
+            return
+        user["attendance_score"] = self._calculate_user_attendance_score(user_id)
+
+    def _recalculate_all_attendance_scores(self) -> None:
+        for user in self.store["users"]:
+            user["attendance_score"] = self._calculate_user_attendance_score(int(user.get("user_id", 0)))
+
     def _load_seed_data(self) -> None:
         if not self._data_path.exists():
             return
@@ -93,6 +119,7 @@ class MemoryBackend(StoreBackend):
             self.next_shift_role_id = max(sr.get("shift_role_id", 0) for sr in self.store["shift_roles"]) + 1
         if self.store["shift_signups"]:
             self.next_signup_id = max(su.get("signup_id", 0) for su in self.store["shift_signups"]) + 1
+        self._recalculate_all_attendance_scores()
 
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         return self._copy(next((u for u in self.store["users"] if u.get("user_id") == user_id), None))
@@ -137,6 +164,7 @@ class MemoryBackend(StoreBackend):
             "email": email,
             "password_hash": password_hash,
             "is_active": is_active,
+            "attendance_score": 100,
             "created_at": timestamp,
             "updated_at": timestamp,
         }
@@ -400,6 +428,7 @@ class MemoryBackend(StoreBackend):
         self.next_signup_id += 1
         self.store["shift_signups"].append(signup)
         self._recalculate_role_capacity(shift_role_id)
+        self._recalculate_user_attendance_score(user_id)
 
         return dict(signup)
 
@@ -409,15 +438,19 @@ class MemoryBackend(StoreBackend):
             return
 
         shift_role_id = signup.get("shift_role_id")
+        user_id = int(signup.get("user_id"))
         self.store["shift_signups"] = [ss for ss in self.store["shift_signups"] if ss.get("signup_id") != signup_id]
         self._recalculate_role_capacity(int(shift_role_id))
+        self._recalculate_user_attendance_score(user_id)
 
     def update_signup(self, signup_id: int, signup_status: str) -> dict[str, Any] | None:
         signup = next((ss for ss in self.store["shift_signups"] if ss.get("signup_id") == signup_id), None)
         if not signup:
             return None
+        user_id = int(signup.get("user_id"))
         signup["signup_status"] = signup_status
         self._recalculate_role_capacity(int(signup.get("shift_role_id")))
+        self._recalculate_user_attendance_score(user_id)
         return dict(signup)
 
     def is_empty(self) -> bool:

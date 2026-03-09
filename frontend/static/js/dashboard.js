@@ -528,23 +528,26 @@ function getAttendanceWindowInfo(startTime, endTime, now = new Date()) {
     */
 }
 
-function renderCredibilitySummary(attendedCount, totalMarkedPast) {
-    if (!totalMarkedPast) {
+function renderCredibilitySummary(attendanceScore) {
+    const normalizedScore = Number.isFinite(Number(attendanceScore))
+        ? Math.max(0, Math.min(100, Math.round(Number(attendanceScore))))
+        : null;
+
+    if (normalizedScore === null) {
         return `
             <section class="credibility-summary">
                 <h3 class="credibility-title">Credibility</h3>
                 <p class="credibility-value">N/A</p>
-                <p class="credibility-detail">No marked past shifts yet.</p>
+                <p class="credibility-detail">Attendance score unavailable.</p>
             </section>
         `;
     }
 
-    const credibilityPercent = Math.round((attendedCount / totalMarkedPast) * 100);
     return `
         <section class="credibility-summary">
             <h3 class="credibility-title">Credibility</h3>
-            <p class="credibility-value">${credibilityPercent}%</p>
-            <p class="credibility-detail">${attendedCount}/${totalMarkedPast} attended</p>
+            <p class="credibility-value">${normalizedScore}%</p>
+            <p class="credibility-detail">Based on marked attendance records.</p>
         </section>
     `;
 }
@@ -635,7 +638,7 @@ async function loadMyRegisteredShifts() {
 
         if (!signups || signups.length === 0) {
             container.innerHTML = `
-                ${renderCredibilitySummary(0, 0)}
+                ${renderCredibilitySummary(currentUser.attendance_score)}
                 <p class="my-shift-empty-all">You have no registered shifts yet.</p>
             `;
             return;
@@ -656,16 +659,9 @@ async function loadMyRegisteredShifts() {
         buckets.ongoing.sort((a, b) => sortByDate(a, b, 'end_time', 'asc'));
         buckets.past.sort((a, b) => sortByDate(a, b, 'end_time', 'desc'));
 
-        const markedPastSignups = buckets.past.filter(signup => {
-            const status = String(signup.signup_status || '').toUpperCase();
-            return status === 'SHOW_UP' || status === 'NO_SHOW';
-        });
-        const attendedCount = markedPastSignups.filter(signup => String(signup.signup_status || '').toUpperCase() === 'SHOW_UP').length;
-        const totalMarkedPastShifts = markedPastSignups.length;
-
         container.innerHTML = `
             <div class="my-shifts-sections">
-                ${renderCredibilitySummary(attendedCount, totalMarkedPastShifts)}
+                ${renderCredibilitySummary(currentUser.attendance_score)}
                 ${renderMyShiftSection('incoming', 'Incoming Shifts', buckets.incoming, now)}
                 ${renderMyShiftSection('ongoing', 'Ongoing Shifts', buckets.ongoing, now)}
                 ${renderMyShiftSection('past', 'Past Shifts', buckets.past, now)}

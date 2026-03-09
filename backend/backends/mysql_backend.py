@@ -39,6 +39,7 @@ def _serialize_user(row: dict[str, Any]) -> dict[str, Any]:
         "email": row["email"],
         "password_hash": row["password_hash"],
         "is_active": bool(row["is_active"]),
+        "attendance_score": int(row.get("attendance_score", 100)),
         "created_at": _to_iso_z(row["created_at"]),
         "updated_at": _to_iso_z(row["updated_at"]),
     }
@@ -121,6 +122,30 @@ class MySQLBackend(StoreBackend):
             (active_count, next_status, shift_role_id),
         )
 
+    def _recalculate_user_attendance_score(self, cursor: Any, user_id: int) -> None:
+        cursor.execute(
+            """
+            SELECT
+                SUM(CASE WHEN UPPER(signup_status) = 'SHOW_UP' THEN 1 ELSE 0 END) AS attended_count,
+                SUM(CASE WHEN UPPER(signup_status) IN ('SHOW_UP', 'NO_SHOW') THEN 1 ELSE 0 END) AS marked_count
+            FROM shift_signups
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+        score_row = cursor.fetchone() or {}
+        attended_count = int(score_row.get("attended_count") or 0)
+        marked_count = int(score_row.get("marked_count") or 0)
+        if marked_count == 0:
+            attendance_score = 100
+        else:
+            attendance_score = round((attended_count * 100) / marked_count)
+
+        cursor.execute(
+            "UPDATE users SET attendance_score = %s WHERE user_id = %s",
+            (attendance_score, user_id),
+        )
+
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -182,10 +207,18 @@ class MySQLBackend(StoreBackend):
             try:
                 cursor.execute(
                     """
-                    INSERT INTO users (full_name, email, password_hash, is_active, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO users (
+                        full_name,
+                        email,
+                        password_hash,
+                        is_active,
+                        attendance_score,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (full_name, email, password_hash, 1 if is_active else 0, timestamp, timestamp),
+                    (full_name, email, password_hash, 1 if is_active else 0, 100, timestamp, timestamp),
                 )
             except IntegrityError:
                 conn.rollback()
@@ -213,6 +246,7 @@ class MySQLBackend(StoreBackend):
                 "email": email,
                 "password_hash": password_hash,
                 "is_active": is_active,
+                "attendance_score": 100,
                 "created_at": _to_iso_z(timestamp),
                 "updated_at": _to_iso_z(timestamp),
                 "roles": assigned_roles,
@@ -657,6 +691,7 @@ class MySQLBackend(StoreBackend):
                 raise ValueError("Already signed up")
 
             self._recalculate_role_capacity(cursor, shift_role_id)
+            self._recalculate_user_attendance_score(cursor, user_id)
             signup_id = int(cursor.lastrowid)
             conn.commit()
 
@@ -675,6 +710,7 @@ class MySQLBackend(StoreBackend):
                 return
 
             shift_role_id = int(signup["shift_role_id"])
+            user_id = int(signup["user_id"])
             cursor.execute(
                 "SELECT * FROM shift_roles WHERE shift_role_id = %s FOR UPDATE",
                 (shift_role_id,),
@@ -684,6 +720,7 @@ class MySQLBackend(StoreBackend):
             cursor.execute("DELETE FROM shift_signups WHERE signup_id = %s", (signup_id,))
             if role_row:
                 self._recalculate_role_capacity(cursor, shift_role_id)
+            self._recalculate_user_attendance_score(cursor, user_id)
 
             conn.commit()
 
@@ -697,6 +734,7 @@ class MySQLBackend(StoreBackend):
                 return None
 
             shift_role_id = int(signup_row["shift_role_id"])
+            user_id = int(signup_row["user_id"])
             cursor.execute("SELECT * FROM shift_roles WHERE shift_role_id = %s FOR UPDATE", (shift_role_id,))
             role_row = cursor.fetchone()
             if not role_row:
@@ -708,6 +746,7 @@ class MySQLBackend(StoreBackend):
                 (signup_status, signup_id),
             )
             self._recalculate_role_capacity(cursor, shift_role_id)
+            self._recalculate_user_attendance_score(cursor, user_id)
             conn.commit()
         return self.get_signup_by_id(signup_id)
 

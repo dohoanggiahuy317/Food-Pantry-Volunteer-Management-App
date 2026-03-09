@@ -105,6 +105,7 @@ def serialize_signup_user(user: dict[str, Any] | None) -> dict[str, Any] | None:
         "user_id": user.get("user_id"),
         "full_name": user.get("full_name"),
         "email": user.get("email"),
+        "attendance_score": int(user.get("attendance_score", 100)),
     }
 
 
@@ -942,7 +943,7 @@ def create_signup(shift_role_id: int) -> Any:
         return jsonify({"error": str(exc)}), 400
 
     recalculate_shift_role_capacity(shift_role_id)
-    signup["user"] = find_user_by_id(user_id)
+    signup["user"] = serialize_signup_user(find_user_by_id(user_id))
     return jsonify(signup), 201
 
 
@@ -956,7 +957,7 @@ def get_signups_for_role(shift_role_id: int) -> Any:
     expire_pending_signups_if_started(int(shift_role.get("shift_id")))
     signups = get_shift_signups(shift_role_id)
     for signup in signups:
-        signup["user"] = find_user_by_id(int(signup.get("user_id")))
+        signup["user"] = serialize_signup_user(find_user_by_id(int(signup.get("user_id"))))
 
     return jsonify(signups)
 
