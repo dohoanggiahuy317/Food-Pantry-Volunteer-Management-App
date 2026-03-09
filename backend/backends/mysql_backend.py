@@ -608,12 +608,13 @@ class MySQLBackend(StoreBackend):
                 raise RuntimeError("This shift is cancelled")
 
             cursor.execute(
-                "SELECT 1 FROM shift_signups WHERE shift_role_id = %s AND user_id = %s",
+                "SELECT * FROM shift_signups WHERE shift_role_id = %s AND user_id = %s",
                 (shift_role_id, user_id),
             )
-            if cursor.fetchone() is not None:
+            existing = cursor.fetchone()
+            if existing is not None:
                 conn.rollback()
-                raise ValueError("Already signed up")
+                return _serialize_signup(existing)
 
             cursor.execute(
                 """
@@ -642,14 +643,17 @@ class MySQLBackend(StoreBackend):
                 conn.rollback()
                 raise ValueError("Already signed up")
 
-            self._recalculate_role_capacity(cursor, shift_role_id)
             signup_id = int(cursor.lastrowid)
+            self._recalculate_role_capacity(cursor, shift_role_id)
             conn.commit()
 
-        signup = self.get_signup_by_id(signup_id)
-        if not signup:
-            raise RuntimeError("Failed to create signup")
-        return signup
+        return {
+            "signup_id": signup_id,
+            "shift_role_id": shift_role_id,
+            "user_id": user_id,
+            "signup_status": signup_status,
+            "created_at": _to_iso_z(now),
+        }
 
     def delete_signup(self, signup_id: int) -> None:
         with get_connection() as conn:

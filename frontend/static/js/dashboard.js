@@ -376,7 +376,10 @@ function displayShiftCard(grid, shift) {
 // Signup for role
 async function signupForRole(roleId) {
     try {
-        await signupForShift(roleId);
+        if (!currentUser || !currentUser.user_id) {
+            throw new Error('Missing current user context');
+        }
+        await signupForShift(roleId, currentUser.user_id);
         showMessage('calendar', 'Successfully signed up!', 'success');
         await loadCalendarShifts(); // Reload to show updated counts
 

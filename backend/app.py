@@ -924,6 +924,14 @@ def create_signup(shift_role_id: int) -> Any:
     except LookupError:
         return jsonify({"error": "Shift role not found"}), 404
     except ValueError as exc:
+        if str(exc) == "Already signed up":
+            existing = next(
+                (s for s in get_shift_signups(shift_role_id) if int(s.get("user_id")) == user_id),
+                None,
+            )
+            if existing:
+                existing["user"] = find_user_by_id(user_id)
+                return jsonify(existing), 200
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
