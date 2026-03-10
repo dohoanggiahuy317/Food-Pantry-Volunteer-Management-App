@@ -101,11 +101,16 @@ def serialize_signup_user(user: dict[str, Any] | None) -> dict[str, Any] | None:
     """Return safe user fields for signup views."""
     if not user:
         return None
+    score_raw = user.get("attendance_score")
+    try:
+        attendance_score = 100 if score_raw is None else int(score_raw)
+    except (TypeError, ValueError):
+        attendance_score = 100
     return {
         "user_id": user.get("user_id"),
         "full_name": user.get("full_name"),
         "email": user.get("email"),
-        "attendance_score": int(user.get("attendance_score", 100)),
+        "attendance_score": attendance_score,
     }
 
 
@@ -944,7 +949,7 @@ def create_signup(shift_role_id: int) -> Any:
                 None,
             )
             if existing:
-                existing["user"] = find_user_by_id(user_id)
+                existing["user"] = serialize_signup_user(find_user_by_id(user_id))
                 existing["already_signed_up"] = True
                 return jsonify(existing), 200
         return jsonify({"error": str(exc)}), 400
