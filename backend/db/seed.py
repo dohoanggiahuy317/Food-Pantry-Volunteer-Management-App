@@ -41,6 +41,26 @@ def parse_iso_to_dt(value: str | None) -> datetime:
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def recalculate_all_attendance_scores(cursor: Any) -> None:
+    cursor.execute(
+        """
+        UPDATE users u
+        LEFT JOIN (
+            SELECT
+                user_id,
+                SUM(CASE WHEN UPPER(signup_status) = 'SHOW_UP' THEN 1 ELSE 0 END) AS attended_count,
+                SUM(CASE WHEN UPPER(signup_status) IN ('SHOW_UP', 'NO_SHOW') THEN 1 ELSE 0 END) AS marked_count
+            FROM shift_signups
+            GROUP BY user_id
+        ) stats ON stats.user_id = u.user_id
+        SET u.attendance_score = CASE
+            WHEN COALESCE(stats.marked_count, 0) = 0 THEN 100
+            ELSE ROUND((COALESCE(stats.attended_count, 0) * 100.0) / stats.marked_count)
+        END
+        """
+    )
+
+
 def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
     payload = json.loads(data_path.read_text(encoding="utf-8"))
 
@@ -66,13 +86,23 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
         for user in payload.get("users", []):
             cursor.execute(
                 """
-                INSERT INTO users (user_id, full_name, email, password_hash, is_active, created_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO users (
+                    user_id,
+                    full_name,
+                    email,
+                    password_hash,
+                    is_active,
+                    attendance_score,
+                    created_at,
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     full_name = VALUES(full_name),
                     email = VALUES(email),
                     password_hash = VALUES(password_hash),
                     is_active = VALUES(is_active),
+                    attendance_score = VALUES(attendance_score),
                     updated_at = VALUES(updated_at)
                 """,
                 (
@@ -81,6 +111,7 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     user["email"],
                     user["password_hash"],
                     1 if user.get("is_active", True) else 0,
+                    int(user.get("attendance_score", 100)),
                     parse_iso_to_dt(user.get("created_at")),
                     parse_iso_to_dt(user.get("updated_at") or user.get("created_at")),
                 ),
@@ -216,6 +247,8 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     parse_iso_to_dt(signup.get("created_at")),
                 ),
             )
+
+        recalculate_all_attendance_scores(cursor)
 
         for table, key in [
             ("users", "user_id"),
