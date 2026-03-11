@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
+  attendance_score INT NOT NULL DEFAULT 100,
   created_at DATETIME(6) NOT NULL,
   updated_at DATETIME(6) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -84,10 +85,12 @@ CREATE TABLE IF NOT EXISTS shift_signups (
   shift_role_id INT NOT NULL,
   user_id INT NOT NULL,
   signup_status VARCHAR(32) NOT NULL DEFAULT 'CONFIRMED',
+  reservation_expires_at DATETIME(6) NULL,
   created_at DATETIME(6) NOT NULL,
   UNIQUE KEY uq_shift_signups_role_user (shift_role_id, user_id),
   INDEX idx_shift_signups_shift_role_id (shift_role_id),
   INDEX idx_shift_signups_user_id (user_id),
+  INDEX idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at),
   CONSTRAINT fk_shift_signups_role
     FOREIGN KEY (shift_role_id) REFERENCES shift_roles(shift_role_id)
     ON DELETE CASCADE,

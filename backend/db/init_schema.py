@@ -116,11 +116,13 @@ def apply_sql(sql: str) -> None:
 
 
 def init_schema() -> None:
-    """Initialize schema idempotently using 001_initial.sql."""
+    """Initialize schema idempotently using all SQL migrations in order."""
     ensure_database_exists()
-    schema_file = Path(__file__).resolve().parent / "migrations" / "001_initial.sql"
-    sql = schema_file.read_text(encoding="utf-8")
-    apply_sql(sql)
+    migrations_dir = Path(__file__).resolve().parent / "migrations"
+    migration_files = sorted(migrations_dir.glob("*.sql"))
+    for migration_file in migration_files:
+        sql = migration_file.read_text(encoding="utf-8")
+        apply_sql(sql)
 
 
 if __name__ == "__main__":

@@ -24,8 +24,8 @@ window.addEventListener('load', async function () {
         const roleNames = currentUser.roles.join(', ');
         document.getElementById('user-role').textContent = roleNames;
 
-        // Setup UI based on role
-        setupRoleBasedUI();
+        // Setup UI based on role and choose default tab
+        const defaultTab = setupRoleBasedUI();
 
         // Load pantries
         await loadPantries();
@@ -34,7 +34,7 @@ window.addEventListener('load', async function () {
         setupEventListeners();
 
         // Load initial tab content
-        await loadCalendarShifts();
+        await activateTab(defaultTab);
 
     } catch (error) {
         console.error('Failed to initialize:', error);
@@ -61,6 +61,16 @@ function setupRoleBasedUI() {
     const isAdmin = currentUser.roles.includes('ADMIN');
     const isPantryLead = currentUser.roles.includes('PANTRY_LEAD');
     const isVolunteer = currentUser.roles.includes('VOLUNTEER');
+    const calendarTab = document.querySelector('.nav-tab[data-tab="calendar"]');
+    const calendarContent = document.getElementById('content-calendar');
+    let defaultTab = 'calendar';
+
+    const hideCalendarForLead = isPantryLead && !isAdmin && !isVolunteer;
+    if (hideCalendarForLead && calendarTab) {
+        calendarTab.classList.add('hidden');
+        calendarContent?.classList.remove('active');
+        defaultTab = 'shifts';
+    }
 
     // Show/hide tabs based on role
     if (isAdmin || isPantryLead) {
@@ -73,6 +83,37 @@ function setupRoleBasedUI() {
 
     if (isVolunteer) {
         document.getElementById('tab-my-shifts').classList.remove('hidden');
+    }
+
+    return defaultTab;
+}
+
+async function activateTab(targetTab) {
+    // Update active tab style
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    const targetButton = document.querySelector(`.nav-tab[data-tab="${targetTab}"]`);
+    targetButton?.classList.add('active');
+
+    // Show target content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`content-${targetTab}`)?.classList.add('active');
+
+    // Show/hide pantry selector based on tab
+    const pantrySelector = document.getElementById('pantry-selector');
+    if (pantrySelector) {
+        pantrySelector.style.display = (targetTab === 'calendar' || targetTab === 'my-shifts') ? 'none' : 'block';
+    }
+
+    // Load tab-specific data
+    if (targetTab === 'shifts') {
+        setManageShiftsSubtab(activeManageShiftsSubtab);
+        await loadShiftsTable();
+    } else if (targetTab === 'my-shifts') {
+        await loadMyRegisteredShifts();
+    } else if (targetTab === 'calendar') {
+        await loadCalendarShifts();
     }
 }
 
@@ -487,23 +528,26 @@ function getAttendanceWindowInfo(startTime, endTime, now = new Date()) {
     */
 }
 
-function renderCredibilitySummary(attendedCount, totalMarkedPast) {
-    if (!totalMarkedPast) {
+function renderCredibilitySummary(attendanceScore) {
+    const normalizedScore = Number.isFinite(Number(attendanceScore))
+        ? Math.max(0, Math.min(100, Math.round(Number(attendanceScore))))
+        : null;
+
+    if (normalizedScore === null) {
         return `
             <section class="credibility-summary">
                 <h3 class="credibility-title">Credibility</h3>
                 <p class="credibility-value">N/A</p>
-                <p class="credibility-detail">No marked past shifts yet.</p>
+                <p class="credibility-detail">Attendance score unavailable.</p>
             </section>
         `;
     }
 
-    const credibilityPercent = Math.round((attendedCount / totalMarkedPast) * 100);
     return `
         <section class="credibility-summary">
             <h3 class="credibility-title">Credibility</h3>
-            <p class="credibility-value">${credibilityPercent}%</p>
-            <p class="credibility-detail">${attendedCount}/${totalMarkedPast} attended</p>
+            <p class="credibility-value">${normalizedScore}%</p>
+            <p class="credibility-detail">Based on marked attendance records.</p>
         </section>
     `;
 }
@@ -512,7 +556,11 @@ function renderMyShiftCard(signup, now) {
     const signupStatus = String(signup.signup_status || 'UNKNOWN').toUpperCase();
     const shiftStatus = String(signup.shift_status || 'OPEN').toUpperCase();
     const attendanceInfo = getAttendanceInfo(signupStatus);
-    const showCancel = canCancelSignup(signup, now);
+    const showCancelByTime = canCancelSignup(signup, now);
+    const nonActionableStatuses = new Set(['CANCELLED', 'WAITLISTED']);
+    const showCancel = showCancelByTime
+        && !nonActionableStatuses.has(signupStatus)
+        && shiftStatus !== 'CANCELLED';
     const showSignupStatusBadge = !attendanceInfo.isMarked;
     const isPendingReconfirm = signupStatus === 'PENDING_CONFIRMATION';
     const reconfirmAvailable = Boolean(signup.reconfirm_available);
@@ -594,7 +642,7 @@ async function loadMyRegisteredShifts() {
 
         if (!signups || signups.length === 0) {
             container.innerHTML = `
-                ${renderCredibilitySummary(0, 0)}
+                ${renderCredibilitySummary(currentUser.attendance_score)}
                 <p class="my-shift-empty-all">You have no registered shifts yet.</p>
             `;
             return;
@@ -615,16 +663,9 @@ async function loadMyRegisteredShifts() {
         buckets.ongoing.sort((a, b) => sortByDate(a, b, 'end_time', 'asc'));
         buckets.past.sort((a, b) => sortByDate(a, b, 'end_time', 'desc'));
 
-        const markedPastSignups = buckets.past.filter(signup => {
-            const status = String(signup.signup_status || '').toUpperCase();
-            return status === 'SHOW_UP' || status === 'NO_SHOW';
-        });
-        const attendedCount = markedPastSignups.filter(signup => String(signup.signup_status || '').toUpperCase() === 'SHOW_UP').length;
-        const totalMarkedPastShifts = markedPastSignups.length;
-
         container.innerHTML = `
             <div class="my-shifts-sections">
-                ${renderCredibilitySummary(attendedCount, totalMarkedPastShifts)}
+                ${renderCredibilitySummary(currentUser.attendance_score)}
                 ${renderMyShiftSection('incoming', 'Incoming Shifts', buckets.incoming, now)}
                 ${renderMyShiftSection('ongoing', 'Ongoing Shifts', buckets.ongoing, now)}
                 ${renderMyShiftSection('past', 'Past Shifts', buckets.past, now)}
@@ -662,6 +703,8 @@ async function reconfirmMySignup(signupId, action) {
         const details = parseApiErrorDetails(error);
         if (details && details.code === 'ROLE_FULL_OR_UNAVAILABLE') {
             showMessage('my-shifts', 'This role is full or unavailable. Please cancel or pick another shift.', 'error');
+        } else if (details && details.code === 'RESERVATION_EXPIRED') {
+            showMessage('my-shifts', 'Your reservation expired. Please sign up again if slots are available.', 'error');
         } else {
             showMessage('my-shifts', `Action failed: ${error.message}`, 'error');
         }
@@ -717,6 +760,7 @@ function renderRegistrationsRowContent(shiftRegistrations) {
         const required = role.required_count || 0;
         const filled = role.filled_count || 0;
         const signups = role.signups || [];
+        const pendingReconfirmCount = Number(role.pending_reconfirm_count || 0);
 
         const signupsHtml = signups.length > 0
             ? `
@@ -774,8 +818,12 @@ function renderRegistrationsRowContent(shiftRegistrations) {
             <div class="registration-role">
                 <div class="registration-role-header">
                     <div class="registration-role-title">${escapeHtml(role.role_title || 'Untitled Role')}</div>
-                    <div class="registration-role-capacity">${filled}/${required} filled</div>
+                    <div class="registration-role-capacity">${filled}/${required} reserved</div>
                 </div>
+                ${pendingReconfirmCount > 0
+                    ? `<p class="reconfirm-note">${pendingReconfirmCount} volunteer(s) pending reconfirmation.</p>`
+                    : ''
+                }
                 ${signupsHtml}
             </div>
         `;

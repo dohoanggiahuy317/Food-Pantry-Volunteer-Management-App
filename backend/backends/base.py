@@ -145,5 +145,17 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def bulk_mark_shift_signups_pending(self, shift_id: int, reservation_expires_at: str) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def expire_pending_signups(self, shift_id: int, now_utc: str) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def reconfirm_pending_signup(self, signup_id: int, now_utc: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def is_empty(self) -> bool:
         raise NotImplementedError

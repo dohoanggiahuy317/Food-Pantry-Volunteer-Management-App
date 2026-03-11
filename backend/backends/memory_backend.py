@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 from backends.base import StoreBackend
 
 ACTIVE_SIGNUP_STATUSES = {"CONFIRMED", "SHOW_UP", "NO_SHOW"}
+PENDING_SIGNUP_STATUS = "PENDING_CONFIRMATION"
+RESERVATION_WINDOW_HOURS = 48
 
 
 def _utc_now_iso() -> str:
@@ -59,18 +61,50 @@ class MemoryBackend(StoreBackend):
         if not role:
             return
 
+        now_utc = datetime.now(timezone.utc)
         active_count = 0
         for signup in self.store["shift_signups"]:
             if signup.get("shift_role_id") != shift_role_id:
                 continue
             status = str(signup.get("signup_status", "")).upper()
-            if status in ACTIVE_SIGNUP_STATUSES:
+            reservation_expires_at = _parse_iso_to_utc(signup.get("reservation_expires_at"))
+            if status in ACTIVE_SIGNUP_STATUSES or (
+                status == PENDING_SIGNUP_STATUS
+                and reservation_expires_at is not None
+                and reservation_expires_at > now_utc
+            ):
                 active_count += 1
 
         role["filled_count"] = active_count
         if str(role.get("status", "OPEN")).upper() == "CANCELLED":
             return
         role["status"] = "FULL" if active_count >= int(role.get("required_count", 0)) else "OPEN"
+
+    def _calculate_user_attendance_score(self, user_id: int) -> int:
+        attended_count = 0
+        marked_count = 0
+        for signup in self.store["shift_signups"]:
+            if int(signup.get("user_id", 0)) != user_id:
+                continue
+            status = str(signup.get("signup_status", "")).upper()
+            if status == "SHOW_UP":
+                attended_count += 1
+            if status in {"SHOW_UP", "NO_SHOW"}:
+                marked_count += 1
+
+        if marked_count == 0:
+            return 100
+        return round((attended_count * 100) / marked_count)
+
+    def _recalculate_user_attendance_score(self, user_id: int) -> None:
+        user = next((u for u in self.store["users"] if int(u.get("user_id", 0)) == user_id), None)
+        if not user:
+            return
+        user["attendance_score"] = self._calculate_user_attendance_score(user_id)
+
+    def _recalculate_all_attendance_scores(self) -> None:
+        for user in self.store["users"]:
+            user["attendance_score"] = self._calculate_user_attendance_score(int(user.get("user_id", 0)))
 
     def _load_seed_data(self) -> None:
         if not self._data_path.exists():
@@ -93,6 +127,7 @@ class MemoryBackend(StoreBackend):
             self.next_shift_role_id = max(sr.get("shift_role_id", 0) for sr in self.store["shift_roles"]) + 1
         if self.store["shift_signups"]:
             self.next_signup_id = max(su.get("signup_id", 0) for su in self.store["shift_signups"]) + 1
+        self._recalculate_all_attendance_scores()
 
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         return self._copy(next((u for u in self.store["users"] if u.get("user_id") == user_id), None))
@@ -137,6 +172,7 @@ class MemoryBackend(StoreBackend):
             "email": email,
             "password_hash": password_hash,
             "is_active": is_active,
+            "attendance_score": 100,
             "created_at": timestamp,
             "updated_at": timestamp,
         }
@@ -345,6 +381,7 @@ class MemoryBackend(StoreBackend):
                 "signup_id": int(signup.get("signup_id")),
                 "user_id": int(signup.get("user_id")),
                 "signup_status": signup.get("signup_status"),
+                "reservation_expires_at": signup.get("reservation_expires_at"),
                 "created_at": signup.get("created_at"),
                 "shift_role_id": int(role.get("shift_role_id")),
                 "role_title": role.get("role_title"),
@@ -387,7 +424,21 @@ class MemoryBackend(StoreBackend):
             raise ValueError("Already signed up")
 
         self._recalculate_role_capacity(shift_role_id)
-        if int(shift_role.get("filled_count", 0)) >= int(shift_role.get("required_count", 0)):
+        now_utc = datetime.now(timezone.utc)
+        occupied_count = 0
+        for signup in self.store["shift_signups"]:
+            if signup.get("shift_role_id") != shift_role_id:
+                continue
+            status = str(signup.get("signup_status", "")).upper()
+            reservation_expires_at = _parse_iso_to_utc(signup.get("reservation_expires_at"))
+            if status in ACTIVE_SIGNUP_STATUSES or (
+                status == PENDING_SIGNUP_STATUS
+                and reservation_expires_at is not None
+                and reservation_expires_at > now_utc
+            ):
+                occupied_count += 1
+
+        if occupied_count >= int(shift_role.get("required_count", 0)):
             raise RuntimeError("This role is full")
 
         signup = {
@@ -395,11 +446,17 @@ class MemoryBackend(StoreBackend):
             "shift_role_id": shift_role_id,
             "user_id": user_id,
             "signup_status": signup_status,
+            "reservation_expires_at": (
+                (datetime.now(timezone.utc) + timedelta(hours=RESERVATION_WINDOW_HOURS)).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+                if str(signup_status).upper() == PENDING_SIGNUP_STATUS
+                else None
+            ),
             "created_at": _utc_now_iso(),
         }
         self.next_signup_id += 1
         self.store["shift_signups"].append(signup)
         self._recalculate_role_capacity(shift_role_id)
+        self._recalculate_user_attendance_score(user_id)
 
         return dict(signup)
 
@@ -409,16 +466,141 @@ class MemoryBackend(StoreBackend):
             return
 
         shift_role_id = signup.get("shift_role_id")
+        user_id = int(signup.get("user_id"))
         self.store["shift_signups"] = [ss for ss in self.store["shift_signups"] if ss.get("signup_id") != signup_id]
         self._recalculate_role_capacity(int(shift_role_id))
+        self._recalculate_user_attendance_score(user_id)
 
     def update_signup(self, signup_id: int, signup_status: str) -> dict[str, Any] | None:
         signup = next((ss for ss in self.store["shift_signups"] if ss.get("signup_id") == signup_id), None)
         if not signup:
             return None
+        user_id = int(signup.get("user_id"))
         signup["signup_status"] = signup_status
+        signup["reservation_expires_at"] = (
+            (datetime.now(timezone.utc) + timedelta(hours=RESERVATION_WINDOW_HOURS)).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+            if str(signup_status).upper() == PENDING_SIGNUP_STATUS
+            else None
+        )
         self._recalculate_role_capacity(int(signup.get("shift_role_id")))
+        self._recalculate_user_attendance_score(user_id)
         return dict(signup)
+
+    def bulk_mark_shift_signups_pending(self, shift_id: int, reservation_expires_at: str) -> list[dict[str, Any]]:
+        reservation_iso = _parse_iso_to_utc(reservation_expires_at)
+        if not reservation_iso:
+            reservation_value = _utc_now_iso()
+        else:
+            reservation_value = reservation_iso.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+        shift_role_ids = [int(role.get("shift_role_id")) for role in self.store["shift_roles"] if int(role.get("shift_id")) == shift_id]
+        affected: list[dict[str, Any]] = []
+
+        for signup in self.store["shift_signups"]:
+            if int(signup.get("shift_role_id")) not in shift_role_ids:
+                continue
+            current_status = str(signup.get("signup_status", "")).upper()
+            if current_status in {"CANCELLED", "WAITLISTED"}:
+                continue
+            signup["signup_status"] = PENDING_SIGNUP_STATUS
+            signup["reservation_expires_at"] = reservation_value
+            affected.append(
+                {
+                    "signup_id": int(signup.get("signup_id")),
+                    "user_id": int(signup.get("user_id")),
+                }
+            )
+
+        for role_id in shift_role_ids:
+            self._recalculate_role_capacity(role_id)
+        return affected
+
+    def expire_pending_signups(self, shift_id: int, now_utc: str) -> int:
+        now_dt = _parse_iso_to_utc(now_utc) or datetime.now(timezone.utc)
+        shift_role_ids = [int(role.get("shift_role_id")) for role in self.store["shift_roles"] if int(role.get("shift_id")) == shift_id]
+        shift = self.get_shift_by_id(shift_id)
+        shift_start = _parse_iso_to_utc(shift.get("start_time")) if shift else None
+
+        expired_count = 0
+        for signup in self.store["shift_signups"]:
+            if int(signup.get("shift_role_id")) not in shift_role_ids:
+                continue
+            if str(signup.get("signup_status", "")).upper() != PENDING_SIGNUP_STATUS:
+                continue
+            reservation_expires_at = _parse_iso_to_utc(signup.get("reservation_expires_at"))
+            should_expire = (
+                (shift_start is not None and shift_start <= now_dt)
+                or (reservation_expires_at is not None and reservation_expires_at <= now_dt)
+            )
+            if not should_expire:
+                continue
+            signup["signup_status"] = "CANCELLED"
+            signup["reservation_expires_at"] = None
+            expired_count += 1
+
+        if expired_count:
+            for role_id in shift_role_ids:
+                self._recalculate_role_capacity(role_id)
+        return expired_count
+
+    def reconfirm_pending_signup(self, signup_id: int, now_utc: str) -> dict[str, Any]:
+        now_dt = _parse_iso_to_utc(now_utc) or datetime.now(timezone.utc)
+        signup = next((ss for ss in self.store["shift_signups"] if ss.get("signup_id") == signup_id), None)
+        if not signup:
+            return {"result": "NOT_FOUND", "signup": None}
+
+        if str(signup.get("signup_status", "")).upper() != PENDING_SIGNUP_STATUS:
+            return {"result": "NOT_PENDING", "signup": dict(signup)}
+
+        shift_role_id = int(signup.get("shift_role_id"))
+        shift_role = next((sr for sr in self.store["shift_roles"] if int(sr.get("shift_role_id")) == shift_role_id), None)
+        if not shift_role:
+            return {"result": "NOT_FOUND", "signup": None}
+
+        shift = next((s for s in self.store["shifts"] if int(s.get("shift_id")) == int(shift_role.get("shift_id"))), None)
+        if not shift:
+            return {"result": "NOT_FOUND", "signup": None}
+
+        shift_start = _parse_iso_to_utc(shift.get("start_time"))
+        reservation_expires_at = _parse_iso_to_utc(signup.get("reservation_expires_at"))
+        if (shift_start and shift_start <= now_dt) or (
+            reservation_expires_at is not None and reservation_expires_at <= now_dt
+        ):
+            signup["signup_status"] = "CANCELLED"
+            signup["reservation_expires_at"] = None
+            self._recalculate_role_capacity(shift_role_id)
+            self._recalculate_user_attendance_score(int(signup.get("user_id")))
+            return {"result": "EXPIRED", "signup": dict(signup)}
+
+        if (
+            str(shift.get("status", "OPEN")).upper() == "CANCELLED"
+            or str(shift_role.get("status", "OPEN")).upper() == "CANCELLED"
+        ):
+            signup["signup_status"] = "WAITLISTED"
+            signup["reservation_expires_at"] = None
+            self._recalculate_role_capacity(shift_role_id)
+            self._recalculate_user_attendance_score(int(signup.get("user_id")))
+            return {"result": "WAITLISTED", "signup": dict(signup)}
+
+        confirmed_count = 0
+        for other in self.store["shift_signups"]:
+            if int(other.get("shift_role_id")) != shift_role_id:
+                continue
+            if str(other.get("signup_status", "")).upper() in ACTIVE_SIGNUP_STATUSES:
+                confirmed_count += 1
+
+        if confirmed_count >= int(shift_role.get("required_count", 0)):
+            signup["signup_status"] = "WAITLISTED"
+            signup["reservation_expires_at"] = None
+            self._recalculate_role_capacity(shift_role_id)
+            self._recalculate_user_attendance_score(int(signup.get("user_id")))
+            return {"result": "WAITLISTED", "signup": dict(signup)}
+
+        signup["signup_status"] = "CONFIRMED"
+        signup["reservation_expires_at"] = None
+        self._recalculate_role_capacity(shift_role_id)
+        self._recalculate_user_attendance_score(int(signup.get("user_id")))
+        return {"result": "CONFIRMED", "signup": dict(signup)}
 
     def is_empty(self) -> bool:
         return not self.store["users"] and not self.store["roles"]

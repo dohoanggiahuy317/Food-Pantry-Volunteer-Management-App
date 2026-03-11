@@ -33,7 +33,8 @@ SIGNUP_STATUS_WAITLISTED = "WAITLISTED"
 SIGNUP_STATUS_CANCELLED = "CANCELLED"
 PAST_SHIFT_LOCK_CODE = "PAST_SHIFT_LOCKED"
 ACTIVE_SIGNUP_STATUSES = {SIGNUP_STATUS_CONFIRMED, "SHOW_UP", "NO_SHOW"}
-NON_RECONFIRMABLE_SIGNUP_STATUSES = {SIGNUP_STATUS_CANCELLED, SIGNUP_STATUS_WAITLISTED}
+LEAD_VISIBLE_SIGNUP_STATUSES = ACTIVE_SIGNUP_STATUSES
+RESERVATION_WINDOW_HOURS = 48
 
 
 @app.before_request
@@ -105,6 +106,7 @@ def serialize_signup_user(user: dict[str, Any] | None) -> dict[str, Any] | None:
         "user_id": user.get("user_id"),
         "full_name": user.get("full_name"),
         "email": user.get("email"),
+        "attendance_score": int(user.get("attendance_score", 100)),
     }
 
 
@@ -125,6 +127,10 @@ def parse_iso_datetime_to_utc(value: Any) -> datetime | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def is_upcoming_shift(shift: dict[str, Any]) -> bool:
@@ -183,22 +189,29 @@ def recalculate_shift_role_capacity(shift_role_id: int) -> dict[str, Any] | None
         return None
 
     signups = backend.list_shift_signups(shift_role_id)
-    active_count = 0
+    occupied_count = 0
+    now_utc = datetime.now(timezone.utc)
     for signup in signups:
         signup_status = str(signup.get("signup_status", "")).upper()
-        if signup_status in ACTIVE_SIGNUP_STATUSES:
-            active_count += 1
+        reservation_expires_at = parse_iso_datetime_to_utc(signup.get("reservation_expires_at"))
+        is_reserved_pending = (
+            signup_status == SIGNUP_STATUS_PENDING_CONFIRMATION
+            and reservation_expires_at is not None
+            and reservation_expires_at > now_utc
+        )
+        if signup_status in ACTIVE_SIGNUP_STATUSES or is_reserved_pending:
+            occupied_count += 1
 
     role_status = str(role.get("status", "OPEN")).upper()
     required_count = int(role.get("required_count", 0))
     if role_status == "CANCELLED":
         next_status = "CANCELLED"
     else:
-        next_status = "FULL" if active_count >= required_count else "OPEN"
+        next_status = "FULL" if occupied_count >= required_count else "OPEN"
 
     updated = backend.update_shift_role(
         shift_role_id,
-        {"filled_count": active_count, "status": next_status},
+        {"filled_count": occupied_count, "status": next_status},
     )
     return updated
 
@@ -234,17 +247,8 @@ def mark_shift_signups_pending(shift_id: int) -> dict[str, Any]:
     if not shift or not is_upcoming_shift(shift):
         return {"affected_signup_count": 0, "affected_volunteer_contacts": []}
 
-    changed_signups: list[dict[str, Any]] = []
-    for signup, _role in collect_shift_signups(shift_id):
-        current_status = str(signup.get("signup_status", "")).upper()
-        if current_status in NON_RECONFIRMABLE_SIGNUP_STATUSES:
-            continue
-        if current_status == SIGNUP_STATUS_PENDING_CONFIRMATION:
-            continue
-
-        updated = backend.update_signup(int(signup.get("signup_id")), SIGNUP_STATUS_PENDING_CONFIRMATION)
-        if updated:
-            changed_signups.append(updated)
+    reservation_expires_at = (datetime.now(timezone.utc) + timedelta(hours=RESERVATION_WINDOW_HOURS)).isoformat().replace("+00:00", "Z")
+    changed_signups = backend.bulk_mark_shift_signups_pending(shift_id, reservation_expires_at)
 
     recalculate_shift_capacities(shift_id)
     contacts = affected_contacts_from_signups(changed_signups)
@@ -255,21 +259,8 @@ def mark_shift_signups_pending(shift_id: int) -> dict[str, Any]:
 
 
 def expire_pending_signups_if_started(shift_id: int) -> int:
-    shift = backend.get_shift_by_id(shift_id)
-    if not shift or not shift_has_started(shift):
-        return 0
-
-    expired = 0
-    for signup, _role in collect_shift_signups(shift_id):
-        signup_id = int(signup.get("signup_id"))
-        status = str(signup.get("signup_status", "")).upper()
-        if status != SIGNUP_STATUS_PENDING_CONFIRMATION:
-            continue
-        updated = backend.update_signup(signup_id, SIGNUP_STATUS_CANCELLED)
-        if updated:
-            expired += 1
-
-    if expired:
+    expired = backend.expire_pending_signups(shift_id, utc_now_iso())
+    if expired > 0:
         recalculate_shift_capacities(shift_id)
     return expired
 
@@ -284,17 +275,16 @@ def signup_reconfirm_availability(signup_row: dict[str, Any]) -> tuple[bool, str
         return False, "SHIFT_CANCELLED"
 
     role_status = str(signup_row.get("role_status", "")).upper()
-    if role_status in {"CANCELLED", "FULL"}:
+    if role_status == "CANCELLED":
         return False, "ROLE_FULL_OR_UNAVAILABLE"
 
     start_time = parse_iso_datetime_to_utc(signup_row.get("start_time"))
     if start_time and datetime.now(timezone.utc) >= start_time:
         return False, "SHIFT_ALREADY_STARTED"
 
-    filled_count = int(signup_row.get("filled_count", 0))
-    required_count = int(signup_row.get("required_count", 0))
-    if filled_count >= required_count:
-        return False, "ROLE_FULL_OR_UNAVAILABLE"
+    reservation_expires_at = parse_iso_datetime_to_utc(signup_row.get("reservation_expires_at"))
+    if reservation_expires_at and datetime.now(timezone.utc) >= reservation_expires_at:
+        return False, "RESERVATION_EXPIRED"
 
     return True, None
 
@@ -676,9 +666,16 @@ def get_shift_registrations(shift_id: int) -> Any:
     for role in get_shift_roles(shift_id, include_cancelled=True):
         role_id = int(role.get("shift_role_id"))
         signups = get_shift_signups(role_id)
+        pending_reconfirm_count = 0
 
         enriched_signups: list[dict[str, Any]] = []
         for signup in signups:
+            signup_status = str(signup.get("signup_status", "")).upper()
+            if signup_status == SIGNUP_STATUS_PENDING_CONFIRMATION:
+                pending_reconfirm_count += 1
+                continue
+            if signup_status not in LEAD_VISIBLE_SIGNUP_STATUSES:
+                continue
             signup_with_user = dict(signup)
             signup_user = find_user_by_id(int(signup.get("user_id")))
             signup_with_user["user"] = serialize_signup_user(signup_user)
@@ -686,6 +683,7 @@ def get_shift_registrations(shift_id: int) -> Any:
 
         role_with_signups = dict(role)
         role_with_signups["signups"] = enriched_signups
+        role_with_signups["pending_reconfirm_count"] = pending_reconfirm_count
         roles_with_signups.append(role_with_signups)
 
     response = {
@@ -942,7 +940,7 @@ def create_signup(shift_role_id: int) -> Any:
         return jsonify({"error": str(exc)}), 400
 
     recalculate_shift_role_capacity(shift_role_id)
-    signup["user"] = find_user_by_id(user_id)
+    signup["user"] = serialize_signup_user(find_user_by_id(user_id))
     return jsonify(signup), 201
 
 
@@ -956,7 +954,7 @@ def get_signups_for_role(shift_role_id: int) -> Any:
     expire_pending_signups_if_started(int(shift_role.get("shift_id")))
     signups = get_shift_signups(shift_role_id)
     for signup in signups:
-        signup["user"] = find_user_by_id(int(signup.get("user_id")))
+        signup["user"] = serialize_signup_user(find_user_by_id(int(signup.get("user_id"))))
 
     return jsonify(signups)
 
@@ -1019,44 +1017,35 @@ def reconfirm_signup(signup_id: int) -> Any:
 
     current_status = str(signup.get("signup_status", "")).upper()
     if action == "CANCEL":
-        updated = backend.update_signup(signup_id, SIGNUP_STATUS_CANCELLED)
-        recalculate_shift_role_capacity(int(shift_role.get("shift_role_id")))
-        if not updated:
-            return jsonify({"error": "Not found"}), 404
-        return jsonify(updated), 200
+        backend.delete_signup(signup_id)
+        return jsonify({"success": True, "removed_signup_id": signup_id}), 200
 
     if current_status != SIGNUP_STATUS_PENDING_CONFIRMATION:
         return jsonify({"error": "Signup is not pending confirmation"}), 400
 
-    shift_role = backend.get_shift_role_by_id(int(shift_role.get("shift_role_id")))
-    shift = backend.get_shift_by_id(shift_id)
-    if not shift_role or not shift:
-        return jsonify({"error": "Shift context not found"}), 404
-
-    if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
-        updated = backend.update_signup(signup_id, SIGNUP_STATUS_WAITLISTED)
-        recalculate_shift_role_capacity(int(shift_role.get("shift_role_id")))
-        return (
-            jsonify({"error": "ROLE_FULL_OR_UNAVAILABLE", "code": "ROLE_FULL_OR_UNAVAILABLE", "signup": updated}),
-            409,
-        )
-
-    role_status = str(shift_role.get("status", "OPEN")).upper()
-    filled_count = int(shift_role.get("filled_count", 0))
-    required_count = int(shift_role.get("required_count", 0))
-    if role_status != "OPEN" or filled_count >= required_count:
-        updated = backend.update_signup(signup_id, SIGNUP_STATUS_WAITLISTED)
-        recalculate_shift_role_capacity(int(shift_role.get("shift_role_id")))
-        return (
-            jsonify({"error": "ROLE_FULL_OR_UNAVAILABLE", "code": "ROLE_FULL_OR_UNAVAILABLE", "signup": updated}),
-            409,
-        )
-
-    updated = backend.update_signup(signup_id, SIGNUP_STATUS_CONFIRMED)
+    reconfirm_result = backend.reconfirm_pending_signup(signup_id, utc_now_iso())
+    result_code = str(reconfirm_result.get("result", "")).upper()
+    updated_signup = reconfirm_result.get("signup")
     recalculate_shift_role_capacity(int(shift_role.get("shift_role_id")))
-    if not updated:
+
+    if result_code == "NOT_FOUND" or not updated_signup:
         return jsonify({"error": "Not found"}), 404
-    return jsonify(updated), 200
+    if result_code == "CONFIRMED":
+        return jsonify(updated_signup), 200
+    if result_code == "WAITLISTED":
+        return (
+            jsonify({"error": "ROLE_FULL_OR_UNAVAILABLE", "code": "ROLE_FULL_OR_UNAVAILABLE", "signup": updated_signup}),
+            409,
+        )
+    if result_code == "EXPIRED":
+        return (
+            jsonify({"error": "RESERVATION_EXPIRED", "code": "RESERVATION_EXPIRED", "signup": updated_signup}),
+            409,
+        )
+    if result_code == "NOT_PENDING":
+        return jsonify({"error": "Signup is not pending confirmation"}), 400
+
+    return jsonify({"error": "Unable to reconfirm signup"}), 400
 
 
 @app.patch("/api/signups/<int:signup_id>/attendance")

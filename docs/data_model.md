@@ -9,7 +9,7 @@ At backend startup:
 1. `backend/app.py` loads env and calls backend factory.
 2. `backend/backends/factory.py` chooses `DATA_BACKEND` (default: `mysql`).
 3. For MySQL mode:
-   - `backend/db/init_schema.py` applies `backend/db/migrations/001_initial.sql` (idempotent `CREATE TABLE IF NOT EXISTS`).
+   - `backend/db/init_schema.py` applies all SQL files in `backend/db/migrations/` in filename order (idempotent `CREATE TABLE IF NOT EXISTS` schema baseline).
    - `backend/backends/mysql_backend.py` is initialized.
    - If DB is empty and `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`, seed data is loaded from `backend/data/db.json`.
 4. API routes continue using the same request/response contract as before.
@@ -41,14 +41,17 @@ Important constraints:
 - `users.email` is unique.
 - `user_roles` and `pantry_leads` use composite primary keys.
 - `shift_signups` has unique `(shift_role_id, user_id)` to prevent duplicate signups.
+- `shift_signups` stores `reservation_expires_at` for 48-hour reconfirmation reservation windows.
+- `shift_signups` has index `idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at)` for reservation-aware capacity checks.
 - Foreign keys enforce cascade cleanup for dependent records.
 
 ## Concurrency safety
-`backend/backends/mysql_backend.py` uses transactions for signup creation:
+`backend/backends/mysql_backend.py` uses transactions for signup creation and reconfirmation:
 
 - Locks `shift_roles` row with `SELECT ... FOR UPDATE`.
-- Checks duplicate signup and capacity inside transaction.
+- Checks duplicate signup and reservation-aware capacity inside transaction.
 - Inserts signup and updates `filled_count/status` atomically.
+- Reconfirm path locks signup + role (+ shift checks) so reduced-capacity reconfirmation is first-come-first-serve without overbooking.
 
 ## File roles
 - `backend/backends/base.py`: storage interface.

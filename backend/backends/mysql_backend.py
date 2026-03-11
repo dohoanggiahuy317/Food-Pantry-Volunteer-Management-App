@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from mysql.connector import IntegrityError
@@ -9,6 +9,8 @@ from backends.base import StoreBackend
 from db.mysql import get_connection
 
 ACTIVE_SIGNUP_STATUSES = ("CONFIRMED", "SHOW_UP", "NO_SHOW")
+PENDING_SIGNUP_STATUS = "PENDING_CONFIRMATION"
+RESERVATION_WINDOW_HOURS = 48
 
 
 def _now_utc_naive() -> datetime:
@@ -39,6 +41,7 @@ def _serialize_user(row: dict[str, Any]) -> dict[str, Any]:
         "email": row["email"],
         "password_hash": row["password_hash"],
         "is_active": bool(row["is_active"]),
+        "attendance_score": int(row.get("attendance_score", 100)),
         "created_at": _to_iso_z(row["created_at"]),
         "updated_at": _to_iso_z(row["updated_at"]),
     }
@@ -80,11 +83,13 @@ def _serialize_shift_role(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _serialize_signup(row: dict[str, Any]) -> dict[str, Any]:
+    reservation_expires_at = row.get("reservation_expires_at")
     return {
         "signup_id": row["signup_id"],
         "shift_role_id": row["shift_role_id"],
         "user_id": row["user_id"],
         "signup_status": row["signup_status"],
+        "reservation_expires_at": _to_iso_z(reservation_expires_at) if reservation_expires_at else None,
         "created_at": _to_iso_z(row["created_at"]),
     }
 
@@ -104,7 +109,14 @@ class MySQLBackend(StoreBackend):
             SELECT COUNT(*) AS active_count
             FROM shift_signups
             WHERE shift_role_id = %s
-              AND UPPER(signup_status) IN ('CONFIRMED', 'SHOW_UP', 'NO_SHOW')
+              AND (
+                    UPPER(signup_status) IN ('CONFIRMED', 'SHOW_UP', 'NO_SHOW')
+                    OR (
+                        UPPER(signup_status) = 'PENDING_CONFIRMATION'
+                        AND reservation_expires_at IS NOT NULL
+                        AND reservation_expires_at > UTC_TIMESTAMP(6)
+                    )
+              )
             """,
             (shift_role_id,),
         )
@@ -119,6 +131,30 @@ class MySQLBackend(StoreBackend):
         cursor.execute(
             "UPDATE shift_roles SET filled_count = %s, status = %s WHERE shift_role_id = %s",
             (active_count, next_status, shift_role_id),
+        )
+
+    def _recalculate_user_attendance_score(self, cursor: Any, user_id: int) -> None:
+        cursor.execute(
+            """
+            SELECT
+                SUM(CASE WHEN UPPER(signup_status) = 'SHOW_UP' THEN 1 ELSE 0 END) AS attended_count,
+                SUM(CASE WHEN UPPER(signup_status) IN ('SHOW_UP', 'NO_SHOW') THEN 1 ELSE 0 END) AS marked_count
+            FROM shift_signups
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+        score_row = cursor.fetchone() or {}
+        attended_count = int(score_row.get("attended_count") or 0)
+        marked_count = int(score_row.get("marked_count") or 0)
+        if marked_count == 0:
+            attendance_score = 100
+        else:
+            attendance_score = round((attended_count * 100) / marked_count)
+
+        cursor.execute(
+            "UPDATE users SET attendance_score = %s WHERE user_id = %s",
+            (attendance_score, user_id),
         )
 
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
@@ -182,10 +218,18 @@ class MySQLBackend(StoreBackend):
             try:
                 cursor.execute(
                     """
-                    INSERT INTO users (full_name, email, password_hash, is_active, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO users (
+                        full_name,
+                        email,
+                        password_hash,
+                        is_active,
+                        attendance_score,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (full_name, email, password_hash, 1 if is_active else 0, timestamp, timestamp),
+                    (full_name, email, password_hash, 1 if is_active else 0, 100, timestamp, timestamp),
                 )
             except IntegrityError:
                 conn.rollback()
@@ -213,6 +257,7 @@ class MySQLBackend(StoreBackend):
                 "email": email,
                 "password_hash": password_hash,
                 "is_active": is_active,
+                "attendance_score": 100,
                 "created_at": _to_iso_z(timestamp),
                 "updated_at": _to_iso_z(timestamp),
                 "roles": assigned_roles,
@@ -537,6 +582,7 @@ class MySQLBackend(StoreBackend):
                     ss.signup_id,
                     ss.user_id,
                     ss.signup_status,
+                    ss.reservation_expires_at,
                     ss.created_at,
                     sr.shift_role_id,
                     sr.role_title,
@@ -567,6 +613,7 @@ class MySQLBackend(StoreBackend):
                 "signup_id": int(row["signup_id"]),
                 "user_id": int(row["user_id"]),
                 "signup_status": row["signup_status"],
+                "reservation_expires_at": _to_iso_z(row["reservation_expires_at"]) if row["reservation_expires_at"] else None,
                 "created_at": _to_iso_z(row["created_at"]),
                 "shift_role_id": int(row["shift_role_id"]),
                 "role_title": row["role_title"],
@@ -634,9 +681,16 @@ class MySQLBackend(StoreBackend):
                 SELECT COUNT(*) AS active_count
                 FROM shift_signups
                 WHERE shift_role_id = %s
-                  AND UPPER(signup_status) IN ('CONFIRMED', 'SHOW_UP', 'NO_SHOW')
+                  AND (
+                        UPPER(signup_status) IN ('CONFIRMED', 'SHOW_UP', 'NO_SHOW')
+                        OR (
+                            UPPER(signup_status) = 'PENDING_CONFIRMATION'
+                            AND reservation_expires_at IS NOT NULL
+                            AND reservation_expires_at > %s
+                        )
+                  )
                 """,
-                (shift_role_id,),
+                (shift_role_id, now),
             )
             filled_count = int(cursor.fetchone()["active_count"])
             required_count = int(role_row["required_count"])
@@ -647,16 +701,31 @@ class MySQLBackend(StoreBackend):
             try:
                 cursor.execute(
                     """
-                    INSERT INTO shift_signups (shift_role_id, user_id, signup_status, created_at)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO shift_signups (
+                        shift_role_id,
+                        user_id,
+                        signup_status,
+                        reservation_expires_at,
+                        created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
-                    (shift_role_id, user_id, signup_status, now),
+                    (
+                        shift_role_id,
+                        user_id,
+                        signup_status,
+                        now + timedelta(hours=RESERVATION_WINDOW_HOURS)
+                        if str(signup_status).upper() == PENDING_SIGNUP_STATUS
+                        else None,
+                        now,
+                    ),
                 )
             except IntegrityError:
                 conn.rollback()
                 raise ValueError("Already signed up")
 
             self._recalculate_role_capacity(cursor, shift_role_id)
+            self._recalculate_user_attendance_score(cursor, user_id)
             signup_id = int(cursor.lastrowid)
             conn.commit()
 
@@ -675,6 +744,7 @@ class MySQLBackend(StoreBackend):
                 return
 
             shift_role_id = int(signup["shift_role_id"])
+            user_id = int(signup["user_id"])
             cursor.execute(
                 "SELECT * FROM shift_roles WHERE shift_role_id = %s FOR UPDATE",
                 (shift_role_id,),
@@ -684,6 +754,7 @@ class MySQLBackend(StoreBackend):
             cursor.execute("DELETE FROM shift_signups WHERE signup_id = %s", (signup_id,))
             if role_row:
                 self._recalculate_role_capacity(cursor, shift_role_id)
+            self._recalculate_user_attendance_score(cursor, user_id)
 
             conn.commit()
 
@@ -697,6 +768,7 @@ class MySQLBackend(StoreBackend):
                 return None
 
             shift_role_id = int(signup_row["shift_role_id"])
+            user_id = int(signup_row["user_id"])
             cursor.execute("SELECT * FROM shift_roles WHERE shift_role_id = %s FOR UPDATE", (shift_role_id,))
             role_row = cursor.fetchone()
             if not role_row:
@@ -704,12 +776,225 @@ class MySQLBackend(StoreBackend):
                 return None
 
             cursor.execute(
-                "UPDATE shift_signups SET signup_status = %s WHERE signup_id = %s",
-                (signup_status, signup_id),
+                "UPDATE shift_signups SET signup_status = %s, reservation_expires_at = %s WHERE signup_id = %s",
+                (
+                    signup_status,
+                    _now_utc_naive() + timedelta(hours=RESERVATION_WINDOW_HOURS)
+                    if str(signup_status).upper() == PENDING_SIGNUP_STATUS
+                    else None,
+                    signup_id,
+                ),
             )
             self._recalculate_role_capacity(cursor, shift_role_id)
+            self._recalculate_user_attendance_score(cursor, user_id)
             conn.commit()
         return self.get_signup_by_id(signup_id)
+
+    def bulk_mark_shift_signups_pending(self, shift_id: int, reservation_expires_at: str) -> list[dict[str, Any]]:
+        reservation_expires_dt = _parse_iso_to_dt(reservation_expires_at)
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT ss.signup_id, ss.user_id
+                FROM shift_signups ss
+                JOIN shift_roles sr ON sr.shift_role_id = ss.shift_role_id
+                WHERE sr.shift_id = %s
+                  AND UPPER(ss.signup_status) NOT IN ('CANCELLED', 'WAITLISTED')
+                FOR UPDATE
+                """,
+                (shift_id,),
+            )
+            affected_rows = cursor.fetchall()
+            if not affected_rows:
+                conn.commit()
+                return []
+
+            cursor.execute(
+                """
+                UPDATE shift_signups ss
+                JOIN shift_roles sr ON sr.shift_role_id = ss.shift_role_id
+                SET ss.signup_status = 'PENDING_CONFIRMATION',
+                    ss.reservation_expires_at = %s
+                WHERE sr.shift_id = %s
+                  AND UPPER(ss.signup_status) NOT IN ('CANCELLED', 'WAITLISTED')
+                """,
+                (reservation_expires_dt, shift_id),
+            )
+
+            cursor.execute("SELECT shift_role_id FROM shift_roles WHERE shift_id = %s", (shift_id,))
+            role_ids = [int(row["shift_role_id"]) for row in cursor.fetchall()]
+            for role_id in role_ids:
+                self._recalculate_role_capacity(cursor, role_id)
+
+            conn.commit()
+            return [
+                {
+                    "signup_id": int(row["signup_id"]),
+                    "user_id": int(row["user_id"]),
+                }
+                for row in affected_rows
+            ]
+
+    def expire_pending_signups(self, shift_id: int, now_utc: str) -> int:
+        now_dt = _parse_iso_to_dt(now_utc)
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT ss.signup_id, ss.shift_role_id
+                FROM shift_signups ss
+                JOIN shift_roles sr ON sr.shift_role_id = ss.shift_role_id
+                JOIN shifts s ON s.shift_id = sr.shift_id
+                WHERE sr.shift_id = %s
+                  AND UPPER(ss.signup_status) = 'PENDING_CONFIRMATION'
+                  AND (
+                        s.start_time <= %s
+                        OR (
+                            ss.reservation_expires_at IS NOT NULL
+                            AND ss.reservation_expires_at <= %s
+                        )
+                  )
+                FOR UPDATE
+                """,
+                (shift_id, now_dt, now_dt),
+            )
+            rows = cursor.fetchall()
+            if not rows:
+                conn.commit()
+                return 0
+
+            cursor.execute(
+                """
+                UPDATE shift_signups ss
+                JOIN shift_roles sr ON sr.shift_role_id = ss.shift_role_id
+                JOIN shifts s ON s.shift_id = sr.shift_id
+                SET ss.signup_status = 'CANCELLED',
+                    ss.reservation_expires_at = NULL
+                WHERE sr.shift_id = %s
+                  AND UPPER(ss.signup_status) = 'PENDING_CONFIRMATION'
+                  AND (
+                        s.start_time <= %s
+                        OR (
+                            ss.reservation_expires_at IS NOT NULL
+                            AND ss.reservation_expires_at <= %s
+                        )
+                  )
+                """,
+                (shift_id, now_dt, now_dt),
+            )
+
+            role_ids = {int(row["shift_role_id"]) for row in rows}
+            for role_id in role_ids:
+                self._recalculate_role_capacity(cursor, role_id)
+
+            conn.commit()
+            return len(rows)
+
+    def reconfirm_pending_signup(self, signup_id: int, now_utc: str) -> dict[str, Any]:
+        now_dt = _parse_iso_to_dt(now_utc)
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM shift_signups WHERE signup_id = %s FOR UPDATE", (signup_id,))
+            signup_row = cursor.fetchone()
+            if not signup_row:
+                conn.rollback()
+                return {"result": "NOT_FOUND", "signup": None}
+
+            shift_role_id = int(signup_row["shift_role_id"])
+            current_status = str(signup_row["signup_status"]).upper()
+            if current_status != PENDING_SIGNUP_STATUS:
+                conn.rollback()
+                return {"result": "NOT_PENDING", "signup": _serialize_signup(signup_row)}
+
+            cursor.execute("SELECT * FROM shift_roles WHERE shift_role_id = %s FOR UPDATE", (shift_role_id,))
+            role_row = cursor.fetchone()
+            if not role_row:
+                conn.rollback()
+                return {"result": "NOT_FOUND", "signup": None}
+
+            cursor.execute("SELECT * FROM shifts WHERE shift_id = %s FOR UPDATE", (int(role_row["shift_id"]),))
+            shift_row = cursor.fetchone()
+            if not shift_row:
+                conn.rollback()
+                return {"result": "NOT_FOUND", "signup": None}
+
+            reservation_expires_at = signup_row.get("reservation_expires_at")
+            if shift_row["start_time"] <= now_dt or (
+                reservation_expires_at is not None and reservation_expires_at <= now_dt
+            ):
+                cursor.execute(
+                    """
+                    UPDATE shift_signups
+                    SET signup_status = 'CANCELLED',
+                        reservation_expires_at = NULL
+                    WHERE signup_id = %s
+                    """,
+                    (signup_id,),
+                )
+                self._recalculate_role_capacity(cursor, shift_role_id)
+                self._recalculate_user_attendance_score(cursor, int(signup_row["user_id"]))
+                conn.commit()
+                updated = self.get_signup_by_id(signup_id)
+                return {"result": "EXPIRED", "signup": updated}
+
+            if str(shift_row["status"]).upper() == "CANCELLED" or str(role_row["status"]).upper() == "CANCELLED":
+                cursor.execute(
+                    """
+                    UPDATE shift_signups
+                    SET signup_status = 'WAITLISTED',
+                        reservation_expires_at = NULL
+                    WHERE signup_id = %s
+                    """,
+                    (signup_id,),
+                )
+                self._recalculate_role_capacity(cursor, shift_role_id)
+                self._recalculate_user_attendance_score(cursor, int(signup_row["user_id"]))
+                conn.commit()
+                updated = self.get_signup_by_id(signup_id)
+                return {"result": "WAITLISTED", "signup": updated}
+
+            cursor.execute(
+                """
+                SELECT COUNT(*) AS confirmed_count
+                FROM shift_signups
+                WHERE shift_role_id = %s
+                  AND UPPER(signup_status) IN ('CONFIRMED', 'SHOW_UP', 'NO_SHOW')
+                """,
+                (shift_role_id,),
+            )
+            confirmed_count = int(cursor.fetchone()["confirmed_count"])
+            required_count = int(role_row["required_count"])
+            if confirmed_count >= required_count:
+                cursor.execute(
+                    """
+                    UPDATE shift_signups
+                    SET signup_status = 'WAITLISTED',
+                        reservation_expires_at = NULL
+                    WHERE signup_id = %s
+                    """,
+                    (signup_id,),
+                )
+                self._recalculate_role_capacity(cursor, shift_role_id)
+                self._recalculate_user_attendance_score(cursor, int(signup_row["user_id"]))
+                conn.commit()
+                updated = self.get_signup_by_id(signup_id)
+                return {"result": "WAITLISTED", "signup": updated}
+
+            cursor.execute(
+                """
+                UPDATE shift_signups
+                SET signup_status = 'CONFIRMED',
+                    reservation_expires_at = NULL
+                WHERE signup_id = %s
+                """,
+                (signup_id,),
+            )
+            self._recalculate_role_capacity(cursor, shift_role_id)
+            self._recalculate_user_attendance_score(cursor, int(signup_row["user_id"]))
+            conn.commit()
+            updated = self.get_signup_by_id(signup_id)
+            return {"result": "CONFIRMED", "signup": updated}
 
     def is_empty(self) -> bool:
         with get_connection() as conn:
