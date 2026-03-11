@@ -1181,7 +1181,32 @@ function setupEventListeners() {
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', async () => {
             const targetTab = tab.dataset.tab;
-            await activateTab(targetTab);
+
+            // Update active tab style
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // Show target content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`content-${targetTab}`).classList.add('active');
+
+            // Show/hide pantry selector based on tab
+            const pantrySelector = document.getElementById('pantry-selector');
+            if (targetTab === 'calendar' || targetTab === 'my-shifts' ||  targetTab === 'admin') {
+                pantrySelector.style.display = 'none';
+            } else {
+                pantrySelector.style.display = 'block';
+            }
+
+            // Load tab-specific data
+            if (targetTab === 'shifts') {
+                setManageShiftsSubtab(activeManageShiftsSubtab);
+                await loadShiftsTable();
+            } else if (targetTab === 'my-shifts') {
+                await loadMyRegisteredShifts();
+            }
         });
     });
 
