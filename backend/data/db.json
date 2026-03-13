@@ -23,7 +23,10 @@
     { "user_id": 21, "full_name": "Rosa Martinez", "email": "rosa@volunteer.org", "password_hash": "hashed_pwd_21", "is_active": true, "created_at": "2024-01-30T00:00:00Z" },
     { "user_id": 22, "full_name": "Samuel Clark", "email": "samuel@volunteer.org", "password_hash": "hashed_pwd_22", "is_active": true, "created_at": "2024-01-31T00:00:00Z" },
     { "user_id": 23, "full_name": "Tiana Brooks", "email": "tiana@volunteer.org", "password_hash": "hashed_pwd_23", "is_active": true, "created_at": "2024-02-01T00:00:00Z" },
-    { "user_id": 24, "full_name": "Victor Hall", "email": "victor@volunteer.org", "password_hash": "hashed_pwd_24", "is_active": true, "created_at": "2024-02-02T00:00:00Z" }
+    { "user_id": 24, "full_name": "Victor Hall", "email": "victor@volunteer.org", "password_hash": "hashed_pwd_24", "is_active": true, "created_at": "2024-02-02T00:00:00Z" },
+    { "user_id": 25, "full_name": "Diana Foster", "email": "diana@eastriver-pantry.org", "password_hash": "hashed_pwd_25", "is_active": true, "created_at": "2024-01-01T00:00:00Z" },
+    { "user_id": 26, "full_name": "Ethan Brooks", "email": "ethan@westgate-pantry.org", "password_hash": "hashed_pwd_26", "is_active": true, "created_at": "2024-01-01T00:00:00Z" },
+    { "user_id": 27, "full_name": "Sophie Turner", "email": "sophie@volunteer.org", "password_hash": "hashed_pwd_27", "is_active": true, "created_at": "2024-02-03T00:00:00Z" }
   ],
   "roles": [
     { "role_id": 1, "role_name": "ADMIN" },
@@ -54,7 +57,10 @@
     { "user_id": 21, "role_id": 3 },
     { "user_id": 22, "role_id": 3 },
     { "user_id": 23, "role_id": 3 },
-    { "user_id": 24, "role_id": 3 }
+    { "user_id": 24, "role_id": 3 },
+    { "user_id": 25, "role_id": 2 },
+    { "user_id": 26, "role_id": 2 },
+    { "user_id": 27, "role_id": 3 }
   ],
   "pantries": [
     { "pantry_id": 1, "name": "Licking County Pantry", "location_address": "123 Main St, Licking County, OH", "created_at": "2024-01-01T00:00:00Z" },
@@ -67,9 +73,8 @@
     { "pantry_id": 1, "user_id": 1 },
     { "pantry_id": 2, "user_id": 2 },
     { "pantry_id": 3, "user_id": 3 },
-    { "pantry_id": 4, "user_id": 1 },
-    { "pantry_id": 5, "user_id": 2 },
-    { "pantry_id": 1, "user_id": 3 }
+    { "pantry_id": 4, "user_id": 25 },
+    { "pantry_id": 5, "user_id": 26 }
   ],
   "shifts": [
     { "shift_id": 1, "pantry_id": 1, "shift_name": "Holiday Food Sort", "start_time": "2025-12-20T14:00:00Z", "end_time": "2025-12-20T18:00:00Z", "status": "OPEN", "created_by": 1, "created_at": "2025-11-20T00:00:00Z" },
