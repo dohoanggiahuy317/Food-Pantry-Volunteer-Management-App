@@ -157,7 +157,6 @@ class MySQLBackend(StoreBackend):
             (attendance_score, user_id),
         )
 
-
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
