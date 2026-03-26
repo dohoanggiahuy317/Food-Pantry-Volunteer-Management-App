@@ -420,19 +420,38 @@ function displayShiftCard(grid, shift) {
 
 // Signup for role
 async function signupForRole(roleId) {
+    if (!currentUser || !currentUser.user_id) {
+        showMessage('calendar', 'Signup failed: Missing current user context', 'error');
+        return;
+    }
+
+    let message = 'Successfully signed up!';
+    let messageType = 'success';
+
     try {
-        await signupForShift(roleId);
-        showMessage('calendar', 'Successfully signed up!', 'success');
-        await loadCalendarShifts(); // Reload to show updated counts
+        const signupResult = await signupForShift(roleId, currentUser.user_id);
+        if (signupResult && signupResult.already_signed_up) {
+            message = 'You already signed up for this shift.';
+            messageType = 'error';
+        }
+    } catch (error) {
+        showMessage('calendar', `Signup failed: ${error.message}`, 'error');
+        return;
+    }
+
+    try {
 
         const myShiftsTab = document.getElementById('content-my-shifts');
         const isVolunteer = currentUser && currentUser.roles.includes('VOLUNTEER');
         if (isVolunteer && myShiftsTab && myShiftsTab.classList.contains('active')) {
             await loadMyRegisteredShifts();
         }
+        showMessage('calendar', message, messageType);
     } catch (error) {
-        showMessage('calendar', `Signup failed: ${error.message}`, 'error');
+        showMessage('calendar', `Signup completed, but refresh failed: ${error.message}`, 'error');
     }
+
+    await loadCalendarShifts(); // Reload to show updated counts no matter the error or success
 }
 
 function escapeHtml(value) {
