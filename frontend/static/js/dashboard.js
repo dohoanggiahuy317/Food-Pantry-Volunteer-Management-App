@@ -198,8 +198,18 @@ async function updatePantriesTable() {
                     <td>${pantry.leads && pantry.leads.length > 0
                 ? pantry.leads.map(l => `<span style="background: #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 4px; margin-right: 0.5rem; display: inline-block; margin-bottom: 0.25rem;">${l.full_name}</span>`).join('')
                 : '<span style="color: #718096;">No leads assigned</span>'}</td>
+                    <td><button class="btn btn-secondary btn-sm edit-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}" data-address="${pantry.location_address || ''}">Edit</button></td>
                 `;
         tbody.appendChild(tr);
+    });
+
+    document.querySelectorAll('.edit-pantry-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('edit-pantry-id').value = btn.dataset.id;
+            document.getElementById('edit-pantry-name').value = btn.dataset.name;
+            document.getElementById('edit-pantry-address').value = btn.dataset.address;
+            document.getElementById('edit-pantry-modal').style.display = 'flex';
+        });
     });
 }
 
@@ -1200,6 +1210,32 @@ function setupEventListeners() {
                 await loadMyRegisteredShifts();
             }
         });
+    });
+
+    // Edit pantry modal - cancel
+    document.getElementById('cancel-edit-pantry-btn').addEventListener('click', () => {
+        document.getElementById('edit-pantry-modal').style.display = 'none';
+    });
+
+    // Edit pantry modal - save
+    document.getElementById('save-edit-pantry-btn').addEventListener('click', async () => {
+        const pantryId = parseInt(document.getElementById('edit-pantry-id').value);
+        const name = document.getElementById('edit-pantry-name').value.trim();
+        const location_address = document.getElementById('edit-pantry-address').value.trim();
+
+        if (!name || !location_address) {
+            showMessage('edit-pantry', 'Both fields are required.', 'error');
+            return;
+        }
+
+        try {
+            await updatePantry(pantryId, { name, location_address });
+            document.getElementById('edit-pantry-modal').style.display = 'none';
+            showMessage('pantry', 'Pantry updated successfully!', 'success');
+            await loadPantries();
+        } catch (error) {
+            showMessage('edit-pantry', `Error: ${error.message}`, 'error');
+        }
     });
 
     // Pantry selection

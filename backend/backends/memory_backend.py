@@ -246,6 +246,16 @@ class MemoryBackend(StoreBackend):
         response["leads"] = self.get_pantry_leads(pantry_id)
         return response
 
+    def update_pantry(self, pantry_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        pantry = next((p for p in self.store["pantries"] if p.get("pantry_id") == pantry_id), None)
+        if not pantry:
+            return None
+        for key in ["name", "location_address"]:
+            if key in payload:
+                pantry[key] = payload[key]
+        pantry["updated_at"] = _utc_now_iso()
+        return dict(pantry)
+
     def add_pantry_lead(self, pantry_id: int, user_id: int) -> None:
         if self.is_pantry_lead(pantry_id, user_id):
             raise ValueError("User already a lead for this pantry")

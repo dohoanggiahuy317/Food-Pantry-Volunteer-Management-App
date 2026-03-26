@@ -355,6 +355,19 @@ class MySQLBackend(StoreBackend):
         pantry["leads"] = self.get_pantry_leads(pantry_id)
         return pantry
 
+    def update_pantry(self, pantry_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        allowed = {k: v for k, v in payload.items() if k in {"name", "location_address"}}
+        if not allowed:
+            return self.get_pantry_by_id(pantry_id)
+        allowed["updated_at"] = _now_utc_naive()
+        set_clause = ", ".join(f"{k} = %s" for k in allowed)
+        values = list(allowed.values()) + [pantry_id]
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE pantries SET {set_clause} WHERE pantry_id = %s", values)
+            conn.commit()
+        return self.get_pantry_by_id(pantry_id)
+
     def add_pantry_lead(self, pantry_id: int, user_id: int) -> None:
         with get_connection() as conn:
             cursor = conn.cursor()

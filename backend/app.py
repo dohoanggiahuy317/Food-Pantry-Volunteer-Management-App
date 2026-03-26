@@ -508,6 +508,31 @@ def create_pantry() -> Any:
     return jsonify(pantry), 201
 
 
+@app.patch("/api/pantries/<int:pantry_id>")
+def update_pantry(pantry_id: int) -> Any:
+    """Update pantry name or address (ADMIN only)."""
+    user = current_user()
+    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+        return jsonify({"error": "Forbidden"}), 403
+
+    pantry = find_pantry_by_id(pantry_id)
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    allowed_keys = {"name", "location_address"}
+    payload = {k: v for k, v in payload.items() if k in allowed_keys}
+    if not payload:
+        return jsonify({"error": "No valid fields to update"}), 400
+
+    updated = backend.update_pantry(pantry_id, payload)
+    if not updated:
+        return jsonify({"error": "Not found"}), 404
+
+    updated["leads"] = get_pantry_leads(pantry_id)
+    return jsonify(updated)
+
+
 @app.post("/api/pantries/<int:pantry_id>/leads")
 def add_pantry_lead(pantry_id: int) -> Any:
     """Assign a pantry lead to a pantry (ADMIN only)."""

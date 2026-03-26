@@ -326,6 +326,7 @@
                                 <th>Pantry Name</th>
                                 <th>Location</th>
                                 <th>Assigned Leads</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="pantries-table-body">
@@ -335,6 +336,27 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Pantry Modal -->
+    <div id="edit-pantry-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:#fff; border-radius:8px; padding:2rem; width:100%; max-width:480px; box-shadow:0 4px 24px rgba(0,0,0,0.15);">
+            <h2 style="margin:0 0 1.5rem 0; font-size:1.25rem;">Edit Pantry</h2>
+            <div id="message-edit-pantry" class="message"></div>
+            <input type="hidden" id="edit-pantry-id">
+            <div class="form-group" style="margin-bottom:1rem;">
+                <label for="edit-pantry-name">Pantry Name *</label>
+                <input type="text" id="edit-pantry-name" class="form-control" placeholder="Pantry name" required>
+            </div>
+            <div class="form-group" style="margin-bottom:1.5rem;">
+                <label for="edit-pantry-address">Location Address *</label>
+                <input type="text" id="edit-pantry-address" class="form-control" placeholder="123 Main St, City" required>
+            </div>
+            <div style="display:flex; gap:1rem;">
+                <button class="btn btn-primary" id="save-edit-pantry-btn">Save</button>
+                <button class="btn btn-secondary" id="cancel-edit-pantry-btn">Cancel</button>
             </div>
         </div>
     </div>
