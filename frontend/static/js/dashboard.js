@@ -124,12 +124,17 @@ async function loadPantries() {
         allPublicPantries = await getAllPantries();
         const select = document.getElementById('pantry-select');
         const assignSelect = document.getElementById('assign-pantry');
+        const selectedPantryStillExists = allPantries.some(pantry => pantry.pantry_id === currentPantryId);
 
         select.innerHTML = '';
         assignSelect.innerHTML = '<option value="">-- Select Pantry --</option>';
 
         if (allPantries.length === 0) {
+            currentPantryId = null;
             select.innerHTML = '<option value="">No pantries available</option>';
+            if (currentUser.roles.includes('ADMIN')) {
+                await updatePantriesTable();
+            }
             return;
         }
 
@@ -143,11 +148,8 @@ async function loadPantries() {
             assignSelect.appendChild(assignOpt);
         });
 
-        // Select first pantry by default
-        if (allPantries.length > 0) {
-            currentPantryId = allPantries[0].pantry_id;
-            select.value = currentPantryId;
-        }
+        currentPantryId = selectedPantryStillExists ? currentPantryId : allPantries[0].pantry_id;
+        select.value = currentPantryId;
 
         // Load pantry leads for admin
         if (currentUser.roles.includes('ADMIN')) {
@@ -186,7 +188,7 @@ async function updatePantriesTable() {
     tbody.innerHTML = '';
 
     if (allPantries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #718096;">No pantries yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #718096;">No pantries yet</td></tr>';
         return;
     }
 
@@ -198,7 +200,12 @@ async function updatePantriesTable() {
                     <td>${pantry.leads && pantry.leads.length > 0
                 ? pantry.leads.map(l => `<span style="background: #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 4px; margin-right: 0.5rem; display: inline-block; margin-bottom: 0.25rem;">${l.full_name}</span>`).join('')
                 : '<span style="color: #718096;">No leads assigned</span>'}</td>
-                    <td><button class="btn btn-secondary btn-sm edit-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}" data-address="${pantry.location_address || ''}">Edit</button></td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-secondary btn-sm edit-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}" data-address="${pantry.location_address || ''}">Edit</button>
+                            <button class="btn btn-danger btn-sm delete-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}">Delete</button>
+                        </div>
+                    </td>
                 `;
         tbody.appendChild(tr);
     });
@@ -209,6 +216,34 @@ async function updatePantriesTable() {
             document.getElementById('edit-pantry-name').value = btn.dataset.name;
             document.getElementById('edit-pantry-address').value = btn.dataset.address;
             document.getElementById('edit-pantry-modal').style.display = 'flex';
+        });
+    });
+
+    document.querySelectorAll('.delete-pantry-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const pantryId = parseInt(btn.dataset.id);
+            const pantryName = btn.dataset.name;
+            const confirmed = window.confirm(
+                `Delete pantry "${pantryName}"? This will also remove its shifts, roles, signups, and lead assignments.`
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                await deletePantry(pantryId);
+
+                if (currentPantryId === pantryId) {
+                    currentPantryId = null;
+                    resetEditShiftForm();
+                }
+
+                showMessage('pantry', 'Pantry deleted successfully!', 'success');
+                await loadPantries();
+            } catch (error) {
+                showMessage('pantry', `Error: ${error.message}`, 'error');
+            }
         });
     });
 }

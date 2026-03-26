@@ -533,6 +533,21 @@ def update_pantry(pantry_id: int) -> Any:
     return jsonify(updated)
 
 
+@app.delete("/api/pantries/<int:pantry_id>")
+def delete_pantry(pantry_id: int) -> Any:
+    """Delete a pantry (ADMIN only)."""
+    user = current_user()
+    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+        return jsonify({"error": "Forbidden"}), 403
+
+    pantry = find_pantry_by_id(pantry_id)
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    backend.delete_pantry(pantry_id)
+    return jsonify({"success": True}), 200
+
+
 @app.post("/api/pantries/<int:pantry_id>/leads")
 def add_pantry_lead(pantry_id: int) -> Any:
     """Assign a pantry lead to a pantry (ADMIN only)."""

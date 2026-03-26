@@ -256,6 +256,40 @@ class MemoryBackend(StoreBackend):
         pantry["updated_at"] = _utc_now_iso()
         return dict(pantry)
 
+    def delete_pantry(self, pantry_id: int) -> None:
+        shift_ids = [shift.get("shift_id") for shift in self.store["shifts"] if shift.get("pantry_id") == pantry_id]
+        shift_role_ids = [
+            role.get("shift_role_id")
+            for role in self.store["shift_roles"]
+            if role.get("shift_id") in shift_ids
+        ]
+
+        self.store["shift_signups"] = [
+            signup
+            for signup in self.store["shift_signups"]
+            if signup.get("shift_role_id") not in shift_role_ids
+        ]
+        self.store["shift_roles"] = [
+            role
+            for role in self.store["shift_roles"]
+            if role.get("shift_id") not in shift_ids
+        ]
+        self.store["shifts"] = [
+            shift
+            for shift in self.store["shifts"]
+            if shift.get("pantry_id") != pantry_id
+        ]
+        self.store["pantry_leads"] = [
+            pantry_lead
+            for pantry_lead in self.store["pantry_leads"]
+            if pantry_lead.get("pantry_id") != pantry_id
+        ]
+        self.store["pantries"] = [
+            pantry
+            for pantry in self.store["pantries"]
+            if pantry.get("pantry_id") != pantry_id
+        ]
+
     def add_pantry_lead(self, pantry_id: int, user_id: int) -> None:
         if self.is_pantry_lead(pantry_id, user_id):
             raise ValueError("User already a lead for this pantry")

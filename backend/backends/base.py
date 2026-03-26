@@ -61,6 +61,10 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def delete_pantry(self, pantry_id: int) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def add_pantry_lead(self, pantry_id: int, user_id: int) -> None:
         raise NotImplementedError
 

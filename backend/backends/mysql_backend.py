@@ -368,6 +368,12 @@ class MySQLBackend(StoreBackend):
             conn.commit()
         return self.get_pantry_by_id(pantry_id)
 
+    def delete_pantry(self, pantry_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pantries WHERE pantry_id = %s", (pantry_id,))
+            conn.commit()
+
     def add_pantry_lead(self, pantry_id: int, user_id: int) -> None:
         with get_connection() as conn:
             cursor = conn.cursor()
