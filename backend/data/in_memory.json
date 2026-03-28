@@ -192,6 +192,10 @@
   ],
   "roles": [
     {
+      "role_id": 0,
+      "role_name": "SUPER_ADMIN"
+    },
+    {
       "role_id": 1,
       "role_name": "ADMIN"
     },
@@ -207,7 +211,7 @@
   "user_roles": [
     {
       "user_id": 1,
-      "role_id": 1
+      "role_id": 0
     },
     {
       "user_id": 2,

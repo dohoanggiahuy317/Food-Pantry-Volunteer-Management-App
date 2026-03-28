@@ -7,8 +7,20 @@ let expandedShiftContext = null;
 let registrationsCache = {};
 let editingShiftSnapshot = null;
 let activeManageShiftsSubtab = 'create';
+let activeAdminSubtab = 'pantries';
+let adminRoles = [];
+let adminUsers = [];
+let selectedAdminUserId = null;
 let dashboardBootPromise = null;
 let dashboardEventListenersBound = false;
+
+function currentUserHasRole(roleName) {
+    return Boolean(currentUser && Array.isArray(currentUser.roles) && currentUser.roles.includes(roleName));
+}
+
+function currentUserIsAdminCapable() {
+    return currentUserHasRole('ADMIN') || currentUserHasRole('SUPER_ADMIN');
+}
 
 async function initializeDashboardApp() {
     if (dashboardBootPromise) {
@@ -56,32 +68,28 @@ async function initializeDashboardApp() {
 
 // Setup UI based on role
 function setupRoleBasedUI() {
-    const isAdmin = currentUser.roles.includes('ADMIN');
-    const isPantryLead = currentUser.roles.includes('PANTRY_LEAD');
-    const isVolunteer = currentUser.roles.includes('VOLUNTEER');
+    const isAdmin = currentUserIsAdminCapable();
+    const isPantryLead = currentUserHasRole('PANTRY_LEAD');
+    const isVolunteer = currentUserHasRole('VOLUNTEER');
     const calendarTab = document.querySelector('.nav-tab[data-tab="calendar"]');
     const calendarContent = document.getElementById('content-calendar');
+    const shiftsTab = document.getElementById('tab-shifts');
+    const adminTab = document.getElementById('tab-admin');
+    const myShiftsTab = document.getElementById('tab-my-shifts');
     let defaultTab = 'calendar';
 
     const hideCalendarForLead = isPantryLead && !isAdmin && !isVolunteer;
-    if (hideCalendarForLead && calendarTab) {
-        calendarTab.classList.add('hidden');
-        calendarContent?.classList.remove('active');
-        defaultTab = 'shifts';
+    if (calendarTab) {
+        calendarTab.classList.toggle('hidden', hideCalendarForLead);
+        if (hideCalendarForLead) {
+            calendarContent?.classList.remove('active');
+            defaultTab = 'shifts';
+        }
     }
 
-    // Show/hide tabs based on role
-    if (isAdmin || isPantryLead) {
-        document.getElementById('tab-shifts').classList.remove('hidden');
-    }
-
-    if (isAdmin) {
-        document.getElementById('tab-admin').classList.remove('hidden');
-    }
-
-    if (isVolunteer) {
-        document.getElementById('tab-my-shifts').classList.remove('hidden');
-    }
+    shiftsTab?.classList.toggle('hidden', !(isAdmin || isPantryLead));
+    adminTab?.classList.toggle('hidden', !isAdmin);
+    myShiftsTab?.classList.toggle('hidden', !isVolunteer);
 
     return defaultTab;
 }
@@ -108,6 +116,9 @@ async function activateTab(targetTab) {
     if (targetTab === 'shifts') {
         setManageShiftsSubtab(activeManageShiftsSubtab);
         await loadShiftsTable();
+    } else if (targetTab === 'admin') {
+        setAdminSubtab(activeAdminSubtab);
+        await loadAdminTab();
     } else if (targetTab === 'my-shifts') {
         await loadMyRegisteredShifts();
     } else if (targetTab === 'my-account') {
@@ -132,7 +143,7 @@ async function loadPantries() {
         if (allPantries.length === 0) {
             currentPantryId = null;
             select.innerHTML = '<option value="">No pantries available</option>';
-            if (currentUser.roles.includes('ADMIN')) {
+            if (currentUserIsAdminCapable()) {
                 await updatePantriesTable();
             }
             return;
@@ -152,7 +163,7 @@ async function loadPantries() {
         select.value = currentPantryId;
 
         // Load pantry leads for admin
-        if (currentUser.roles.includes('ADMIN')) {
+        if (currentUserIsAdminCapable()) {
             await loadPantryLeads();
         }
     } catch (error) {
@@ -443,7 +454,7 @@ async function signupForRole(roleId) {
     try {
 
         const myShiftsTab = document.getElementById('content-my-shifts');
-        const isVolunteer = currentUser && currentUser.roles.includes('VOLUNTEER');
+        const isVolunteer = currentUserHasRole('VOLUNTEER');
         if (isVolunteer && myShiftsTab && myShiftsTab.classList.contains('active')) {
             await loadMyRegisteredShifts();
         }
@@ -547,6 +558,248 @@ function setManageShiftsSubtab(target) {
     }
     if (viewContent) {
         viewContent.classList.toggle('active', normalized === 'view');
+    }
+}
+
+function setAdminSubtab(target) {
+    const normalized = target === 'users' ? 'users' : 'pantries';
+    activeAdminSubtab = normalized;
+
+    document.querySelectorAll('.admin-subtab').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.adminSubtab === normalized);
+    });
+
+    document.querySelectorAll('.admin-subcontent').forEach((section) => {
+        section.classList.toggle('active', section.id === `admin-subcontent-${normalized}`);
+    });
+}
+
+function formatAuthProviderLabel(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) {
+        return 'Not linked';
+    }
+    return normalized.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+async function ensureAdminRolesLoaded() {
+    if (adminRoles.length > 0) {
+        return adminRoles;
+    }
+    adminRoles = await getRoles();
+    return adminRoles;
+}
+
+async function loadAdminTab() {
+    if (activeAdminSubtab === 'users') {
+        await loadAdminUsers();
+        return;
+    }
+    await updatePantriesTable();
+}
+
+function renderAdminUserTable() {
+    const tbody = document.getElementById('admin-users-table-body');
+    if (!tbody) {
+        return;
+    }
+
+    if (!adminUsers.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #718096;">No users found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = adminUsers.map((user) => {
+        const rolesText = Array.isArray(user.roles) && user.roles.length ? user.roles.join(', ') : 'No roles';
+        const isSelected = selectedAdminUserId === user.user_id;
+        return `
+            <tr class="admin-user-row ${isSelected ? 'selected' : ''}" data-admin-user-row="${user.user_id}">
+                <td>${escapeHtml(formatAccountValue(user.full_name))}</td>
+                <td>${escapeHtml(formatAccountValue(user.email))}</td>
+                <td>${escapeHtml(formatAccountValue(user.phone_number))}</td>
+                <td>${escapeHtml(rolesText)}</td>
+                <td>${escapeHtml(String(Number(user.attendance_score || 0)))}%</td>
+                <td>${escapeHtml(formatAuthProviderLabel(user.auth_provider))}</td>
+                <td>${escapeHtml(formatAccountTimestamp(user.created_at))}</td>
+                <td><button type="button" class="btn btn-secondary btn-sm" data-open-admin-user="${user.user_id}">View Profile</button></td>
+            </tr>
+        `;
+    }).join('');
+
+    tbody.querySelectorAll('[data-open-admin-user]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            await openAdminUserProfile(Number(button.dataset.openAdminUser));
+        });
+    });
+}
+
+function renderAdminRoleOptions(userProfile) {
+    const editableRoles = adminRoles.filter((role) => role.role_name !== 'SUPER_ADMIN');
+    const selectedRole = Array.isArray(userProfile.roles) && userProfile.roles.length ? userProfile.roles[0] : '';
+    return editableRoles.map((role) => `
+        <label class="admin-role-option ${selectedRole === role.role_name ? 'selected' : ''}">
+            <input
+                type="radio"
+                name="admin-user-role"
+                value="${role.role_id}"
+                ${selectedRole === role.role_name ? 'checked' : ''}
+            >
+            <span>${escapeHtml(role.role_name)}</span>
+        </label>
+    `).join('');
+}
+
+function renderAdminUserProfile(userProfile) {
+    const panel = document.getElementById('admin-user-profile-panel');
+    if (!panel) {
+        return;
+    }
+
+    const rolesText = Array.isArray(userProfile.roles) && userProfile.roles.length ? userProfile.roles.join(', ') : 'No roles';
+    const isProtectedSuperAdmin = userProfile.user_id === 1 || (Array.isArray(userProfile.roles) && userProfile.roles.includes('SUPER_ADMIN'));
+    const canEditRoles = !isProtectedSuperAdmin;
+    const roleNote = isProtectedSuperAdmin
+        ? '<div class="account-note memory-note">This protected super admin account is read-only. Its roles cannot be changed or removed.</div>'
+        : '<div class="account-note">Update the selected user roles below. SUPER_ADMIN is intentionally excluded from editable controls.</div>';
+
+    panel.innerHTML = `
+        <div class="admin-user-profile">
+            <div class="account-summary-grid admin-user-summary-grid">
+                ${renderAccountSummaryItem('Full Name', formatAccountValue(userProfile.full_name))}
+                ${renderAccountSummaryItem('Email', formatAccountValue(userProfile.email))}
+                ${renderAccountSummaryItem('Phone Number', formatAccountValue(userProfile.phone_number))}
+                ${renderAccountSummaryItem('Roles', rolesText)}
+                ${renderAccountSummaryItem('Attendance Score', `${Number(userProfile.attendance_score || 0)}%`)}
+                ${renderAccountSummaryItem('Auth Provider', formatAuthProviderLabel(userProfile.auth_provider))}
+                ${renderAccountSummaryItem('Auth UID', formatAccountValue(userProfile.auth_uid))}
+                ${renderAccountSummaryItem('Created At', formatAccountTimestamp(userProfile.created_at))}
+                ${renderAccountSummaryItem('Updated At', formatAccountTimestamp(userProfile.updated_at))}
+            </div>
+            <div class="admin-user-role-editor">
+                <h3 class="admin-user-role-title">Roles</h3>
+                ${roleNote}
+                <form id="admin-user-role-form">
+                    <div class="admin-role-options">
+                        ${renderAdminRoleOptions(userProfile)}
+                    </div>
+                    <div class="admin-user-role-actions">
+                        <button type="submit" class="btn btn-primary" ${canEditRoles ? '' : 'disabled'}>Save Roles</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    const roleForm = document.getElementById('admin-user-role-form');
+    roleForm?.querySelectorAll('input[name="admin-user-role"]').forEach((input) => {
+        input.addEventListener('change', () => {
+            roleForm.querySelectorAll('.admin-role-option').forEach((option) => {
+                option.classList.toggle('selected', option.contains(input) && input.checked);
+            });
+        });
+    });
+    roleForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (!canEditRoles) {
+            showMessage('admin-users', 'The protected super admin account cannot be edited.', 'error');
+            return;
+        }
+
+        const selectedRoleInput = roleForm.querySelector('input[name="admin-user-role"]:checked');
+        if (!selectedRoleInput) {
+            showMessage('admin-users', 'Select one role before saving.', 'error');
+            return;
+        }
+
+        const selectedRoleIds = [Number(selectedRoleInput.value)];
+        const editingSelf = currentUser && currentUser.user_id === userProfile.user_id;
+
+        try {
+            const updatedProfile = await updateUserRoles(userProfile.user_id, selectedRoleIds);
+            showMessage('admin-users', 'User roles updated successfully.', 'success');
+            await refreshCurrentUserState();
+            if (editingSelf) {
+                await loadPantries();
+                if (!currentUserIsAdminCapable()) {
+                    await activateTab(setupRoleBasedUI());
+                    return;
+                }
+            }
+            await loadAdminUsers({ preserveSelection: true, preferredUserId: updatedProfile.user_id });
+        } catch (error) {
+            showMessage('admin-users', `Failed to update roles: ${error.message}`, 'error');
+        }
+    });
+}
+
+async function openAdminUserProfile(userId) {
+    selectedAdminUserId = userId;
+    renderAdminUserTable();
+
+    const panel = document.getElementById('admin-user-profile-panel');
+    if (panel) {
+        panel.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading user profile...</p></div>';
+    }
+
+    try {
+        const profile = await getUserProfile(userId);
+        renderAdminUserProfile(profile);
+    } catch (error) {
+        if (panel) {
+            panel.innerHTML = `<p class="my-shift-load-error">Failed to load user profile: ${escapeHtml(error.message)}</p>`;
+        }
+        showMessage('admin-users', `Failed to load user profile: ${error.message}`, 'error');
+    }
+}
+
+async function loadAdminUsers(options = {}) {
+    const preserveSelection = Boolean(options.preserveSelection);
+    const preferredUserId = options.preferredUserId || null;
+    const searchInput = document.getElementById('admin-user-search');
+    const roleFilterSelect = document.getElementById('admin-user-role-filter');
+    const panel = document.getElementById('admin-user-profile-panel');
+
+    try {
+        await ensureAdminRolesLoaded();
+
+        if (roleFilterSelect && !roleFilterSelect.dataset.initialized) {
+            roleFilterSelect.innerHTML = '<option value="">All roles</option>';
+            adminRoles.forEach((role) => {
+                const option = document.createElement('option');
+                option.value = role.role_name;
+                option.textContent = role.role_name;
+                roleFilterSelect.appendChild(option);
+            });
+            roleFilterSelect.dataset.initialized = 'true';
+        }
+
+        const roleFilter = roleFilterSelect ? roleFilterSelect.value : '';
+        const searchQuery = searchInput ? searchInput.value.trim() : '';
+        adminUsers = await getAllUsers(roleFilter || null, searchQuery);
+
+        if (!preserveSelection) {
+            selectedAdminUserId = null;
+        }
+
+        if (preferredUserId) {
+            selectedAdminUserId = preferredUserId;
+        } else if (selectedAdminUserId && !adminUsers.some((user) => user.user_id === selectedAdminUserId)) {
+            selectedAdminUserId = null;
+        }
+
+        renderAdminUserTable();
+
+        if (selectedAdminUserId) {
+            await openAdminUserProfile(selectedAdminUserId);
+        } else if (panel) {
+            panel.innerHTML = '<p class="auth-empty">Select a user to view the full profile and manage roles.</p>';
+        }
+    } catch (error) {
+        if (panel) {
+            panel.innerHTML = `<p class="my-shift-load-error">Failed to load users: ${escapeHtml(error.message)}</p>`;
+        }
+        showMessage('admin-users', `Failed to load users: ${error.message}`, 'error');
     }
 }
 
@@ -665,6 +918,24 @@ function updateAccountEmailUi() {
     }
 }
 
+function updateDeleteAccountUi() {
+    const deleteButton = document.getElementById('delete-account-btn');
+    const deleteNote = document.querySelector('.delete-account-note');
+    if (!deleteButton || !deleteNote || !currentUser) {
+        return;
+    }
+
+    const isProtectedSuperAdmin = currentUser.user_id === 1 || currentUserHasRole('SUPER_ADMIN');
+    if (isProtectedSuperAdmin) {
+        deleteButton.disabled = true;
+        deleteNote.textContent = 'The protected super admin account cannot delete itself.';
+        return;
+    }
+
+    deleteButton.disabled = false;
+    deleteNote.textContent = 'Deleting your account removes your local app user, signs you out, and in Firebase mode also deletes the linked Firebase account after a fresh Google reauthentication.';
+}
+
 function renderMyAccountSummary() {
     const container = document.getElementById('my-account-summary');
     if (!container || !currentUser) {
@@ -706,12 +977,14 @@ function syncMyAccountForms() {
     }
 
     updateAccountEmailUi();
+    updateDeleteAccountUi();
 }
 
 async function refreshCurrentUserState() {
     currentUser = await getCurrentUser();
     document.getElementById('user-email').textContent = currentUser.email;
     document.getElementById('user-role').textContent = currentUser.roles.join(', ');
+    setupRoleBasedUI();
     renderMyAccountSummary();
     syncMyAccountForms();
 }
@@ -917,7 +1190,7 @@ async function markSignupAttendance(signupId, attendanceStatus, shiftId) {
 function renderRegistrationsRowContent(shiftRegistrations) {
     const roles = shiftRegistrations.roles || [];
     const windowInfo = getAttendanceWindowInfo(shiftRegistrations.start_time, shiftRegistrations.end_time);
-    const canMarkAttendance = currentUser && (currentUser.roles.includes('ADMIN') || currentUser.roles.includes('PANTRY_LEAD'));
+    const canMarkAttendance = currentUser && (currentUserIsAdminCapable() || currentUserHasRole('PANTRY_LEAD'));
 
     if (roles.length === 0) {
         return `
@@ -1330,6 +1603,7 @@ async function revokeShiftConfirm(shiftId) {
 // Setup event listeners
 function setupEventListeners() {
     setManageShiftsSubtab(activeManageShiftsSubtab);
+    setAdminSubtab(activeAdminSubtab);
 
     document.querySelectorAll('.manage-shifts-subtab').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -1341,11 +1615,34 @@ function setupEventListeners() {
         });
     });
 
+    document.querySelectorAll('.admin-subtab').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const targetSubtab = button.dataset.adminSubtab === 'users' ? 'users' : 'pantries';
+            setAdminSubtab(targetSubtab);
+            await loadAdminTab();
+        });
+    });
+
     // Tab navigation
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', async () => {
             await activateTab(tab.dataset.tab);
         });
+    });
+
+    document.getElementById('admin-user-search-btn')?.addEventListener('click', async () => {
+        await loadAdminUsers();
+    });
+
+    document.getElementById('admin-user-search')?.addEventListener('keydown', async (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            await loadAdminUsers();
+        }
+    });
+
+    document.getElementById('admin-user-role-filter')?.addEventListener('change', async () => {
+        await loadAdminUsers();
     });
 
     document.getElementById('my-account-profile-form').addEventListener('submit', async (event) => {
@@ -1456,7 +1753,7 @@ function setupEventListeners() {
         currentPantryId = parseInt(e.target.value);
         resetEditShiftForm();
         await loadCalendarShifts();
-        if (currentUser.roles.includes('ADMIN') || currentUser.roles.includes('PANTRY_LEAD')) {
+        if (currentUserIsAdminCapable() || currentUserHasRole('PANTRY_LEAD')) {
             await loadShiftsTable();
         }
     });
