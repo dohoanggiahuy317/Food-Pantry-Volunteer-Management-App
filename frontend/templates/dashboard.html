@@ -361,6 +361,15 @@
         </div>
     </div>
 
+    <!-- Global Notification Modal -->
+    <div id="notification-modal" onclick="if(event.target===this)this.style.display='none';" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:2000; align-items:center; justify-content:center;">
+        <div id="notification-modal-box" style="background:#fff; border-radius:10px; padding:2rem 2rem 1.5rem 2rem; width:100%; max-width:420px; box-shadow:0 8px 32px rgba(0,0,0,0.18); position:relative;">
+            <button onclick="document.getElementById('notification-modal').style.display='none';" style="position:absolute; top:0.75rem; right:1rem; background:none; border:none; font-size:1.5rem; cursor:pointer; color:#718096; line-height:1; z-index:1;">&times;</button>
+            <div id="notification-modal-icon" style="font-size:2rem; margin-bottom:0.75rem; text-align:center;"></div>
+            <p id="notification-modal-text" style="margin:0; text-align:center; font-size:1rem; word-break:break-word;"></p>
+        </div>
+    </div>
+
     <!-- Include JavaScript Modules -->
     <script src="{{ url_for('static', filename='js/api-helpers.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user-functions.js') }}"></script>

@@ -1508,15 +1508,27 @@ function setupEventListeners() {
 
 // Show message helper
 function showMessage(target, text, type = 'info') {
-    const messageEl = document.getElementById(`message-${target}`);
-    if (!messageEl) return;
+    const modal = document.getElementById('notification-modal');
+    const box = document.getElementById('notification-modal-box');
+    const textEl = document.getElementById('notification-modal-text');
+    const iconEl = document.getElementById('notification-modal-icon');
+    if (!modal || !textEl) return;
 
-    messageEl.className = `message message-${type} show`;
-    messageEl.textContent = text;
+    const styles = {
+        success: { icon: '✓', color: '#22543d', bg: '#c6f6d5', border: '#48bb78' },
+        error:   { icon: '✕', color: '#742a2a', bg: '#fed7d7', border: '#f56565' },
+        info:    { icon: 'ℹ', color: '#2c5282', bg: '#bee3f8', border: '#4299e1' },
+    };
+    const s = styles[type] || styles.info;
 
-    setTimeout(() => {
-        messageEl.classList.remove('show');
-    }, 5000);
+    box.style.borderTop = `4px solid ${s.border}`;
+    box.style.background = s.bg;
+    iconEl.textContent = s.icon;
+    iconEl.style.color = s.border;
+    textEl.textContent = text;
+    textEl.style.color = s.color;
+
+    modal.style.display = 'flex';
 }
 
 // Make functions globally available
