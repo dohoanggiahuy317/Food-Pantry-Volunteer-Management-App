@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   user_id INT AUTO_INCREMENT PRIMARY KEY,
   full_name VARCHAR(255) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(32) NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   attendance_score INT NOT NULL DEFAULT 100,
   created_at DATETIME(6) NOT NULL,

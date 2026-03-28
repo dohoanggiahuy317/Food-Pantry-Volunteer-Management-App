@@ -148,3 +148,6 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+
+
+firebase_private_key.json

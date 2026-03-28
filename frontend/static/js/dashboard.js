@@ -7,54 +7,52 @@ let expandedShiftContext = null;
 let registrationsCache = {};
 let editingShiftSnapshot = null;
 let activeManageShiftsSubtab = 'create';
+let dashboardBootPromise = null;
+let dashboardEventListenersBound = false;
 
-// Wait for all scripts to load before initializing
-window.addEventListener('load', async function () {
-    try {
-        // Verify functions are loaded
-        if (typeof getCurrentUser === 'undefined') {
-            throw new Error('Required functions not loaded. Please refresh the page.');
-        }
+async function initializeDashboardApp() {
+    if (dashboardBootPromise) {
+        return dashboardBootPromise;
+    }
 
-        // Load current user
-        currentUser = await getCurrentUser();
-        document.getElementById('user-email').textContent = currentUser.email;
+    dashboardBootPromise = (async () => {
+        try {
+            if (typeof getCurrentUser === 'undefined') {
+                throw new Error('Required functions not loaded. Please refresh the page.');
+            }
 
-        // Display roles
-        const roleNames = currentUser.roles.join(', ');
-        document.getElementById('user-role').textContent = roleNames;
+            currentUser = await getCurrentUser();
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('user-role').textContent = currentUser.roles.join(', ');
 
-        // Setup UI based on role and choose default tab
-        const defaultTab = setupRoleBasedUI();
+            const defaultTab = setupRoleBasedUI();
+            await loadPantries();
 
-        // Load pantries
-        await loadPantries();
+            if (!dashboardEventListenersBound) {
+                setupEventListeners();
+                dashboardEventListenersBound = true;
+            }
 
-        // Setup event listeners
-        setupEventListeners();
-
-        // Load initial tab content
-        await activateTab(defaultTab);
-
-    } catch (error) {
-        console.error('Failed to initialize:', error);
-        showMessage('calendar', `Failed to load: ${error.message}`, 'error');
-        // Display error on page
-        document.getElementById('shifts-container').innerHTML = `
+            await activateTab(defaultTab);
+        } catch (error) {
+            dashboardBootPromise = null;
+            console.error('Failed to initialize dashboard:', error);
+            showMessage('calendar', `Failed to load: ${error.message}`, 'error');
+            const shiftsContainer = document.getElementById('shifts-container');
+            if (shiftsContainer) {
+                shiftsContainer.innerHTML = `
                     <div style="background: #fed7d7; border: 2px solid #f56565; padding: 2rem; border-radius: 12px; text-align: center;">
-                        <h3 style="color: #742a2a; margin-bottom: 1rem;">⚠️ Failed to Load</h3>
-                        <p style="color: #742a2a; margin-bottom: 1rem;"><strong>${error.message}</strong></p>
-                        <p style="color: #742a2a; font-size: 0.875rem;">
-                            Make sure you include <code>?user_id=X</code> in the URL<br>
-                            Example: <code>http://127.0.0.1:5000/?user_id=4</code>
-                        </p>
-                        <button onclick="window.location.href='/?user_id=4'" class="btn btn-primary" style="margin-top: 1rem;">
-                            Load as Admin
-                        </button>
+                        <h3 style="color: #742a2a; margin-bottom: 1rem;">Failed to Load</h3>
+                        <p style="color: #742a2a;"><strong>${escapeHtml(error.message || 'Unknown error')}</strong></p>
                     </div>
                 `;
-    }
-});
+            }
+            throw error;
+        }
+    })();
+
+    return dashboardBootPromise;
+}
 
 // Setup UI based on role
 function setupRoleBasedUI() {
@@ -436,6 +434,7 @@ async function signupForRole(roleId) {
         }
     } catch (error) {
         showMessage('calendar', `Signup failed: ${error.message}`, 'error');
+        await loadCalendarShifts(); 
         return;
     }
 
@@ -1582,3 +1581,4 @@ window.toggleShiftRegistrations = toggleShiftRegistrations;
 window.cancelMySignup = cancelMySignup;
 window.reconfirmMySignup = reconfirmMySignup;
 window.markSignupAttendance = markSignupAttendance;
+window.initializeDashboardApp = initializeDashboardApp;

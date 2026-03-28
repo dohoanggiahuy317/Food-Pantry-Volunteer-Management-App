@@ -10,6 +10,10 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_user_roles(self, user_id: int) -> list[str]:
         raise NotImplementedError
 
@@ -26,7 +30,7 @@ class StoreBackend(ABC):
         self,
         full_name: str,
         email: str,
-        password_hash: str,
+        phone_number: str | None,
         is_active: bool,
         roles: list[str],
     ) -> dict[str, Any]:

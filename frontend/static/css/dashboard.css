@@ -10,6 +10,159 @@ body {
         Cantarell, sans-serif;
     background: #f5f7fa;
     color: #333;
+    min-height: 100vh;
+}
+
+.app-hidden {
+    display: none !important;
+}
+
+.auth-shell {
+    min-height: 100vh;
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+        radial-gradient(circle at top left, rgba(102, 126, 234, 0.18), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(118, 75, 162, 0.2), transparent 28%),
+        linear-gradient(180deg, #eef2ff 0%, #f5f7fa 100%);
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 720px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 24px;
+    padding: 2rem;
+    box-shadow: 0 20px 45px rgba(51, 65, 85, 0.12);
+    backdrop-filter: blur(14px);
+}
+
+.auth-hero {
+    margin-bottom: 1.5rem;
+}
+
+.auth-kicker {
+    display: inline-block;
+    margin-bottom: 0.85rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #3c56c7;
+    background: rgba(102, 126, 234, 0.12);
+}
+
+.auth-hero h1 {
+    font-size: 2.1rem;
+    line-height: 1.1;
+    color: #1f2937;
+    margin-bottom: 0.75rem;
+}
+
+.auth-hero p {
+    max-width: 48rem;
+    line-height: 1.6;
+    color: #4b5563;
+    margin-bottom: 1rem;
+}
+
+.auth-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.75rem;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.auth-card-section {
+    margin-bottom: 0;
+}
+
+.auth-section-copy {
+    color: #4b5563;
+    line-height: 1.5;
+    margin-bottom: 1.25rem;
+}
+
+.auth-action-row {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.auth-signup-form {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.auth-signup-header {
+    margin-bottom: 1rem;
+}
+
+.auth-signup-header h3 {
+    font-size: 1.05rem;
+    color: #2d3748;
+    margin-bottom: 0.25rem;
+}
+
+.auth-signup-header p {
+    color: #4a5568;
+}
+
+.auth-account-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.85rem;
+}
+
+.auth-account-card {
+    border: 1px solid #dbe4f0;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    padding: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.auth-account-card:hover {
+    transform: translateY(-2px);
+    border-color: #667eea;
+    box-shadow: 0 10px 25px rgba(102, 126, 234, 0.12);
+}
+
+.auth-account-label,
+.auth-account-email,
+.auth-account-description {
+    display: block;
+}
+
+.auth-account-label {
+    font-weight: 700;
+    color: #1f2937;
+    margin-bottom: 0.35rem;
+}
+
+.auth-account-email {
+    color: #3c56c7;
+    font-size: 0.9rem;
+    margin-bottom: 0.35rem;
+    word-break: break-word;
+}
+
+.auth-account-description,
+.auth-empty {
+    color: #6b7280;
+    font-size: 0.9rem;
 }
 
 /* Header */

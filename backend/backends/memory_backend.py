@@ -132,6 +132,19 @@ class MemoryBackend(StoreBackend):
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         return self._copy(next((u for u in self.store["users"] if u.get("user_id") == user_id), None))
 
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        normalized_email = str(email).strip().lower()
+        return self._copy(
+            next(
+                (
+                    u
+                    for u in self.store["users"]
+                    if str(u.get("email", "")).strip().lower() == normalized_email
+                ),
+                None,
+            )
+        )
+
     def get_user_roles(self, user_id: int) -> list[str]:
         role_ids = [
             ur.get("role_id")
@@ -157,11 +170,12 @@ class MemoryBackend(StoreBackend):
         self,
         full_name: str,
         email: str,
-        password_hash: str,
+        phone_number: str | None,
         is_active: bool,
         roles: list[str],
     ) -> dict[str, Any]:
-        if any(u.get("email") == email for u in self.store["users"]):
+        normalized_email = str(email).strip().lower()
+        if any(str(u.get("email", "")).strip().lower() == normalized_email for u in self.store["users"]):
             raise ValueError("Email already exists")
 
         user_id = max((u.get("user_id", 0) for u in self.store["users"]), default=0) + 1
@@ -169,8 +183,8 @@ class MemoryBackend(StoreBackend):
         new_user = {
             "user_id": user_id,
             "full_name": full_name,
-            "email": email,
-            "password_hash": password_hash,
+            "email": normalized_email,
+            "phone_number": phone_number,
             "is_active": is_active,
             "attendance_score": 100,
             "created_at": timestamp,

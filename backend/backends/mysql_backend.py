@@ -39,7 +39,7 @@ def _serialize_user(row: dict[str, Any]) -> dict[str, Any]:
         "user_id": row["user_id"],
         "full_name": row["full_name"],
         "email": row["email"],
-        "password_hash": row["password_hash"],
+        "phone_number": row.get("phone_number"),
         "is_active": bool(row["is_active"]),
         "attendance_score": int(row.get("attendance_score", 100)),
         "created_at": _to_iso_z(row["created_at"]),
@@ -164,6 +164,14 @@ class MySQLBackend(StoreBackend):
             row = cursor.fetchone()
             return _serialize_user(row) if row else None
 
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        normalized_email = str(email).strip().lower()
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM users WHERE LOWER(email) = %s LIMIT 1", (normalized_email,))
+            row = cursor.fetchone()
+            return _serialize_user(row) if row else None
+
     def get_user_roles(self, user_id: int) -> list[str]:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -208,10 +216,11 @@ class MySQLBackend(StoreBackend):
         self,
         full_name: str,
         email: str,
-        password_hash: str,
+        phone_number: str | None,
         is_active: bool,
         roles: list[str],
     ) -> dict[str, Any]:
+        normalized_email = str(email).strip().lower()
         timestamp = _now_utc_naive()
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -221,7 +230,7 @@ class MySQLBackend(StoreBackend):
                     INSERT INTO users (
                         full_name,
                         email,
-                        password_hash,
+                        phone_number,
                         is_active,
                         attendance_score,
                         created_at,
@@ -229,7 +238,15 @@ class MySQLBackend(StoreBackend):
                     )
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (full_name, email, password_hash, 1 if is_active else 0, 100, timestamp, timestamp),
+                    (
+                        full_name,
+                        normalized_email,
+                        phone_number,
+                        1 if is_active else 0,
+                        100,
+                        timestamp,
+                        timestamp,
+                    ),
                 )
             except IntegrityError:
                 conn.rollback()
@@ -254,8 +271,8 @@ class MySQLBackend(StoreBackend):
             return {
                 "user_id": user_id,
                 "full_name": full_name,
-                "email": email,
-                "password_hash": password_hash,
+                "email": normalized_email,
+                "phone_number": phone_number,
                 "is_active": is_active,
                 "attendance_score": 100,
                 "created_at": _to_iso_z(timestamp),
