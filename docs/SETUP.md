@@ -41,7 +41,9 @@ cp backend/env.example backend/.env
 Your `backend/.env` should look like this:
 
 ```env
+AUTH_PROVIDER=memory
 DATA_BACKEND=mysql
+FLASK_SECRET_KEY=change-me
 
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
@@ -59,7 +61,9 @@ SEED_MYSQL_FROM_JSON_ON_EMPTY=true
 
 | Variable | Purpose |
 |---|---|
+| `AUTH_PROVIDER` | `memory` for sample login/logout, or `firebase` for Google sign-in with Firebase |
 | `DATA_BACKEND` | Set to `mysql` for the real DB, or `memory` for an in-memory backend (no Docker needed — useful for quick testing) |
+| `FLASK_SECRET_KEY` | Secret used to sign Flask session cookies |
 | `MYSQL_HOST` / `MYSQL_PORT` | Where Flask looks for MySQL. Docker maps the container to `localhost:3306` |
 | `MYSQL_DATABASE` | The database name created by Docker on first start |
 | `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml` |
@@ -111,8 +115,6 @@ python app.py
 
 ## Step 4: Accessing the App & Mock Authentication
 
-> **Note:** Real authentication has not yet been implemented. Steps 1–3 above are fully functional. This section describes the temporary dev-mode workaround in use until Firebase Auth is integrated (see [Upcoming: Firebase Authentication](#upcoming-firebase-authentication) below).
-
 **Open the app in your browser:**
 
 ```
@@ -121,21 +123,10 @@ http://localhost:5000
 
 Flask serves the full application — both the frontend (HTML/CSS/JS) and the API — from this single address. There is no separate frontend server to run.
 
-**How mock authentication works:**
+**How authentication works now:**
 
-The app defaults to acting as **user ID 4 (Admin)**. To switch users, append a `?user_id=` query parameter to any URL:
-
-| URL | Who you are acting as |
-|---|---|
-| `http://localhost:5000` | Default: Admin (user_id = 4) |
-| `http://localhost:5000/?user_id=1` | Acts as user with ID 1 |
-| `http://localhost:5000/?user_id=2` | Acts as user with ID 2 |
-
-To find available user IDs and their roles, query the API directly:
-
-```
-http://localhost:5000/api/users
-```
+- If `AUTH_PROVIDER=memory`, the first screen shows sample demo accounts for login/logout testing.
+- If `AUTH_PROVIDER=firebase`, the first screen shows Google login/signup and the app requires the Firebase variables described below.
 
 ---
 
@@ -170,7 +161,16 @@ FIREBASE_ADMIN_CREDENTIALS=path/to/serviceAccountKey.json
 ```
 
 **4. Add all Firebase variables to `backend/.env`**
-- The above variables will be added to `env.example` once the integration is merged.
+- Set `AUTH_PROVIDER=firebase` and add:
+
+```env
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+FIREBASE_APP_ID=
+FIREBASE_ADMIN_CREDENTIALS=path/to/serviceAccountKey.json
+```
+
 - Do **not** commit `serviceAccountKey.json` to version control — it is a secret.
 
-Once these steps are complete, the mock `?user_id=` system will be removed and the app will require a real login.
+Once these steps are complete, the app will use the pre-dashboard auth gate instead of the old mock `?user_id=` flow.

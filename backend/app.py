@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from flask import Flask, g, jsonify, render_template, request
+from flask import Flask, g, jsonify, render_template, request, session
 from flask_cors import CORS
 
+from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
 from backends.factory import create_backend
 
@@ -20,12 +22,14 @@ app = Flask(
     static_folder=str(ROOT_DIR / "frontend" / "static"),
     template_folder=str(ROOT_DIR / "frontend" / "templates"),
 )
+app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "volunteer-managing-dev-secret")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 backend: StoreBackend = create_backend()
+auth_service = create_auth_service()
 
-# Mock current user (no auth yet): default to user id=4 (admin)
-DEFAULT_USER_ID = 4
 ATTENDANCE_STATUSES = {"SHOW_UP", "NO_SHOW"}
 SIGNUP_STATUS_PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
 SIGNUP_STATUS_CONFIRMED = "CONFIRMED"
@@ -35,13 +39,31 @@ PAST_SHIFT_LOCK_CODE = "PAST_SHIFT_LOCKED"
 ACTIVE_SIGNUP_STATUSES = {SIGNUP_STATUS_CONFIRMED, "SHOW_UP", "NO_SHOW"}
 LEAD_VISIBLE_SIGNUP_STATUSES = ACTIVE_SIGNUP_STATUSES
 RESERVATION_WINDOW_HOURS = 48
+AUTH_EXEMPT_API_PATHS = {
+    "/api/auth/config",
+    "/api/auth/login/google",
+    "/api/auth/signup/google",
+    "/api/auth/login/memory",
+    "/api/auth/logout",
+    "/api/me",
+}
 
 
 @app.before_request
 def set_current_user() -> None:
-    """Allow switching user via ?user_id=X query parameter for testing."""
-    user_id = request.args.get("user_id", type=int) or DEFAULT_USER_ID
-    g.current_user_id = user_id
+    session_user_id = session.get("user_id")
+    g.current_user_id = int(session_user_id) if session_user_id is not None else None
+
+    if request.method == "OPTIONS":
+        return
+
+    path = request.path
+    if not path.startswith("/api/"):
+        return
+    if path.startswith("/api/public/") or path in AUTH_EXEMPT_API_PATHS:
+        return
+    if g.current_user_id is None:
+        return jsonify({"error": "Authentication required"}), 401
 
 
 def find_user_by_id(user_id: int) -> dict[str, Any] | None:
@@ -57,8 +79,73 @@ def user_has_role(user_id: int, role_name: str) -> bool:
 
 
 def current_user() -> dict[str, Any] | None:
-    user_id = getattr(g, "current_user_id", DEFAULT_USER_ID)
+    user_id = getattr(g, "current_user_id", None)
+    if user_id is None:
+        return None
     return find_user_by_id(user_id)
+
+
+def serialize_user_for_client(user: dict[str, Any] | None, include_roles: bool = False) -> dict[str, Any] | None:
+    if not user:
+        return None
+
+    payload = {
+        "user_id": user.get("user_id"),
+        "full_name": user.get("full_name"),
+        "email": user.get("email"),
+        "phone_number": user.get("phone_number"),
+        "auth_provider": user.get("auth_provider"),
+        "attendance_score": int(user.get("attendance_score", 100)),
+        "is_active": bool(user.get("is_active", True)),
+        "created_at": user.get("created_at"),
+        "updated_at": user.get("updated_at"),
+    }
+    if include_roles:
+        payload["roles"] = get_user_roles(int(user.get("user_id")))
+    return payload
+
+
+def login_user_session(user: dict[str, Any]) -> None:
+    session["user_id"] = int(user.get("user_id"))
+    session.permanent = True
+
+
+def logout_user_session() -> None:
+    session.pop("user_id", None)
+
+
+def json_auth_error(error: AuthError) -> tuple[Any, int]:
+    payload = {"error": error.message}
+    if error.code:
+        payload["code"] = error.code
+    return jsonify(payload), error.status_code
+
+
+def resolve_firebase_user(identity: Any) -> tuple[dict[str, Any] | None, bool]:
+    linked_user = backend.get_user_by_firebase_uid(identity.provider_user_id)
+    if linked_user:
+        return linked_user, False
+
+    email_user = backend.get_user_by_email(identity.email)
+    if not email_user:
+        return None, False
+
+    firebase_uid = str(email_user.get("firebase_uid") or "").strip()
+    if firebase_uid and firebase_uid != identity.provider_user_id:
+        raise AuthError(
+            "This email is already linked to a different Firebase account",
+            409,
+            "FIREBASE_ACCOUNT_MISMATCH",
+        )
+
+    linked = backend.link_user_auth(
+        int(email_user.get("user_id")),
+        identity.provider,
+        identity.provider_user_id,
+    )
+    if not linked:
+        raise AuthError("Unable to link Firebase account", 500, "LINK_FAILED")
+    return linked, True
 
 
 def find_pantry_by_id(pantry_id: int) -> dict[str, Any] | None:
@@ -364,16 +451,120 @@ def set_attendance_status(signup_id: int, attendance_status: str, actor_user_id:
 
 # ========== API ROUTES ==========
 
+@app.get("/api/auth/config")
+def get_auth_config() -> Any:
+    return jsonify(auth_service.get_client_config())
+
+
+@app.post("/api/auth/login/memory")
+def login_memory() -> Any:
+    if auth_service.mode != "memory":
+        return jsonify({"error": "Memory login is disabled"}), 400
+
+    payload = request.get_json(silent=True) or {}
+    sample_account_id = str(payload.get("sample_account_id", "")).strip()
+    if not sample_account_id:
+        return jsonify({"error": "Missing sample_account_id"}), 400
+
+    try:
+        sample_account = auth_service.resolve_memory_account(sample_account_id)
+    except AuthError as error:
+        return json_auth_error(error)
+
+    user = backend.get_user_by_email(sample_account.get("email", ""))
+    if not user:
+        return jsonify({"error": "Sample account is not mapped to a local user"}), 500
+
+    login_user_session(user)
+    return jsonify({"user": serialize_user_for_client(user, include_roles=True), "next": "app"})
+
+
+@app.post("/api/auth/login/google")
+def login_google() -> Any:
+    if auth_service.mode != "firebase":
+        return jsonify({"error": "Google login is disabled"}), 400
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        identity = auth_service.verify_google_token(payload.get("id_token"))
+        user, linked = resolve_firebase_user(identity)
+    except AuthError as error:
+        return json_auth_error(error)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 409
+
+    if not user:
+        return jsonify(
+            {
+                "signup_required": True,
+                "email": identity.email,
+                "firebase_uid": identity.provider_user_id,
+                "display_name": identity.display_name,
+                "next": "signup",
+            }
+        )
+
+    login_user_session(user)
+    response = {
+        "user": serialize_user_for_client(user, include_roles=True),
+        "next": "app",
+    }
+    if linked:
+        response["linked_existing_user"] = True
+    return jsonify(response)
+
+
+@app.post("/api/auth/signup/google")
+def signup_google() -> Any:
+    if auth_service.mode != "firebase":
+        return jsonify({"error": "Google signup is disabled"}), 400
+
+    payload = request.get_json(silent=True) or {}
+    full_name = str(payload.get("full_name", "")).strip()
+    phone_number = str(payload.get("phone_number", "")).strip()
+    if not full_name or not phone_number:
+        return jsonify({"error": "Missing: full_name, phone_number"}), 400
+
+    try:
+        identity = auth_service.verify_google_token(payload.get("id_token"))
+    except AuthError as error:
+        return json_auth_error(error)
+
+    if backend.get_user_by_firebase_uid(identity.provider_user_id):
+        return jsonify({"error": "Firebase account already exists"}), 409
+    if backend.get_user_by_email(identity.email):
+        return jsonify({"error": "Email already exists"}), 409
+
+    try:
+        user = backend.create_user(
+            full_name=full_name,
+            email=identity.email,
+            phone_number=phone_number,
+            is_active=True,
+            roles=["VOLUNTEER"],
+            auth_provider=identity.provider,
+            firebase_uid=identity.provider_user_id,
+        )
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 409
+
+    login_user_session(user)
+    return jsonify({"user": serialize_user_for_client(user, include_roles=True), "next": "app"}), 201
+
+
+@app.post("/api/auth/logout")
+def logout() -> Any:
+    logout_user_session()
+    return jsonify({"ok": True})
+
+
 @app.get("/api/me")
 def get_current_user() -> Any:
     """Get current logged-in user with roles."""
     user = current_user()
     if not user:
         return jsonify({"error": "No user"}), 401
-    roles = get_user_roles(int(user.get("user_id")))
-    resp = dict(user)
-    resp["roles"] = roles
-    return jsonify(resp)
+    return jsonify(serialize_user_for_client(user, include_roles=True))
 
 
 @app.get("/api/users")
@@ -385,11 +576,7 @@ def list_users() -> Any:
 
     role_filter = request.args.get("role")
     users = backend.list_users(role_filter)
-
-    for u in users:
-        u["roles"] = get_user_roles(int(u.get("user_id")))
-
-    return jsonify(users)
+    return jsonify([serialize_user_for_client(u, include_roles=True) for u in users])
 
 
 @app.get("/api/users/<int:user_id>/signups")
@@ -437,7 +624,7 @@ def create_user() -> Any:
         return jsonify({"error": "Forbidden"}), 403
 
     payload = request.get_json(silent=True) or {}
-    required = ["full_name", "email", "password_hash"]
+    required = ["full_name", "email"]
     missing = [k for k in required if not payload.get(k)]
     if missing:
         return jsonify({"error": f"Missing: {', '.join(missing)}"}), 400
@@ -446,14 +633,16 @@ def create_user() -> Any:
         new_user = backend.create_user(
             full_name=payload["full_name"],
             email=payload["email"],
-            password_hash=payload["password_hash"],
+            phone_number=payload.get("phone_number"),
             is_active=payload.get("is_active", True),
             roles=list(payload.get("roles", [])),
+            auth_provider=payload.get("auth_provider"),
+            firebase_uid=payload.get("firebase_uid"),
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    return jsonify(new_user), 201
+    return jsonify(serialize_user_for_client(new_user, include_roles=True)), 201
 
 
 @app.get("/api/pantries")

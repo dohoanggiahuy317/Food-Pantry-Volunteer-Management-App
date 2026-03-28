@@ -90,17 +90,21 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     user_id,
                     full_name,
                     email,
-                    password_hash,
+                    phone_number,
+                    auth_provider,
+                    firebase_uid,
                     is_active,
                     attendance_score,
                     created_at,
                     updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     full_name = VALUES(full_name),
                     email = VALUES(email),
-                    password_hash = VALUES(password_hash),
+                    phone_number = VALUES(phone_number),
+                    auth_provider = VALUES(auth_provider),
+                    firebase_uid = VALUES(firebase_uid),
                     is_active = VALUES(is_active),
                     attendance_score = VALUES(attendance_score),
                     updated_at = VALUES(updated_at)
@@ -109,7 +113,9 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     user["user_id"],
                     user["full_name"],
                     user["email"],
-                    user["password_hash"],
+                    user.get("phone_number"),
+                    user.get("auth_provider"),
+                    user.get("firebase_uid"),
                     1 if user.get("is_active", True) else 0,
                     int(user.get("attendance_score", 100)),
                     parse_iso_to_dt(user.get("created_at")),

@@ -132,6 +132,34 @@ class MemoryBackend(StoreBackend):
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         return self._copy(next((u for u in self.store["users"] if u.get("user_id") == user_id), None))
 
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        normalized_email = str(email).strip().lower()
+        return self._copy(
+            next(
+                (
+                    u
+                    for u in self.store["users"]
+                    if str(u.get("email", "")).strip().lower() == normalized_email
+                ),
+                None,
+            )
+        )
+
+    def get_user_by_firebase_uid(self, firebase_uid: str) -> dict[str, Any] | None:
+        normalized_uid = str(firebase_uid).strip()
+        if not normalized_uid:
+            return None
+        return self._copy(
+            next(
+                (
+                    u
+                    for u in self.store["users"]
+                    if str(u.get("firebase_uid", "")).strip() == normalized_uid
+                ),
+                None,
+            )
+        )
+
     def get_user_roles(self, user_id: int) -> list[str]:
         role_ids = [
             ur.get("role_id")
@@ -157,20 +185,28 @@ class MemoryBackend(StoreBackend):
         self,
         full_name: str,
         email: str,
-        password_hash: str,
+        phone_number: str | None,
         is_active: bool,
         roles: list[str],
+        auth_provider: str | None = None,
+        firebase_uid: str | None = None,
     ) -> dict[str, Any]:
-        if any(u.get("email") == email for u in self.store["users"]):
+        normalized_email = str(email).strip().lower()
+        if any(str(u.get("email", "")).strip().lower() == normalized_email for u in self.store["users"]):
             raise ValueError("Email already exists")
+        normalized_uid = str(firebase_uid or "").strip()
+        if normalized_uid and any(str(u.get("firebase_uid", "")).strip() == normalized_uid for u in self.store["users"]):
+            raise ValueError("Firebase account already exists")
 
         user_id = max((u.get("user_id", 0) for u in self.store["users"]), default=0) + 1
         timestamp = _utc_now_iso()
         new_user = {
             "user_id": user_id,
             "full_name": full_name,
-            "email": email,
-            "password_hash": password_hash,
+            "email": normalized_email,
+            "phone_number": phone_number,
+            "auth_provider": auth_provider,
+            "firebase_uid": normalized_uid or None,
             "is_active": is_active,
             "attendance_score": 100,
             "created_at": timestamp,
@@ -192,6 +228,29 @@ class MemoryBackend(StoreBackend):
         response = dict(new_user)
         response["roles"] = assigned_roles
         return response
+
+    def link_user_auth(
+        self,
+        user_id: int,
+        auth_provider: str,
+        firebase_uid: str,
+    ) -> dict[str, Any] | None:
+        normalized_uid = str(firebase_uid or "").strip()
+        if not normalized_uid:
+            return None
+        if any(
+            int(u.get("user_id", 0)) != user_id and str(u.get("firebase_uid", "")).strip() == normalized_uid
+            for u in self.store["users"]
+        ):
+            raise ValueError("Firebase account already linked to another user")
+
+        user = next((u for u in self.store["users"] if int(u.get("user_id", 0)) == user_id), None)
+        if not user:
+            return None
+        user["auth_provider"] = auth_provider
+        user["firebase_uid"] = normalized_uid
+        user["updated_at"] = _utc_now_iso()
+        return dict(user)
 
     def list_pantries(self) -> list[dict[str, Any]]:
         return [dict(p) for p in self.store["pantries"]]

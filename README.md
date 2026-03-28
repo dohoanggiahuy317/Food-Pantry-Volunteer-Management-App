@@ -11,7 +11,7 @@ A web application for managing volunteer shifts at food pantries. Pantry leads a
 | Backend | Python 3, Flask |
 | Frontend | Vanilla JS, HTML, CSS (served directly via Flask templates, no build tools required) |
 | Database | MySQL 8.4 (containerized via Docker) |
-| Auth | Firebase Authentication. Frontend handles secure login; Flask backend verifies Firebase JWT tokens via the Admin SDK. |
+| Auth | Configurable auth provider: in-memory demo auth or Firebase Authentication with Google sign-in. Flask uses session cookies after login. |
 
 ---
 
@@ -26,10 +26,24 @@ The data layer uses an abstract `StoreBackend` interface with two concrete imple
 
 The active backend is selected at startup via the `DATA_BACKEND` environment variable (defaults to `mysql`). Swapping backends requires no changes to `app.py`.
 
+### Auth Provider Switch
+
+Authentication is configured separately from data storage:
+
+- **`AUTH_PROVIDER=memory`** — sample accounts for local login/logout testing.
+- **`AUTH_PROVIDER=firebase`** — Google sign-in with Firebase Authentication, verified server-side through the Firebase Admin SDK.
+
+After a successful login or signup, Flask stores the authenticated local user in a session cookie and all protected API routes use that session.
+
 ### Core API Routes
 
 | Method | Route | Description |
 |---|---|---|
+| `GET` | `/api/auth/config` | Get active auth mode and safe browser config |
+| `POST` | `/api/auth/login/google` | Log in an existing local user with Google/Firebase |
+| `POST` | `/api/auth/signup/google` | Create a volunteer account after Google auth |
+| `POST` | `/api/auth/login/memory` | Log in with a sample in-memory account |
+| `POST` | `/api/auth/logout` | Clear the current session |
 | `GET` | `/api/me` | Get current user with roles |
 | `GET` | `/api/pantries` | List pantries accessible to current user |
 | `GET` | `/api/pantries/<id>/shifts` | List all shifts for a pantry (admin/lead view) |
@@ -43,11 +57,12 @@ The active backend is selected at startup via the `DATA_BACKEND` environment var
 | `GET` | `/api/public/pantries/<slug>/shifts` | Public unauthenticated shift listing |
 
 ### Authentication Flow
-The system uses Firebase Authentication for identity management. 
-1. The Vanilla JS frontend authenticates users directly with Firebase.
-2. The frontend retrieves a secure JWT (ID Token) from Firebase.
-3. API requests to protected Flask routes must include this token in the header (`Authorization: Bearer <TOKEN>`).
-4. The Flask backend uses the Firebase Admin SDK to verify the token and identify the user before processing the request.
+The app now shows an auth gate before the dashboard.
+
+1. In `memory` mode, the user chooses a sample account and Flask creates a session.
+2. In `firebase` mode, the browser authenticates with Google through Firebase and sends the Firebase ID token to Flask.
+3. Flask verifies the token with the Firebase Admin SDK, links or creates the local user, and stores the local `user_id` in a session cookie.
+4. Protected API routes read the authenticated user from the Flask session. Public routes remain under `/api/public/*`.
 
 ---
 

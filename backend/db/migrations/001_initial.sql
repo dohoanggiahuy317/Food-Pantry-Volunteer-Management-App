@@ -7,11 +7,14 @@ CREATE TABLE IF NOT EXISTS users (
   user_id INT AUTO_INCREMENT PRIMARY KEY,
   full_name VARCHAR(255) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(32) NULL,
+  auth_provider VARCHAR(32) NULL,
+  firebase_uid VARCHAR(255) NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   attendance_score INT NOT NULL DEFAULT 100,
   created_at DATETIME(6) NOT NULL,
-  updated_at DATETIME(6) NOT NULL
+  updated_at DATETIME(6) NOT NULL,
+  UNIQUE KEY uq_users_firebase_uid (firebase_uid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS user_roles (
