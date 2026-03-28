@@ -13,7 +13,7 @@ RESERVATION_WINDOW_HOURS = 48
 
 
 def _utc_now_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _parse_iso_to_utc(value: Any) -> datetime | None:
@@ -121,6 +121,10 @@ class MemoryBackend(StoreBackend):
             "shift_roles": list(data.get("shift_roles", [])),
             "shift_signups": list(data.get("shift_signups", [])),
         }
+        for user in self.store["users"]:
+            user.setdefault("updated_at", user.get("created_at"))
+            user.setdefault("auth_provider", None)
+            user.setdefault("auth_uid", None)
         if self.store["shifts"]:
             self.next_shift_id = max(s.get("shift_id", 0) for s in self.store["shifts"]) + 1
         if self.store["shift_roles"]:
@@ -140,6 +144,21 @@ class MemoryBackend(StoreBackend):
                     u
                     for u in self.store["users"]
                     if str(u.get("email", "")).strip().lower() == normalized_email
+                ),
+                None,
+            )
+        )
+
+    def get_user_by_auth_uid(self, auth_uid: str) -> dict[str, Any] | None:
+        normalized_auth_uid = str(auth_uid).strip()
+        if not normalized_auth_uid:
+            return None
+        return self._copy(
+            next(
+                (
+                    u
+                    for u in self.store["users"]
+                    if str(u.get("auth_uid", "")).strip() == normalized_auth_uid
                 ),
                 None,
             )
@@ -171,12 +190,16 @@ class MemoryBackend(StoreBackend):
         full_name: str,
         email: str,
         phone_number: str | None,
-        is_active: bool,
         roles: list[str],
+        auth_provider: str | None = None,
+        auth_uid: str | None = None,
     ) -> dict[str, Any]:
         normalized_email = str(email).strip().lower()
         if any(str(u.get("email", "")).strip().lower() == normalized_email for u in self.store["users"]):
             raise ValueError("Email already exists")
+        normalized_auth_uid = str(auth_uid).strip() or None
+        if normalized_auth_uid and any(str(u.get("auth_uid", "")).strip() == normalized_auth_uid for u in self.store["users"]):
+            raise ValueError("Authentication identity already exists")
 
         user_id = max((u.get("user_id", 0) for u in self.store["users"]), default=0) + 1
         timestamp = _utc_now_iso()
@@ -185,10 +208,11 @@ class MemoryBackend(StoreBackend):
             "full_name": full_name,
             "email": normalized_email,
             "phone_number": phone_number,
-            "is_active": is_active,
             "attendance_score": 100,
             "created_at": timestamp,
             "updated_at": timestamp,
+            "auth_provider": str(auth_provider).strip() or None,
+            "auth_uid": normalized_auth_uid,
         }
         self.store["users"].append(new_user)
 
@@ -206,6 +230,54 @@ class MemoryBackend(StoreBackend):
         response = dict(new_user)
         response["roles"] = assigned_roles
         return response
+
+    def update_user(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        user = next((u for u in self.store["users"] if u.get("user_id") == user_id), None)
+        if not user:
+            return None
+
+        allowed_keys = {"full_name", "email", "phone_number", "auth_provider", "auth_uid"}
+        updates = {key: value for key, value in payload.items() if key in allowed_keys}
+        if not updates:
+            return dict(user)
+
+        if "email" in updates:
+            normalized_email = str(updates["email"]).strip().lower()
+            if any(
+                int(existing.get("user_id", 0)) != user_id
+                and str(existing.get("email", "")).strip().lower() == normalized_email
+                for existing in self.store["users"]
+            ):
+                raise ValueError("Email already exists")
+            updates["email"] = normalized_email
+
+        if "auth_uid" in updates:
+            normalized_auth_uid = str(updates["auth_uid"]).strip() or None
+            if normalized_auth_uid and any(
+                int(existing.get("user_id", 0)) != user_id
+                and str(existing.get("auth_uid", "")).strip() == normalized_auth_uid
+                for existing in self.store["users"]
+            ):
+                raise ValueError("Authentication identity already exists")
+            updates["auth_uid"] = normalized_auth_uid
+
+        if "auth_provider" in updates:
+            updates["auth_provider"] = str(updates["auth_provider"]).strip() or None
+
+        for key, value in updates.items():
+            user[key] = value
+
+        user["updated_at"] = _utc_now_iso()
+        return dict(user)
+
+    def delete_user(self, user_id: int) -> None:
+        self.store["users"] = [user for user in self.store["users"] if int(user.get("user_id", 0)) != user_id]
+        self.store["user_roles"] = [row for row in self.store["user_roles"] if int(row.get("user_id", 0)) != user_id]
+        self.store["pantry_leads"] = [row for row in self.store["pantry_leads"] if int(row.get("user_id", 0)) != user_id]
+        self.store["shift_signups"] = [row for row in self.store["shift_signups"] if int(row.get("user_id", 0)) != user_id]
+        for shift in self.store["shifts"]:
+            if int(shift.get("created_by", 0)) == user_id:
+                shift["created_by"] = None
 
     def list_pantries(self) -> list[dict[str, Any]]:
         return [dict(p) for p in self.store["pantries"]]

@@ -101,7 +101,7 @@ async function activateTab(targetTab) {
     // Show/hide pantry selector based on tab
     const pantrySelector = document.getElementById('pantry-selector');
     if (pantrySelector) {
-        pantrySelector.style.display = (targetTab === 'calendar' || targetTab === 'my-shifts') ? 'none' : 'block';
+        pantrySelector.style.display = (targetTab === 'calendar' || targetTab === 'my-shifts' || targetTab === 'my-account' || targetTab === 'admin') ? 'none' : 'block';
     }
 
     // Load tab-specific data
@@ -110,6 +110,8 @@ async function activateTab(targetTab) {
         await loadShiftsTable();
     } else if (targetTab === 'my-shifts') {
         await loadMyRegisteredShifts();
+    } else if (targetTab === 'my-account') {
+        await loadMyAccount();
     } else if (targetTab === 'calendar') {
         await loadCalendarShifts();
     }
@@ -613,6 +615,113 @@ function renderCredibilitySummary(attendanceScore) {
             <p class="credibility-detail">Based on marked attendance records.</p>
         </section>
     `;
+}
+
+function formatAccountValue(value, fallback = '—') {
+    if (value === null || value === undefined || value === '') {
+        return fallback;
+    }
+    return String(value);
+}
+
+function formatAccountTimestamp(value) {
+    const parsed = safeDateValue(value);
+    return parsed ? parsed.toLocaleString() : '—';
+}
+
+function renderAccountSummaryItem(label, value) {
+    return `
+        <div class="account-summary-item">
+            <span class="account-summary-label">${escapeHtml(label)}</span>
+            <div class="account-summary-value">${escapeHtml(value)}</div>
+        </div>
+    `;
+}
+
+function updateAccountEmailUi() {
+    const note = document.getElementById('my-account-email-note');
+    const submitButton = document.getElementById('account-email-submit-btn');
+    const newEmailInput = document.getElementById('account-new-email');
+    const currentEmailInput = document.getElementById('account-current-email');
+
+    if (!note || !submitButton || !newEmailInput || !currentEmailInput || !currentUser) {
+        return;
+    }
+
+    currentEmailInput.value = currentUser.email || '';
+
+    if (currentUser.email_change_supported) {
+        note.className = 'account-note firebase-note';
+        note.innerHTML = 'We will ask you to confirm with Google of <b>the current email</b>, send a verification link to the new email, then update the app after your next sign-in.';
+        submitButton.disabled = false;
+        newEmailInput.disabled = false;
+    } else {
+        note.className = 'account-note memory-note';
+        note.textContent = currentUser.auth_mode === 'firebase'
+            ? 'This account is not linked to Firebase yet. Sign out and sign in again with Google before changing email.'
+            : 'Demo auth allows editing name and phone number only. Email changes are not available in memory mode.';
+        submitButton.disabled = true;
+        newEmailInput.disabled = true;
+    }
+}
+
+function renderMyAccountSummary() {
+    const container = document.getElementById('my-account-summary');
+    if (!container || !currentUser) {
+        return;
+    }
+
+    const rolesText = Array.isArray(currentUser.roles) && currentUser.roles.length > 0
+        ? currentUser.roles.join(', ')
+        : 'No roles';
+
+    container.innerHTML = `
+        ${renderAccountSummaryItem('Full Name', formatAccountValue(currentUser.full_name))}
+        ${renderAccountSummaryItem('Email', formatAccountValue(currentUser.email))}
+        ${renderAccountSummaryItem('Phone Number', formatAccountValue(currentUser.phone_number))}
+        ${renderAccountSummaryItem('Roles', rolesText)}
+        ${renderAccountSummaryItem('Attendance Score', `${Number(currentUser.attendance_score || 0)}%`)}
+        ${renderAccountSummaryItem('Created At', formatAccountTimestamp(currentUser.created_at))}
+        ${renderAccountSummaryItem('Updated At', formatAccountTimestamp(currentUser.updated_at))}
+    `;
+}
+
+function syncMyAccountForms() {
+    if (!currentUser) {
+        return;
+    }
+
+    const fullNameInput = document.getElementById('account-full-name');
+    const phoneInput = document.getElementById('account-phone-number');
+    const newEmailInput = document.getElementById('account-new-email');
+
+    if (fullNameInput) {
+        fullNameInput.value = currentUser.full_name || '';
+    }
+    if (phoneInput) {
+        phoneInput.value = currentUser.phone_number || '';
+    }
+    if (newEmailInput) {
+        newEmailInput.value = '';
+    }
+
+    updateAccountEmailUi();
+}
+
+async function refreshCurrentUserState() {
+    currentUser = await getCurrentUser();
+    document.getElementById('user-email').textContent = currentUser.email;
+    document.getElementById('user-role').textContent = currentUser.roles.join(', ');
+    renderMyAccountSummary();
+    syncMyAccountForms();
+}
+
+async function loadMyAccount() {
+    if (!currentUser) {
+        return;
+    }
+    renderMyAccountSummary();
+    syncMyAccountForms();
 }
 
 function renderMyShiftCard(signup, now) {
@@ -1235,34 +1344,85 @@ function setupEventListeners() {
     // Tab navigation
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', async () => {
-            const targetTab = tab.dataset.tab;
-
-            // Update active tab style
-            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            // Show target content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`content-${targetTab}`).classList.add('active');
-
-            // Show/hide pantry selector based on tab
-            const pantrySelector = document.getElementById('pantry-selector');
-            if (targetTab === 'calendar' || targetTab === 'my-shifts' ||  targetTab === 'admin') {
-                pantrySelector.style.display = 'none';
-            } else {
-                pantrySelector.style.display = 'block';
-            }
-
-            // Load tab-specific data
-            if (targetTab === 'shifts') {
-                setManageShiftsSubtab(activeManageShiftsSubtab);
-                await loadShiftsTable();
-            } else if (targetTab === 'my-shifts') {
-                await loadMyRegisteredShifts();
-            }
+            await activateTab(tab.dataset.tab);
         });
+    });
+
+    document.getElementById('my-account-profile-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const fullName = document.getElementById('account-full-name').value.trim();
+        const phoneNumber = document.getElementById('account-phone-number').value.trim();
+        if (!fullName) {
+            showMessage('my-account', 'Full name is required.', 'error');
+            return;
+        }
+
+        try {
+            currentUser = await updateCurrentUserProfile({
+                full_name: fullName,
+                phone_number: phoneNumber
+            });
+            await refreshCurrentUserState();
+            showMessage('my-account', 'Basic information updated successfully.', 'success');
+        } catch (error) {
+            showMessage('my-account', `Failed to update profile: ${error.message}`, 'error');
+        }
+    });
+
+    document.getElementById('my-account-email-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (!currentUser?.email_change_supported) {
+            showMessage('my-account', 'Email changes are unavailable for this account.', 'error');
+            return;
+        }
+
+        const newEmail = document.getElementById('account-new-email').value.trim().toLowerCase();
+        if (!newEmail) {
+            showMessage('my-account', 'Enter a new email address first.', 'error');
+            return;
+        }
+
+        try {
+            await prepareCurrentUserEmailChange(newEmail);
+            const result = await window.requestFirebaseEmailChange(currentUser, newEmail);
+            const note = document.getElementById('my-account-email-note');
+            if (note && result?.message) {
+                note.className = 'account-note account-note-success';
+                note.textContent = result.message;
+            }
+            document.getElementById('account-new-email').value = '';
+            showMessage('my-account', 'Email verification started. Confirm the change from your email, then <b>log out this tab</b> and sign in again.', 'success');
+        } catch (error) {
+            updateAccountEmailUi();
+            showMessage('my-account', `Failed to start email change: ${error.message}`, 'error');
+        }
+    });
+
+    document.getElementById('delete-account-btn').addEventListener('click', async () => {
+        if (!currentUser) {
+            showMessage('my-account', 'No user is loaded.', 'error');
+            return;
+        }
+
+        const confirmed = confirm('Delete your account permanently? This cannot be undone.');
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            let payload = {};
+            if (currentUser.auth_mode === 'firebase' && currentUser.auth_provider === 'firebase') {
+                const result = await window.requestFirebaseAccountDeletion(currentUser);
+                payload = { id_token: result.idToken };
+            }
+
+            await deleteCurrentUserAccount(payload);
+            window.location.reload();
+        } catch (error) {
+            showMessage('my-account', `Failed to delete account: ${error.message}`, 'error');
+        }
     });
 
     // Edit pantry modal - cancel
@@ -1578,7 +1738,7 @@ function showMessage(target, text, type = 'info') {
     box.style.background = s.bg;
     iconEl.textContent = s.icon;
     iconEl.style.color = s.border;
-    textEl.textContent = text;
+    textEl.innerHTML = text;
     textEl.style.color = s.color;
 
     modal.style.display = 'flex';

@@ -19,6 +19,7 @@ class AuthError(Exception):
 @dataclass(frozen=True)
 class IdentityPayload:
     provider: str
+    uid: str
     email: str
     email_verified: bool
     display_name: str | None = None
@@ -41,4 +42,8 @@ class AuthService(ABC):
 
     @abstractmethod
     def resolve_memory_account(self, sample_account_id: str) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_user(self, uid: str) -> None:
         raise NotImplementedError

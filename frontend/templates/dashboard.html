@@ -94,6 +94,7 @@
             <div class="nav-tabs-container">
                 <button class="nav-tab" data-tab="calendar">📅 Calendar</button>
                 <button class="nav-tab hidden" data-tab="my-shifts" id="tab-my-shifts">🧾 My Shifts</button>
+                <button class="nav-tab" data-tab="my-account" id="tab-my-account">👤 My Account</button>
                 <button class="nav-tab hidden" data-tab="shifts" id="tab-shifts">🔧 Manage Shifts</button>
                 <button class="nav-tab hidden" data-tab="admin" id="tab-admin">👥 Admin Panel</button>
             </div>
@@ -136,6 +137,72 @@
                     <div class="spinner"></div>
                     <p>Loading your registered shifts...</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- My Account Tab (All Users) -->
+        <div class="tab-content" id="content-my-account">
+            <div id="message-my-account" class="message"></div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Account Summary</h2>
+                </div>
+                <div id="my-account-summary" class="account-summary-grid">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading account details...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Basic Information</h2>
+                </div>
+                <form id="my-account-profile-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="account-full-name">Full Name *</label>
+                            <input type="text" id="account-full-name" autocomplete="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="account-phone-number">Phone Number</label>
+                            <input type="tel" id="account-phone-number" autocomplete="tel">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Basic Information</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Email Address</h2>
+                </div>
+                <div id="my-account-email-note" class="account-note"></div>
+                <form id="my-account-email-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="account-current-email">Current Email</label>
+                            <input type="email" id="account-current-email" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="account-new-email">New Email</label>
+                            <input type="email" id="account-new-email" autocomplete="email">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="account-email-submit-btn">Start Email Change</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Delete Account</h2>
+                </div>
+                <div class="account-note delete-account-note">
+                    Deleting your account removes your local app user, signs you out, and in Firebase mode also deletes the linked Firebase account after a fresh Google reauthentication.
+                </div>
+                <button type="button" class="btn btn-danger" id="delete-account-btn">Delete My Account</button>
             </div>
         </div>
 

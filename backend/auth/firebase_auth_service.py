@@ -54,10 +54,13 @@ class FirebaseAuthService(AuthService):
         except Exception as exc:
             raise AuthError("Invalid or expired Firebase ID token", 401, "INVALID_ID_TOKEN") from exc
 
+        uid = str(decoded.get("uid", "")).strip()
         email = str(decoded.get("email", "")).strip().lower()
         email_verified = bool(decoded.get("email_verified"))
         display_name = decoded.get("name")
 
+        if not uid:
+            raise AuthError("Firebase token did not include a valid user identifier", 400, "INVALID_IDENTITY")
         if not email:
             raise AuthError("Firebase token did not include a valid email identity", 400, "INVALID_IDENTITY")
         if not email_verified:
@@ -65,6 +68,7 @@ class FirebaseAuthService(AuthService):
 
         return IdentityPayload(
             provider="firebase",
+            uid=uid,
             email=email,
             email_verified=email_verified,
             display_name=str(display_name).strip() if display_name else None,
@@ -75,3 +79,12 @@ class FirebaseAuthService(AuthService):
 
     def resolve_memory_account(self, sample_account_id: str) -> dict[str, Any]:
         raise AuthError("Memory login is unavailable in firebase auth mode", 400, "MEMORY_AUTH_DISABLED")
+
+    def delete_user(self, uid: str) -> None:
+        target_uid = str(uid or "").strip()
+        if not target_uid:
+            raise AuthError("Missing Firebase user identifier", 400, "MISSING_UID")
+        try:
+            self._firebase_auth.delete_user(target_uid)
+        except Exception as exc:
+            raise AuthError("Failed to delete Firebase account", 502, "FIREBASE_DELETE_FAILED") from exc

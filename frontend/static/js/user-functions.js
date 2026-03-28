@@ -69,6 +69,37 @@ async function createUser(userData) {
     }
 }
 
+async function updateCurrentUserProfile(profileData) {
+    try {
+        return await apiPatch('/api/me', profileData);
+    } catch (error) {
+        console.error('Failed to update current user profile:', error);
+        throw error;
+    }
+}
+
+async function prepareCurrentUserEmailChange(newEmail) {
+    try {
+        return await apiPost('/api/me/email-change/prepare', { new_email: newEmail });
+    } catch (error) {
+        console.error('Failed to prepare email change:', error);
+        throw error;
+    }
+}
+
+async function deleteCurrentUserAccount(payload = {}) {
+    try {
+        return await apiCall('/api/me', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (error) {
+        console.error('Failed to delete current user account:', error);
+        throw error;
+    }
+}
+
 /**
  * Assign role to user
  */

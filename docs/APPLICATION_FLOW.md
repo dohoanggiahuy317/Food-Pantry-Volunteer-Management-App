@@ -58,8 +58,10 @@ roles               users
 role_id (PK)        user_id (PK)
 role_name           full_name
                     email
-        └──────────── password_hash
-                    is_active
+                    phone_number
+                    auth_provider
+                    auth_uid
+                    attendance_score
                     created_at / updated_at
          │
     user_roles (join table)
@@ -85,7 +87,7 @@ role_name           full_name
        shift_name
        start_time / end_time
        status          ← OPEN | FULL | CANCELLED
-       created_by (FK → users)
+       created_by (nullable FK → users)
          │
     shift_roles
     ───────────
@@ -106,7 +108,7 @@ role_name           full_name
     UNIQUE (shift_role_id, user_id)  ← prevents double signup
 ```
 
-**Cascade rules:** Deleting a pantry cascades to shifts → shift_roles → shift_signups. Deleting a user cascades out of signups and pantry_leads but is RESTRICTED if they created a shift.
+**Cascade rules:** Deleting a pantry cascades to shifts → shift_roles → shift_signups. Deleting a user cascades out of signups and pantry leads, and any `shifts.created_by` references are set to `NULL`.
 
 ---
 
@@ -349,33 +351,62 @@ dashboard.js: receives shift object
 
 ## 8. Authentication Lifecycle
 
-### Current State: Mock (Active)
+### Current State: Session + Firebase Google Auth
 
-There is no login. Identity is the `?user_id=` URL parameter, defaulting to user 4 (Admin). `api-helpers.js:apiCall()` automatically propagates this parameter on every request. Flask's `@app.before_request` reads it and stores it in `g` — Flask's per-request context object that is created fresh for each request and discarded after the response is sent.
-
-### Planned: Firebase Auth (Not Yet Active)
-
-> This documents the planned integration. Nothing below exists in the current codebase.
+The app now has a real authentication gate:
 
 ```
-Browser: user submits login form
-  firebase.auth().signInWithEmailAndPassword(email, password)
-  ← Firebase returns a signed JWT (ID token, expires in 1 hour)
+Browser
+  auth.js: bootstrapAuthShell()
+    GET /api/auth/config
+    GET /api/me
+      └─ if 401 → stay on auth gate
+      └─ if 200 → enter dashboard
 
-api-helpers.js: apiCall() — updated to:
-  const token = await firebase.auth().currentUser.getIdToken()
-  fetch(path, { headers: { 'Authorization': `Bearer ${token}` } })
+Firebase mode:
+  Browser opens Google popup
+  firebase.auth().signInWithPopup(GoogleAuthProvider)
+  Browser gets Firebase ID token
+  POST /api/auth/login/google
 
-app.py: @app.before_request — updated to:
-  token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-  decoded = firebase_admin.auth.verify_id_token(token)  ← validates signature + expiry
-  user = backend.get_user_by_firebase_uid(decoded["uid"])
-  g.current_user_id = user["user_id"]
+Flask app.py:
+  verify_google_token(id_token)
+  lookup local user by auth_uid first
+  fallback to email only for one-time legacy linking
+  sync verified Firebase email if it changed
+  store local user_id in Flask session cookie
 
-  ← if token missing/invalid: return 401 before route handler runs
-  ← if user not in local DB: return 403
+Protected route requests:
+  browser sends Flask session cookie
+  @app.before_request loads session["user_id"] into g.current_user_id
+  route handlers use the local session-backed user
+```
 
-Token refresh: Firebase SDK calls onIdTokenChanged() silently — transparent to the user.
+`/api/me` now powers the `My Account` tab. It returns current profile fields, roles, attendance score, auth metadata, and timestamps.
+
+Sensitive account actions:
+
+```
+Email change
+  My Account tab
+    POST /api/me/email-change/prepare
+    force fresh Google popup reauthentication
+    firebase User.verifyBeforeUpdateEmail(new_email)
+    user clicks verification link
+    next successful Google login syncs the verified email into the local account by auth_uid
+
+Account deletion
+  My Account tab
+    force fresh Google popup reauthentication
+    get fresh Firebase ID token
+    DELETE /api/me { id_token }
+
+Flask app.py:
+  verify_google_token(id_token)
+  confirm Firebase uid matches current local auth_uid
+  firebase_admin.auth.delete_user(uid)
+  backend.delete_user(user_id)
+  clear Flask session
 ```
 
 ---

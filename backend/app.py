@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import os
 from pathlib import Path
+import re
 from typing import Any
 
 from dotenv import load_dotenv
@@ -89,13 +90,17 @@ def serialize_user_for_client(user: dict[str, Any] | None, include_roles: bool =
     if not user:
         return None
 
+    linked_auth_provider = user.get("auth_provider") or ("memory" if auth_service.mode == "memory" else None)
     payload = {
         "user_id": user.get("user_id"),
         "full_name": user.get("full_name"),
         "email": user.get("email"),
         "phone_number": user.get("phone_number"),
+        "auth_mode": auth_service.mode,
+        "auth_provider": linked_auth_provider,
+        "auth_uid": user.get("auth_uid"),
+        "email_change_supported": auth_service.mode == "firebase" and linked_auth_provider == "firebase",
         "attendance_score": int(user.get("attendance_score", 100)),
-        "is_active": bool(user.get("is_active", True)),
         "created_at": user.get("created_at"),
         "updated_at": user.get("updated_at"),
     }
@@ -113,11 +118,100 @@ def logout_user_session() -> None:
     session.pop("user_id", None)
 
 
+def normalize_email_address(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def is_valid_email_address(value: str) -> bool:
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", value))
+
+
 def json_auth_error(error: AuthError) -> tuple[Any, int]:
     payload = {"error": error.message}
     if error.code:
         payload["code"] = error.code
     return jsonify(payload), error.status_code
+
+
+def update_user_or_409(user_id: int, payload: dict[str, Any], conflict_message: str | None = None) -> dict[str, Any]:
+    try:
+        updated = backend.update_user(user_id, payload)
+    except ValueError as error:
+        raise AuthError(conflict_message or str(error), 409, "ACCOUNT_CONFLICT") from error
+    if not updated:
+        raise AuthError("User not found", 404, "USER_NOT_FOUND")
+    return updated
+
+
+def sync_firebase_user_identity(identity: Any) -> dict[str, Any] | None:
+    user = backend.get_user_by_auth_uid(identity.uid)
+    if user:
+        conflicting_user = backend.get_user_by_email(identity.email)
+        if conflicting_user and int(conflicting_user.get("user_id")) != int(user.get("user_id")):
+            raise AuthError(
+                "This email is already associated with another account. Contact an administrator before signing in.",
+                409,
+                "AUTH_EMAIL_CONFLICT",
+            )
+
+        updates: dict[str, Any] = {}
+        if user.get("email") != identity.email:
+            updates["email"] = identity.email
+        if user.get("auth_provider") != identity.provider:
+            updates["auth_provider"] = identity.provider
+        if user.get("auth_uid") != identity.uid:
+            updates["auth_uid"] = identity.uid
+
+        if updates:
+            return update_user_or_409(
+                int(user.get("user_id")),
+                updates,
+                "Unable to sync your Firebase account because the new email is already in use.",
+            )
+        return user
+
+    user = backend.get_user_by_email(identity.email)
+    if not user:
+        return None
+
+    updates = {}
+    if user.get("email") != identity.email:
+        updates["email"] = identity.email
+    if user.get("auth_provider") != identity.provider:
+        updates["auth_provider"] = identity.provider
+    if user.get("auth_uid") != identity.uid:
+        updates["auth_uid"] = identity.uid
+
+    if updates:
+        return update_user_or_409(
+            int(user.get("user_id")),
+            updates,
+            "Unable to link this Firebase account because it is already associated with another user.",
+        )
+    return user
+
+
+def delete_current_user_account_with_identity(user: dict[str, Any], payload: dict[str, Any]) -> tuple[Any, int]:
+    user_id = int(user.get("user_id"))
+    linked_auth_provider = str(user.get("auth_provider") or "").strip()
+    linked_auth_uid = str(user.get("auth_uid") or "").strip()
+
+    if auth_service.mode == "firebase" and linked_auth_provider == "firebase" and linked_auth_uid:
+        id_token = payload.get("id_token")
+        try:
+            identity = auth_service.verify_google_token(id_token)
+        except AuthError as error:
+            return json_auth_error(error)
+        if identity.uid != linked_auth_uid:
+            return jsonify({"error": "Reauthenticate with the same Google account before deleting this account"}), 403
+        try:
+            auth_service.delete_user(identity.uid)
+        except AuthError as error:
+            return json_auth_error(error)
+
+    backend.delete_user(user_id)
+    logout_user_session()
+    return jsonify({"ok": True}), 200
 
 
 def find_pantry_by_id(pantry_id: int) -> dict[str, Any] | None:
@@ -462,7 +556,10 @@ def login_google() -> Any:
     except AuthError as error:
         return json_auth_error(error)
 
-    user = backend.get_user_by_email(identity.email)
+    try:
+        user = sync_firebase_user_identity(identity)
+    except AuthError as error:
+        return json_auth_error(error)
 
     if not user:
         return jsonify(
@@ -502,8 +599,9 @@ def signup_google() -> Any:
             full_name=full_name,
             email=identity.email,
             phone_number=phone_number,
-            is_active=True,
             roles=["VOLUNTEER"],
+            auth_provider=identity.provider,
+            auth_uid=identity.uid,
         )
     except ValueError as error:
         return jsonify({"error": str(error)}), 409
@@ -525,6 +623,74 @@ def get_current_user() -> Any:
     if not user:
         return jsonify({"error": "No user"}), 401
     return jsonify(serialize_user_for_client(user, include_roles=True))
+
+
+@app.patch("/api/me")
+def update_current_user_profile() -> Any:
+    user = current_user()
+    if not user:
+        return jsonify({"error": "No user"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    updates: dict[str, Any] = {}
+
+    if "full_name" in payload:
+        full_name = str(payload.get("full_name", "")).strip()
+        if not full_name:
+            return jsonify({"error": "full_name cannot be empty"}), 400
+        updates["full_name"] = full_name
+
+    if "phone_number" in payload:
+        phone_number = str(payload.get("phone_number", "")).strip()
+        updates["phone_number"] = phone_number or None
+
+    if not updates:
+        return jsonify({"error": "No valid fields to update"}), 400
+
+    try:
+        updated = backend.update_user(int(user.get("user_id")), updates)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 409
+
+    if not updated:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify(serialize_user_for_client(updated, include_roles=True))
+
+
+@app.post("/api/me/email-change/prepare")
+def prepare_email_change() -> Any:
+    user = current_user()
+    if not user:
+        return jsonify({"error": "No user"}), 401
+    if auth_service.mode != "firebase":
+        return jsonify({"error": "Email changes through Firebase are unavailable in the current auth mode"}), 400
+    if str(user.get("auth_provider") or "") != "firebase" or not str(user.get("auth_uid") or "").strip():
+        return jsonify({"error": "This account is not linked to Firebase yet. Please sign in again with Google first."}), 409
+
+    payload = request.get_json(silent=True) or {}
+    new_email = normalize_email_address(payload.get("new_email"))
+    if not new_email:
+        return jsonify({"error": "new_email is required"}), 400
+    if not is_valid_email_address(new_email):
+        return jsonify({"error": "new_email must be a valid email address"}), 400
+    if new_email == normalize_email_address(user.get("email")):
+        return jsonify({"error": "New email must be different from the current email"}), 400
+
+    existing = backend.get_user_by_email(new_email)
+    if existing and int(existing.get("user_id")) != int(user.get("user_id")):
+        return jsonify({"error": "That email is already associated with another account"}), 409
+
+    return jsonify({"ok": True, "new_email": new_email})
+
+
+@app.delete("/api/me")
+def delete_current_user_account() -> Any:
+    user = current_user()
+    if not user:
+        return jsonify({"error": "No user"}), 401
+
+    payload = request.get_json(silent=True) or {}
+    return delete_current_user_account_with_identity(user, payload)
 
 
 @app.get("/api/users")
@@ -594,7 +760,6 @@ def create_user() -> Any:
             full_name=payload["full_name"],
             email=payload["email"],
             phone_number=payload.get("phone_number"),
-            is_active=payload.get("is_active", True),
             roles=list(payload.get("roles", [])),
         )
     except ValueError as exc:
