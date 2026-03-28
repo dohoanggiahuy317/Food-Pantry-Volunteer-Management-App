@@ -41,7 +41,7 @@ cp backend/env.example backend/.env
 Your `backend/.env` should look like this:
 
 ```env
-AUTH_PROVIDER=memory
+AUTH_PROVIDER=firebase
 DATA_BACKEND=mysql
 FLASK_SECRET_KEY=change-me
 

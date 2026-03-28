@@ -45,6 +45,9 @@ After a successful login or signup, Flask stores the authenticated local user in
 | `POST` | `/api/auth/login/memory` | Log in with a sample in-memory account |
 | `POST` | `/api/auth/logout` | Clear the current session |
 | `GET` | `/api/me` | Get current user with roles |
+| `PATCH` | `/api/me` | Update the current user's basic profile fields |
+| `POST` | `/api/me/email-change/prepare` | Validate a pending Firebase-backed email change |
+| `DELETE` | `/api/me` | Delete the current user's local account and linked Firebase account |
 | `GET` | `/api/pantries` | List pantries accessible to current user |
 | `GET` | `/api/pantries/<id>/shifts` | List all shifts for a pantry (admin/lead view) |
 | `GET` | `/api/pantries/<id>/active-shifts` | List non-expired shifts (public/volunteer view) |
@@ -61,8 +64,11 @@ The app now shows an auth gate before the dashboard.
 
 1. In `memory` mode, the user chooses a sample account and Flask creates a session.
 2. In `firebase` mode, the browser authenticates with Google through Firebase and sends the Firebase ID token to Flask.
-3. Flask verifies the token with the Firebase Admin SDK, links or creates the local user, and stores the local `user_id` in a session cookie.
-4. Protected API routes read the authenticated user from the Flask session. Public routes remain under `/api/public/*`.
+3. Flask verifies the token with the Firebase Admin SDK, links the local user by Firebase UID, falls back to email only for one-time legacy linking, and stores the local `user_id` in a session cookie.
+4. The `My Account` tab lets users update `full_name` and `phone_number`, start a verified email change, and delete their account.
+5. Email changes require a fresh Google reauthentication in the browser, then Firebase sends a verification link to the new address.
+6. Account deletion requires a fresh Google reauthentication, deletes the linked Firebase user, deletes the local user, and logs the user out.
+7. Protected API routes read the authenticated user from the Flask session. Public routes remain under `/api/public/*`.
 
 ---
 
@@ -81,6 +87,7 @@ The app now shows an auth gate before the dashboard.
 - Shift edits move existing signups to `PENDING_CONFIRMATION` with a 48-hour reservation window.
 - Can reconfirm after shift edits.
 - If they cancel during reconfirmation, the signup row is removed (same as normal cancel), so they can sign up again later if capacity is available.
+- Can manage their own profile from `My Account`, including verified Firebase email changes and full account deletion.
 
 ### Public (unauthenticated)
 - Can view open shifts for any pantry via the public endpoint using a pantry slug (e.g., `/api/public/pantries/licking-county-pantry/shifts`).
@@ -90,6 +97,8 @@ The app now shows an auth gate before the dashboard.
 ## Quick Start
 
 For detailed local setup instructions, including Docker configuration and database seeding, please refer to `SETUP.md`.
+
+For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes apply cleanly.
 
 ---
 

@@ -54,8 +54,20 @@ Defines StoreBackend, the abstract interface every data backend (MySQL, in-memor
 - `list_roles() -> list[dict]`  
   List available role records.
 
-- `create_user(full_name, email, password_hash, is_active, roles:list[str]) -> dict`  
+- `get_user_by_email(email:str) -> dict|None`  
+  Fetch a user by normalized email.
+
+- `get_user_by_auth_uid(auth_uid:str) -> dict|None`  
+  Fetch a user by linked Firebase UID.
+
+- `create_user(full_name, email, phone_number, roles:list[str], auth_provider=None, auth_uid=None) -> dict`  
   Create user and assign given role names.
+
+- `update_user(user_id:int, payload:dict) -> dict|None`  
+  Update allowed user fields such as name, phone, email, and auth linkage.
+
+- `delete_user(user_id:int) -> None`  
+  Delete a local user. Signups and pantry-lead links cascade; shift ownership becomes nullable in SQL.
 
 - `list_pantries() -> list[dict]`  
   List all pantries.
@@ -216,8 +228,20 @@ Dev/demo datastore kept in Python dicts, optionally seeded from `data/db.json`. 
 - `list_roles() -> list[dict]`  
   All role records (copies).
 
-- `create_user(full_name, email, password_hash, is_active, roles) -> dict`  
-  Raises `ValueError` if email already exists; creates user with timestamps; links any requested roles that already exist; returns created user with the roles it actually assigned.
+- `get_user_by_email(email) -> dict|None`  
+  Finds a user by normalized email.
+
+- `get_user_by_auth_uid(auth_uid) -> dict|None`  
+  Finds a user by linked Firebase UID.
+
+- `create_user(full_name, email, phone_number, roles, auth_provider=None, auth_uid=None) -> dict`  
+  Raises `ValueError` if email or auth UID already exists; creates the user with timestamps and optional Firebase linkage; links any requested roles that already exist; returns the created user with the roles it actually assigned.
+
+- `update_user(user_id, payload) -> dict|None`  
+  Updates allowed user fields and refreshes `updated_at`.
+
+- `delete_user(user_id) -> None`  
+  Removes the user and related join/sign-up records; in memory mode any `created_by` shift references are set to `None`.
 
 
 ---

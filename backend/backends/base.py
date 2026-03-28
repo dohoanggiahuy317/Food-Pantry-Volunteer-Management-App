@@ -14,6 +14,10 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_user_by_auth_uid(self, auth_uid: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_user_roles(self, user_id: int) -> list[str]:
         raise NotImplementedError
 
@@ -31,9 +35,18 @@ class StoreBackend(ABC):
         full_name: str,
         email: str,
         phone_number: str | None,
-        is_active: bool,
         roles: list[str],
+        auth_provider: str | None = None,
+        auth_uid: str | None = None,
     ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_user(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_user(self, user_id: int) -> None:
         raise NotImplementedError
 
     @abstractmethod

@@ -239,6 +239,76 @@ async function handleLogout() {
     window.location.reload();
 }
 
+async function reauthenticateFirebaseUserForSensitiveAction(currentUser) {
+    if (authConfig?.provider !== 'firebase') {
+        throw new Error('Firebase-sensitive actions are unavailable in the current auth mode.');
+    }
+    if (!firebaseAuthInstance || !googleProvider) {
+        throw new Error('Firebase client is not ready.');
+    }
+    if (!currentUser || !currentUser.auth_uid) {
+        throw new Error('Your account is not linked to Firebase yet. Please sign in again with Google first.');
+    }
+
+    clearAuthMessage();
+
+    try {
+        // Force a fresh Google reauthentication before changing a security-sensitive field.
+        await resetPendingGoogleSignup();
+        const result = await firebaseAuthInstance.signInWithPopup(googleProvider);
+        const signedInUser = result?.user;
+        if (!signedInUser) {
+            throw new Error('Google reauthentication did not return a user.');
+        }
+        if (signedInUser.uid !== currentUser.auth_uid) {
+            throw new Error('Please reauthenticate with the same Google account that you use for this app.');
+        }
+        return signedInUser;
+    } catch (error) {
+        const code = error?.code || '';
+        if (code === 'auth/popup-closed-by-user') {
+            throw new Error('Google reauthentication was cancelled.');
+        }
+        throw error;
+    }
+}
+
+async function requestFirebaseEmailChange(currentUser, newEmail) {
+    try {
+        const signedInUser = await reauthenticateFirebaseUserForSensitiveAction(currentUser);
+        if (typeof signedInUser.verifyBeforeUpdateEmail !== 'function') {
+            throw new Error('This Firebase client does not support verified email updates.');
+        }
+
+        await signedInUser.verifyBeforeUpdateEmail(newEmail);
+        return {
+            ok: true,
+            message: `Verification sent to ${newEmail}. Open that email, confirm the change, then sign in again.`
+        };
+    } catch (error) {
+        const code = error?.code || '';
+        if (code === 'auth/email-already-in-use') {
+            throw new Error('That email is already used by another Firebase account.');
+        }
+        if (code === 'auth/invalid-email') {
+            throw new Error('Enter a valid email address.');
+        }
+        throw error;
+    } finally {
+        await resetPendingGoogleSignup();
+    }
+}
+
+async function requestFirebaseAccountDeletion(currentUser) {
+    try {
+        const signedInUser = await reauthenticateFirebaseUserForSensitiveAction(currentUser);
+        const idToken = await signedInUser.getIdToken(true);
+        return { idToken };
+    } finally {
+        await resetPendingGoogleSignup();
+    }
+}
+
 async function enterApp() {
     hideAuthShell();
     showAppShell();
@@ -306,3 +376,6 @@ function escapeAuthHtml(value) {
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#39;');
 }
+
+window.requestFirebaseEmailChange = requestFirebaseEmailChange;
+window.requestFirebaseAccountDeletion = requestFirebaseAccountDeletion;

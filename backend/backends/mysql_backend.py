@@ -40,7 +40,8 @@ def _serialize_user(row: dict[str, Any]) -> dict[str, Any]:
         "full_name": row["full_name"],
         "email": row["email"],
         "phone_number": row.get("phone_number"),
-        "is_active": bool(row["is_active"]),
+        "auth_provider": row.get("auth_provider"),
+        "auth_uid": row.get("auth_uid"),
         "attendance_score": int(row.get("attendance_score", 100)),
         "created_at": _to_iso_z(row["created_at"]),
         "updated_at": _to_iso_z(row["updated_at"]),
@@ -172,6 +173,16 @@ class MySQLBackend(StoreBackend):
             row = cursor.fetchone()
             return _serialize_user(row) if row else None
 
+    def get_user_by_auth_uid(self, auth_uid: str) -> dict[str, Any] | None:
+        normalized_auth_uid = str(auth_uid).strip()
+        if not normalized_auth_uid:
+            return None
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM users WHERE auth_uid = %s LIMIT 1", (normalized_auth_uid,))
+            row = cursor.fetchone()
+            return _serialize_user(row) if row else None
+
     def get_user_roles(self, user_id: int) -> list[str]:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -217,10 +228,13 @@ class MySQLBackend(StoreBackend):
         full_name: str,
         email: str,
         phone_number: str | None,
-        is_active: bool,
         roles: list[str],
+        auth_provider: str | None = None,
+        auth_uid: str | None = None,
     ) -> dict[str, Any]:
         normalized_email = str(email).strip().lower()
+        normalized_auth_provider = str(auth_provider).strip() or None
+        normalized_auth_uid = str(auth_uid).strip() or None
         timestamp = _now_utc_naive()
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -231,18 +245,20 @@ class MySQLBackend(StoreBackend):
                         full_name,
                         email,
                         phone_number,
-                        is_active,
+                        auth_provider,
+                        auth_uid,
                         attendance_score,
                         created_at,
                         updated_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         full_name,
                         normalized_email,
                         phone_number,
-                        1 if is_active else 0,
+                        normalized_auth_provider,
+                        normalized_auth_uid,
                         100,
                         timestamp,
                         timestamp,
@@ -250,6 +266,8 @@ class MySQLBackend(StoreBackend):
                 )
             except IntegrityError:
                 conn.rollback()
+                if normalized_auth_uid and self.get_user_by_auth_uid(normalized_auth_uid):
+                    raise ValueError("Authentication identity already exists")
                 raise ValueError("Email already exists")
 
             user_id = int(cursor.lastrowid)
@@ -273,12 +291,67 @@ class MySQLBackend(StoreBackend):
                 "full_name": full_name,
                 "email": normalized_email,
                 "phone_number": phone_number,
-                "is_active": is_active,
+                "auth_provider": normalized_auth_provider,
+                "auth_uid": normalized_auth_uid,
                 "attendance_score": 100,
                 "created_at": _to_iso_z(timestamp),
                 "updated_at": _to_iso_z(timestamp),
                 "roles": assigned_roles,
             }
+
+    def update_user(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        existing = self.get_user_by_id(user_id)
+        if not existing:
+            return None
+
+        updates: list[str] = []
+        values: list[Any] = []
+
+        if "full_name" in payload:
+            updates.append("full_name = %s")
+            values.append(payload["full_name"])
+        if "email" in payload:
+            updates.append("email = %s")
+            values.append(str(payload["email"]).strip().lower())
+        if "phone_number" in payload:
+            updates.append("phone_number = %s")
+            values.append(payload["phone_number"])
+        if "auth_provider" in payload:
+            updates.append("auth_provider = %s")
+            values.append(str(payload["auth_provider"]).strip() or None)
+        if "auth_uid" in payload:
+            updates.append("auth_uid = %s")
+            values.append(str(payload["auth_uid"]).strip() or None)
+
+        if not updates:
+            return existing
+
+        updates.append("updated_at = %s")
+        values.append(_now_utc_naive())
+        values.append(user_id)
+
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    f"UPDATE users SET {', '.join(updates)} WHERE user_id = %s",
+                    tuple(values),
+                )
+            except IntegrityError:
+                conn.rollback()
+                attempted_auth_uid = str(payload.get("auth_uid", "")).strip() or None
+                if attempted_auth_uid and self.get_user_by_auth_uid(attempted_auth_uid):
+                    raise ValueError("Authentication identity already exists")
+                raise ValueError("Email already exists")
+            conn.commit()
+
+        return self.get_user_by_id(user_id)
+
+    def delete_user(self, user_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+            conn.commit()
 
     def list_pantries(self) -> list[dict[str, Any]]:
         with get_connection() as conn:

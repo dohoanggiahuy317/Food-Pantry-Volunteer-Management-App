@@ -47,3 +47,6 @@ class MemoryAuthService(AuthService):
             if account["id"] == sample_account_id:
                 return dict(account)
         raise AuthError("Unknown sample account", 404, "MEMORY_ACCOUNT_NOT_FOUND")
+
+    def delete_user(self, uid: str) -> None:
+        return None

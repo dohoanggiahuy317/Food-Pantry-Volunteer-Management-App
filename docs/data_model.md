@@ -39,11 +39,22 @@ Defined in `backend/db/migrations/001_initial.sql`:
 
 Important constraints:
 - `users.email` is unique.
+- `users.auth_uid` is unique when present and is used to link Firebase users to local accounts.
 - `user_roles` and `pantry_leads` use composite primary keys.
 - `shift_signups` has unique `(shift_role_id, user_id)` to prevent duplicate signups.
 - `shift_signups` stores `reservation_expires_at` for 48-hour reconfirmation reservation windows.
 - `shift_signups` has index `idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at)` for reservation-aware capacity checks.
 - Foreign keys enforce cascade cleanup for dependent records.
+- `shifts.created_by` is nullable and uses `ON DELETE SET NULL`, so deleting a user does not block on shifts they created.
+
+Current user/account fields:
+- `users` stores `full_name`, `email`, `phone_number`, `auth_provider`, `auth_uid`, `attendance_score`, `created_at`, and `updated_at`.
+- There is no `is_active` flag in the runtime schema; accounts are either present or deleted.
+
+Account lifecycle notes:
+- Firebase mode uses Google sign-in and links users by Firebase UID after the first successful login.
+- Verified email changes are initiated client-side with a fresh Google reauthentication, then the backend syncs the new verified email by UID.
+- Account deletion deletes the linked Firebase user first and then removes the local user row.
 
 ## Concurrency safety
 `backend/backends/mysql_backend.py` uses transactions for signup creation and reconfirmation:
@@ -63,3 +74,6 @@ Important constraints:
 - `backend/db/migrations/001_initial.sql`: table/index/FK definitions.
 - `backend/db/seed.py`: seed import helper (`db.json` -> MySQL).
 - `backend/data/db.json`: initial seed dataset.
+
+Dev note:
+- This branch keeps account-schema changes in `001_initial.sql`. Recreate older dev databases if they were initialized before the current auth/account model.

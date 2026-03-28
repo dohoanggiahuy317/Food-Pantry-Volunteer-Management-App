@@ -4,7 +4,6 @@
       "user_id": 1,
       "full_name": "Admin User - Heo Puy",
       "email": "jeremy.do.service@gmail.com",
-      "is_active": true,
       "created_at": "2024-01-01T00:00:00Z",
       "phone_number": null
     },
@@ -12,7 +11,6 @@
       "user_id": 2,
       "full_name": "Khoa Ho",
       "email": "ho_d1@denison.edu",
-      "is_active": true,
       "created_at": "2024-01-01T00:00:00Z",
       "phone_number": null
     },
@@ -20,7 +18,6 @@
       "user_id": 3,
       "full_name": "Jenny Nguyen",
       "email": "nguyen_j6@denison.edu ",
-      "is_active": true,
       "created_at": "2024-01-01T00:00:00Z",
       "phone_number": null
     },
@@ -28,7 +25,6 @@
       "user_id": 4,
       "full_name": "Dong Ngu = Cho",
       "email": "tran_d2@denison.edu ",
-      "is_active": true,
       "created_at": "2024-01-01T00:00:00Z",
       "phone_number": null
     },
@@ -36,7 +32,6 @@
       "user_id": 5,
       "full_name": "Hoang Ngo",
       "email": "ngo_h2@denison.edu",
-      "is_active": true,
       "created_at": "2024-01-15T00:00:00Z",
       "phone_number": null
     },
@@ -44,7 +39,6 @@
       "user_id": 6,
       "full_name": "Ben Turner",
       "email": "ben@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-15T00:00:00Z",
       "phone_number": null
     },
@@ -52,7 +46,6 @@
       "user_id": 7,
       "full_name": "Chloe Nguyen",
       "email": "chloe@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-16T00:00:00Z",
       "phone_number": null
     },
@@ -60,7 +53,6 @@
       "user_id": 8,
       "full_name": "Daniel Kim",
       "email": "daniel@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-17T00:00:00Z",
       "phone_number": null
     },
@@ -68,7 +60,6 @@
       "user_id": 9,
       "full_name": "Elena Rossi",
       "email": "elena@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-18T00:00:00Z",
       "phone_number": null
     },
@@ -76,7 +67,6 @@
       "user_id": 10,
       "full_name": "Farah Ahmed",
       "email": "farah@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-19T00:00:00Z",
       "phone_number": null
     },
@@ -84,7 +74,6 @@
       "user_id": 11,
       "full_name": "Gabriel Lee",
       "email": "gabriel@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-20T00:00:00Z",
       "phone_number": null
     },
@@ -92,7 +81,6 @@
       "user_id": 12,
       "full_name": "Hannah Patel",
       "email": "hannah@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-21T00:00:00Z",
       "phone_number": null
     },
@@ -100,7 +88,6 @@
       "user_id": 13,
       "full_name": "Isaac Brown",
       "email": "isaac@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-22T00:00:00Z",
       "phone_number": null
     },
@@ -108,7 +95,6 @@
       "user_id": 14,
       "full_name": "Jasmine Lopez",
       "email": "jasmine@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-23T00:00:00Z",
       "phone_number": null
     },
@@ -116,7 +102,6 @@
       "user_id": 15,
       "full_name": "Kyle Martin",
       "email": "kyle@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-24T00:00:00Z",
       "phone_number": null
     },
@@ -124,7 +109,6 @@
       "user_id": 16,
       "full_name": "Lila Chen",
       "email": "lila@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-25T00:00:00Z",
       "phone_number": null
     },
@@ -132,7 +116,6 @@
       "user_id": 17,
       "full_name": "Noah Davis",
       "email": "noah@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-26T00:00:00Z",
       "phone_number": null
     },
@@ -140,7 +123,6 @@
       "user_id": 18,
       "full_name": "Olivia Green",
       "email": "olivia@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-27T00:00:00Z",
       "phone_number": null
     },
@@ -148,7 +130,6 @@
       "user_id": 19,
       "full_name": "Priya Singh",
       "email": "priya@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-28T00:00:00Z",
       "phone_number": null
     },
@@ -156,7 +137,6 @@
       "user_id": 20,
       "full_name": "Quentin Young",
       "email": "quentin@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-29T00:00:00Z",
       "phone_number": null
     },
@@ -164,7 +144,6 @@
       "user_id": 21,
       "full_name": "Rosa Martinez",
       "email": "rosa@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-30T00:00:00Z",
       "phone_number": null
     },
@@ -172,7 +151,6 @@
       "user_id": 22,
       "full_name": "Samuel Clark",
       "email": "samuel@volunteer.org",
-      "is_active": true,
       "created_at": "2024-01-31T00:00:00Z",
       "phone_number": null
     },
@@ -180,7 +158,6 @@
       "user_id": 23,
       "full_name": "Tiana Brooks",
       "email": "tiana@volunteer.org",
-      "is_active": true,
       "created_at": "2024-02-01T00:00:00Z",
       "phone_number": null
     },
@@ -188,7 +165,6 @@
       "user_id": 24,
       "full_name": "Victor Hall",
       "email": "victor@volunteer.org",
-      "is_active": true,
       "created_at": "2024-02-02T00:00:00Z",
       "phone_number": null
     },
@@ -196,7 +172,6 @@
       "user_id": 25,
       "full_name": "Diana Foster",
       "email": "diana@eastriver-pantry.org",
-      "is_active": true,
       "created_at": "2024-01-01T00:00:00Z",
       "phone_number": null
     },
@@ -204,7 +179,6 @@
       "user_id": 26,
       "full_name": "Ethan Brooks",
       "email": "ethan@westgate-pantry.org",
-      "is_active": true,
       "created_at": "2024-01-01T00:00:00Z",
       "phone_number": null
     },
@@ -212,7 +186,6 @@
       "user_id": 27,
       "full_name": "Sophie Turner",
       "email": "sophie@volunteer.org",
-      "is_active": true,
       "created_at": "2024-02-03T00:00:00Z",
       "phone_number": null
     }
