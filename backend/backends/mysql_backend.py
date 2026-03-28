@@ -183,6 +183,13 @@ class MySQLBackend(StoreBackend):
             row = cursor.fetchone()
             return _serialize_user(row) if row else None
 
+    def get_role_by_id(self, role_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT role_id, role_name FROM roles WHERE role_id = %s LIMIT 1", (role_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
     def get_user_roles(self, user_id: int) -> list[str]:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -233,8 +240,10 @@ class MySQLBackend(StoreBackend):
         auth_uid: str | None = None,
     ) -> dict[str, Any]:
         normalized_email = str(email).strip().lower()
-        normalized_auth_provider = str(auth_provider).strip() or None
-        normalized_auth_uid = str(auth_uid).strip() or None
+        normalized_auth_provider = str(auth_provider).strip() if auth_provider is not None else ""
+        normalized_auth_uid = str(auth_uid).strip() if auth_uid is not None else ""
+        normalized_auth_provider = normalized_auth_provider or None
+        normalized_auth_uid = normalized_auth_uid or None
         timestamp = _now_utc_naive()
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -318,10 +327,12 @@ class MySQLBackend(StoreBackend):
             values.append(payload["phone_number"])
         if "auth_provider" in payload:
             updates.append("auth_provider = %s")
-            values.append(str(payload["auth_provider"]).strip() or None)
+            normalized_auth_provider = str(payload["auth_provider"]).strip() if payload["auth_provider"] is not None else ""
+            values.append(normalized_auth_provider or None)
         if "auth_uid" in payload:
             updates.append("auth_uid = %s")
-            values.append(str(payload["auth_uid"]).strip() or None)
+            normalized_auth_uid = str(payload["auth_uid"]).strip() if payload["auth_uid"] is not None else ""
+            values.append(normalized_auth_uid or None)
 
         if not updates:
             return existing
@@ -346,6 +357,32 @@ class MySQLBackend(StoreBackend):
             conn.commit()
 
         return self.get_user_by_id(user_id)
+
+    def replace_user_roles(self, user_id: int, role_ids: list[int]) -> list[str] | None:
+        if not self.get_user_by_id(user_id):
+            return None
+
+        normalized_role_ids: list[int] = []
+        seen_role_ids: set[int] = set()
+        for role_id in role_ids:
+            normalized_role_id = int(role_id)
+            if normalized_role_id in seen_role_ids:
+                continue
+            seen_role_ids.add(normalized_role_id)
+            normalized_role_ids.append(normalized_role_id)
+
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
+            for role_id in normalized_role_ids:
+                cursor.execute(
+                    "INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (%s, %s)",
+                    (user_id, role_id),
+                )
+            cursor.execute("UPDATE users SET updated_at = %s WHERE user_id = %s", (_now_utc_naive(), user_id))
+            conn.commit()
+
+        return self.get_user_roles(user_id)
 
     def delete_user(self, user_id: int) -> None:
         with get_connection() as conn:

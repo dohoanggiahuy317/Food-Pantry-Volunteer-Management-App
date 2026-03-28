@@ -1,0 +1,83 @@
+{
+  "users": [
+    {
+      "user_id": 1,
+      "full_name": "Admin User - Heo Puy",
+      "email": "jeremy.do.service@gmail.com",
+      "created_at": "2024-01-01T00:00:00Z",
+      "phone_number": null
+    },
+    {
+      "user_id": 2,
+      "full_name": "Khoa Ho",
+      "email": "ho_d1@denison.edu",
+      "created_at": "2024-01-01T00:00:00Z",
+      "phone_number": null
+    },
+    {
+      "user_id": 3,
+      "full_name": "Jenny Nguyen",
+      "email": "nguyen_j6@denison.edu ",
+      "created_at": "2024-01-01T00:00:00Z",
+      "phone_number": null
+    },
+    {
+      "user_id": 4,
+      "full_name": "Dong Ngu = Cho",
+      "email": "tran_d2@denison.edu ",
+      "created_at": "2024-01-01T00:00:00Z",
+      "phone_number": null
+    },
+    {
+      "user_id": 5,
+      "full_name": "Hoang Ngo",
+      "email": "ngo_h2@denison.edu",
+      "created_at": "2024-01-15T00:00:00Z",
+      "phone_number": null
+    }
+  ],
+  "roles": [
+    {
+      "role_id": 0,
+      "role_name": "SUPER_ADMIN"
+    },
+    {
+      "role_id": 1,
+      "role_name": "ADMIN"
+    },
+    {
+      "role_id": 2,
+      "role_name": "PANTRY_LEAD"
+    },
+    {
+      "role_id": 3,
+      "role_name": "VOLUNTEER"
+    }
+  ],
+  "user_roles": [
+    {
+      "user_id": 1,
+      "role_id": 0
+    },
+    {
+      "user_id": 2,
+      "role_id": 2
+    },
+    {
+      "user_id": 3,
+      "role_id": 2
+    },
+    {
+      "user_id": 4,
+      "role_id": 2
+    },
+    {
+      "user_id": 5,
+      "role_id": 2
+    }
+  ],
+  "pantries": [],
+  "pantry_leads": [],
+  "shifts": [],
+  "shift_roles": []
+}

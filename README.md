@@ -48,6 +48,9 @@ After a successful login or signup, Flask stores the authenticated local user in
 | `PATCH` | `/api/me` | Update the current user's basic profile fields |
 | `POST` | `/api/me/email-change/prepare` | Validate a pending Firebase-backed email change |
 | `DELETE` | `/api/me` | Delete the current user's local account and linked Firebase account |
+| `GET` | `/api/users` | List users for admin-capable actors, with optional `q` and `role` filters |
+| `GET` | `/api/users/<id>` | Get a full user profile for the Admin Users tab |
+| `PATCH` | `/api/users/<id>/roles` | Replace a user's single editable role |
 | `GET` | `/api/pantries` | List pantries accessible to current user |
 | `GET` | `/api/pantries/<id>/shifts` | List all shifts for a pantry (admin/lead view) |
 | `GET` | `/api/pantries/<id>/active-shifts` | List non-expired shifts (public/volunteer view) |
@@ -68,15 +71,25 @@ The app now shows an auth gate before the dashboard.
 4. The `My Account` tab lets users update `full_name` and `phone_number`, start a verified email change, and delete their account.
 5. Email changes require a fresh Google reauthentication in the browser, then Firebase sends a verification link to the new address.
 6. Account deletion requires a fresh Google reauthentication, deletes the linked Firebase user, deletes the local user, and logs the user out.
-7. Protected API routes read the authenticated user from the Flask session. Public routes remain under `/api/public/*`.
+7. The protected seeded `SUPER_ADMIN` account (`user_id = 1`) cannot delete itself.
+8. Protected API routes read the authenticated user from the Flask session. Public routes remain under `/api/public/*`.
 
 ---
 
 ## User Roles & Features
 
+### Super Admin
+- Protected system role `SUPER_ADMIN` with `role_id = 0`.
+- The seeded `user_id = 1` account is the single protected super admin.
+- Counts as admin-capable everywhere the app checks admin access.
+- Can remove `ADMIN` from other admin users.
+- Cannot have its protected role edited through the app and cannot delete itself.
+
 ### Admin
 - Full access to all pantries and shifts across the system.
-- Can create and manage users, assign pantry leads, and cancel any shift.
+- Can use the Admin page `Users` tab to search, monitor, and manage users.
+- Can assign `ADMIN` to another user, but cannot remove `ADMIN` from another admin unless they are the super admin.
+- Can change their own role and lose Admin access immediately if they demote themselves.
 
 ### Pantry Lead
 - Can create, edit, and cancel shifts for pantries they are assigned to.
@@ -84,6 +97,7 @@ The app now shows an auth gate before the dashboard.
 
 ### Volunteer
 - Can browse open, non-expired shifts.
+- Each user has one system role in the runtime admin-management flow.
 - Shift edits move existing signups to `PENDING_CONFIRMATION` with a 48-hour reservation window.
 - Can reconfirm after shift edits.
 - If they cancel during reconfirmation, the signup row is removed (same as normal cancel), so they can sign up again later if capacity is available.

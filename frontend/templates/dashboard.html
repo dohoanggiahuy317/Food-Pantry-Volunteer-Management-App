@@ -396,76 +396,143 @@
 
         <!-- Admin Panel Tab (Admin Only) -->
         <div class="tab-content" id="content-admin">
-            <!-- Create Pantry -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Create Pantry</h2>
+            <div class="admin-subtabs" id="admin-subtabs">
+                <button class="admin-subtab active" type="button" data-admin-subtab="pantries">Pantries</button>
+                <button class="admin-subtab" type="button" data-admin-subtab="users">Users</button>
+            </div>
+
+            <div class="admin-subcontent active" id="admin-subcontent-pantries">
+                <!-- Create Pantry -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Create Pantry</h2>
+                    </div>
+                    <div id="message-pantry" class="message"></div>
+                    <form id="create-pantry-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="pantry-name">Pantry Name *</label>
+                                <input type="text" id="pantry-name" name="name" placeholder="e.g., Downtown Food Pantry"
+                                    required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pantry-address">Location Address *</label>
+                                <input type="text" id="pantry-address" name="location_address"
+                                    placeholder="123 Main St, City" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">+ Create Pantry</button>
+                    </form>
                 </div>
-                <div id="message-pantry" class="message"></div>
-                <form id="create-pantry-form">
+
+                <!-- Assign Pantry Leads -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Assign Pantry Leads</h2>
+                    </div>
+                    <div id="message-assign" class="message"></div>
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="pantry-name">Pantry Name *</label>
-                            <input type="text" id="pantry-name" name="name" placeholder="e.g., Downtown Food Pantry"
-                                required>
+                            <label for="assign-pantry">Select Pantry *</label>
+                            <select id="assign-pantry">
+                                <option value="">-- Select Pantry --</option>
+                            </select>
                         </div>
                         <div class="form-group">
-                            <label for="pantry-address">Location Address *</label>
-                            <input type="text" id="pantry-address" name="location_address"
-                                placeholder="123 Main St, City" required>
+                            <label for="assign-lead">Select Pantry Lead *</label>
+                            <select id="assign-lead">
+                                <option value="">-- Select Lead --</option>
+                            </select>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">+ Create Pantry</button>
-                </form>
-            </div>
-
-            <!-- Assign Pantry Leads -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Assign Pantry Leads</h2>
-                </div>
-                <div id="message-assign" class="message"></div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="assign-pantry">Select Pantry *</label>
-                        <select id="assign-pantry">
-                            <option value="">-- Select Pantry --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="assign-lead">Select Pantry Lead *</label>
-                        <select id="assign-lead">
-                            <option value="">-- Select Lead --</option>
-                        </select>
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn btn-success" id="assign-lead-btn">✓ Assign Lead</button>
+                        <button class="btn btn-danger" id="remove-lead-btn">✗ Remove Lead</button>
                     </div>
                 </div>
-                <div style="display: flex; gap: 1rem;">
-                    <button class="btn btn-success" id="assign-lead-btn">✓ Assign Lead</button>
-                    <button class="btn btn-danger" id="remove-lead-btn">✗ Remove Lead</button>
+
+                <!-- Pantries and Leads Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Pantries & Their Leads</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Pantry Name</th>
+                                    <th>Location</th>
+                                    <th>Assigned Leads</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pantries-table-body">
+                                <tr>
+                                    <td colspan="4" style="text-align: center; color: #718096;">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
-            <!-- Pantries and Leads Table -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Pantries & Their Leads</h2>
+            <div class="admin-subcontent" id="admin-subcontent-users">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Search And Monitor Users</h2>
+                    </div>
+                    <div id="message-admin-users" class="message"></div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="admin-user-search">Search Users</label>
+                            <input type="text" id="admin-user-search" placeholder="Search by full name or email">
+                        </div>
+                        <div class="form-group">
+                            <label for="admin-user-role-filter">Filter By Role</label>
+                            <select id="admin-user-role-filter">
+                                <option value="">All roles</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary" id="admin-user-search-btn">Search Users</button>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Pantry Name</th>
-                                <th>Location</th>
-                                <th>Assigned Leads</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="pantries-table-body">
-                            <tr>
-                                <td colspan="3" style="text-align: center; color: #718096;">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+
+                <div class="admin-users-layout">
+                    <div class="card admin-users-list-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Users</h2>
+                        </div>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Full Name</th>
+                                        <th>Email</th>
+                                        <th>Phone</th>
+                                        <th>Roles</th>
+                                        <th>Attendance</th>
+                                        <th>Auth</th>
+                                        <th>Created</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-users-table-body">
+                                    <tr>
+                                        <td colspan="8" style="text-align: center; color: #718096;">Loading users...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card admin-user-profile-card">
+                        <div class="card-header">
+                            <h2 class="card-title">User Profile</h2>
+                        </div>
+                        <div id="admin-user-profile-panel">
+                            <p class="auth-empty">Select a user to view the full profile and manage roles.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

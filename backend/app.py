@@ -40,6 +40,9 @@ PAST_SHIFT_LOCK_CODE = "PAST_SHIFT_LOCKED"
 ACTIVE_SIGNUP_STATUSES = {SIGNUP_STATUS_CONFIRMED, "SHOW_UP", "NO_SHOW"}
 LEAD_VISIBLE_SIGNUP_STATUSES = ACTIVE_SIGNUP_STATUSES
 RESERVATION_WINDOW_HOURS = 48
+ADMIN_ROLE_NAME = "ADMIN"
+SUPER_ADMIN_ROLE_NAME = "SUPER_ADMIN"
+PROTECTED_SUPER_ADMIN_USER_ID = 1
 AUTH_EXEMPT_API_PATHS = {
     "/api/auth/config",
     "/api/auth/login/google",
@@ -77,6 +80,18 @@ def get_user_roles(user_id: int) -> list[str]:
 
 def user_has_role(user_id: int, role_name: str) -> bool:
     return role_name in get_user_roles(user_id)
+
+
+def is_super_admin(user_id: int) -> bool:
+    return user_has_role(user_id, SUPER_ADMIN_ROLE_NAME)
+
+
+def is_admin_capable(user_id: int) -> bool:
+    return is_super_admin(user_id) or user_has_role(user_id, ADMIN_ROLE_NAME)
+
+
+def is_protected_super_admin_user_id(user_id: int) -> bool:
+    return int(user_id) == PROTECTED_SUPER_ADMIN_USER_ID
 
 
 def current_user() -> dict[str, Any] | None:
@@ -143,6 +158,14 @@ def update_user_or_409(user_id: int, payload: dict[str, Any], conflict_message: 
     return updated
 
 
+def get_role_name_map() -> dict[int, str]:
+    return {
+        int(role.get("role_id")): str(role.get("role_name"))
+        for role in backend.list_roles()
+        if role.get("role_id") is not None and role.get("role_name")
+    }
+
+
 def sync_firebase_user_identity(identity: Any) -> dict[str, Any] | None:
     user = backend.get_user_by_auth_uid(identity.uid)
     if user:
@@ -193,6 +216,9 @@ def sync_firebase_user_identity(identity: Any) -> dict[str, Any] | None:
 
 def delete_current_user_account_with_identity(user: dict[str, Any], payload: dict[str, Any]) -> tuple[Any, int]:
     user_id = int(user.get("user_id"))
+    if is_protected_super_admin_user_id(user_id):
+        return jsonify({"error": "The protected super admin account cannot delete itself"}), 403
+
     linked_auth_provider = str(user.get("auth_provider") or "").strip()
     linked_auth_uid = str(user.get("auth_uid") or "").strip()
 
@@ -219,7 +245,7 @@ def find_pantry_by_id(pantry_id: int) -> dict[str, Any] | None:
 
 
 def pantries_for_current_user() -> list[dict[str, Any]]:
-    """Pantries the current user leads (or all if ADMIN)."""
+    """Pantries the current user leads (or all if admin-capable)."""
     user = current_user()
     if not user:
         return []
@@ -227,7 +253,7 @@ def pantries_for_current_user() -> list[dict[str, Any]]:
     user_id = int(user.get("user_id"))
     all_pantries = backend.list_pantries()
 
-    if user_has_role(user_id, "ADMIN"):
+    if is_admin_capable(user_id):
         return all_pantries
 
     if user_has_role(user_id, "PANTRY_LEAD"):
@@ -312,7 +338,7 @@ def past_shift_locked_response() -> tuple[Any, int]:
 
 
 def ensure_shift_manager_permission(user_id: int, shift: dict[str, Any]) -> bool:
-    if user_has_role(user_id, "ADMIN"):
+    if is_admin_capable(user_id):
         return True
     pantry_id = int(shift.get("pantry_id"))
     return backend.is_pantry_lead(pantry_id, user_id)
@@ -322,7 +348,7 @@ def should_include_cancelled_shift_data(user: dict[str, Any] | None, pantry_id: 
     if not user:
         return False
     user_id = int(user.get("user_id"))
-    if user_has_role(user_id, "ADMIN"):
+    if is_admin_capable(user_id):
         return True
     return backend.is_pantry_lead(pantry_id, user_id)
 
@@ -469,7 +495,7 @@ def get_signup_shift_context(signup_id: int) -> tuple[dict[str, Any] | None, dic
 
 
 def check_attendance_marking_allowed(actor_user_id: int, shift: dict[str, Any]) -> tuple[bool, str | None]:
-    is_admin = user_has_role(actor_user_id, "ADMIN")
+    is_admin = is_admin_capable(actor_user_id)
     pantry_id = int(shift.get("pantry_id"))
     is_lead_for_pantry = backend.is_pantry_lead(pantry_id, actor_user_id)
     if not is_admin and not is_lead_for_pantry:
@@ -695,25 +721,45 @@ def delete_current_user_account() -> Any:
 
 @app.get("/api/users")
 def list_users() -> Any:
-    """List all users (ADMIN only). Optional role filter: ?role=PANTRY_LEAD."""
+    """List all users for admin-capable actors."""
     user = current_user()
-    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+    if not user or not is_admin_capable(int(user.get("user_id"))):
         return jsonify({"error": "Forbidden"}), 403
 
     role_filter = request.args.get("role")
+    query = str(request.args.get("q", "")).strip().lower()
     users = backend.list_users(role_filter)
+    if query:
+        users = [
+            candidate
+            for candidate in users
+            if query in str(candidate.get("full_name", "")).lower()
+            or query in str(candidate.get("email", "")).lower()
+        ]
     return jsonify([serialize_user_for_client(u, include_roles=True) for u in users])
+
+
+@app.get("/api/users/<int:user_id>")
+def get_user_profile(user_id: int) -> Any:
+    user = current_user()
+    if not user or not is_admin_capable(int(user.get("user_id"))):
+        return jsonify({"error": "Forbidden"}), 403
+
+    target_user = find_user_by_id(user_id)
+    if not target_user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify(serialize_user_for_client(target_user, include_roles=True))
 
 
 @app.get("/api/users/<int:user_id>/signups")
 def list_user_signups(user_id: int) -> Any:
-    """List signups for a specific user (self or ADMIN)."""
+    """List signups for a specific user (self or admin-capable actor)."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
 
     current_user_id = int(user.get("user_id"))
-    is_admin = user_has_role(current_user_id, "ADMIN")
+    is_admin = is_admin_capable(current_user_id)
     if current_user_id != user_id and not is_admin:
         return jsonify({"error": "Forbidden"}), 403
 
@@ -744,9 +790,9 @@ def list_roles() -> Any:
 
 @app.post("/api/users")
 def create_user() -> Any:
-    """Create a new user (ADMIN only)."""
+    """Create a new user (admin-capable actors only)."""
     user = current_user()
-    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+    if not user or not is_admin_capable(int(user.get("user_id"))):
         return jsonify({"error": "Forbidden"}), 403
 
     payload = request.get_json(silent=True) or {}
@@ -755,17 +801,83 @@ def create_user() -> Any:
     if missing:
         return jsonify({"error": f"Missing: {', '.join(missing)}"}), 400
 
+    requested_roles = [str(role_name).strip().upper() for role_name in payload.get("roles", []) if str(role_name).strip()]
+    if len(requested_roles) > 1:
+        return jsonify({"error": "Users can have only one role"}), 400
+    if SUPER_ADMIN_ROLE_NAME in requested_roles:
+        return jsonify({"error": "The SUPER_ADMIN role cannot be assigned through this endpoint"}), 403
+
     try:
         new_user = backend.create_user(
             full_name=payload["full_name"],
             email=payload["email"],
             phone_number=payload.get("phone_number"),
-            roles=list(payload.get("roles", [])),
+            roles=requested_roles,
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     return jsonify(serialize_user_for_client(new_user, include_roles=True)), 201
+
+
+@app.patch("/api/users/<int:user_id>/roles")
+def replace_user_roles(user_id: int) -> Any:
+    actor = current_user()
+    if not actor:
+        return jsonify({"error": "Forbidden"}), 403
+
+    actor_user_id = int(actor.get("user_id"))
+    if not is_admin_capable(actor_user_id):
+        return jsonify({"error": "Forbidden"}), 403
+
+    target_user = find_user_by_id(user_id)
+    if not target_user:
+        return jsonify({"error": "User not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    role_ids = payload.get("role_ids")
+    if not isinstance(role_ids, list):
+        return jsonify({"error": "role_ids must be an array"}), 400
+    if len(role_ids) != 1:
+        return jsonify({"error": "Users can have only one editable role"}), 400
+
+    requested_role_ids: list[int] = []
+    seen_role_ids: set[int] = set()
+    try:
+        for raw_role_id in role_ids:
+            normalized_role_id = int(raw_role_id)
+            if normalized_role_id in seen_role_ids:
+                continue
+            seen_role_ids.add(normalized_role_id)
+            requested_role_ids.append(normalized_role_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "role_ids must contain integers only"}), 400
+
+    role_name_map = get_role_name_map()
+    unknown_role_ids = [role_id for role_id in requested_role_ids if role_id not in role_name_map]
+    if unknown_role_ids:
+        return jsonify({"error": f"Unknown role ids: {', '.join(str(role_id) for role_id in unknown_role_ids)}"}), 400
+
+    current_role_names = set(get_user_roles(user_id))
+    requested_role_names = {role_name_map[role_id] for role_id in requested_role_ids}
+
+    if is_protected_super_admin_user_id(user_id) or SUPER_ADMIN_ROLE_NAME in current_role_names:
+        return jsonify({"error": "The protected super admin account cannot have its roles edited"}), 403
+    if SUPER_ADMIN_ROLE_NAME in requested_role_names:
+        return jsonify({"error": "The SUPER_ADMIN role cannot be assigned through this endpoint"}), 403
+
+    removing_admin = ADMIN_ROLE_NAME in current_role_names and ADMIN_ROLE_NAME not in requested_role_names
+    if removing_admin and user_id != actor_user_id and not is_super_admin(actor_user_id):
+        return jsonify({"error": "Only the super admin can remove ADMIN from another admin"}), 403
+
+    updated_role_names = backend.replace_user_roles(user_id, requested_role_ids)
+    if updated_role_names is None:
+        return jsonify({"error": "User not found"}), 404
+
+    updated_user = find_user_by_id(user_id)
+    if not updated_user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify(serialize_user_for_client(updated_user, include_roles=True))
 
 
 @app.get("/api/pantries")
@@ -801,9 +913,9 @@ def get_pantry(pantry_id: int) -> Any:
 
 @app.post("/api/pantries")
 def create_pantry() -> Any:
-    """Create a new pantry (ADMIN only)."""
+    """Create a new pantry (admin-capable actors only)."""
     user = current_user()
-    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+    if not user or not is_admin_capable(int(user.get("user_id"))):
         return jsonify({"error": "Forbidden"}), 403
 
     payload = request.get_json(silent=True) or {}
@@ -822,9 +934,9 @@ def create_pantry() -> Any:
 
 @app.patch("/api/pantries/<int:pantry_id>")
 def update_pantry(pantry_id: int) -> Any:
-    """Update pantry name or address (ADMIN only)."""
+    """Update pantry name or address (admin-capable actors only)."""
     user = current_user()
-    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+    if not user or not is_admin_capable(int(user.get("user_id"))):
         return jsonify({"error": "Forbidden"}), 403
 
     pantry = find_pantry_by_id(pantry_id)
@@ -847,9 +959,9 @@ def update_pantry(pantry_id: int) -> Any:
 
 @app.delete("/api/pantries/<int:pantry_id>")
 def delete_pantry(pantry_id: int) -> Any:
-    """Delete a pantry (ADMIN only)."""
+    """Delete a pantry (admin-capable actors only)."""
     user = current_user()
-    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+    if not user or not is_admin_capable(int(user.get("user_id"))):
         return jsonify({"error": "Forbidden"}), 403
 
     pantry = find_pantry_by_id(pantry_id)
@@ -862,9 +974,9 @@ def delete_pantry(pantry_id: int) -> Any:
 
 @app.post("/api/pantries/<int:pantry_id>/leads")
 def add_pantry_lead(pantry_id: int) -> Any:
-    """Assign a pantry lead to a pantry (ADMIN only)."""
+    """Assign a pantry lead to a pantry (admin-capable actors only)."""
     user = current_user()
-    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+    if not user or not is_admin_capable(int(user.get("user_id"))):
         return jsonify({"error": "Forbidden"}), 403
 
     pantry = find_pantry_by_id(pantry_id)
@@ -897,9 +1009,9 @@ def add_pantry_lead(pantry_id: int) -> Any:
 
 @app.delete("/api/pantries/<int:pantry_id>/leads/<int:lead_id>")
 def remove_pantry_lead(pantry_id: int, lead_id: int) -> Any:
-    """Remove a pantry lead from a pantry (ADMIN only)."""
+    """Remove a pantry lead from a pantry (admin-capable actors only)."""
     user = current_user()
-    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+    if not user or not is_admin_capable(int(user.get("user_id"))):
         return jsonify({"error": "Forbidden"}), 403
 
     pantry = find_pantry_by_id(pantry_id)
@@ -941,13 +1053,13 @@ def get_active_shifts(pantry_id: int) -> Any:
 
 @app.post("/api/pantries/<int:pantry_id>/shifts")
 def create_shift(pantry_id: int) -> Any:
-    """Create a new shift (PANTRY_LEAD or ADMIN)."""
+    """Create a new shift (PANTRY_LEAD or admin-capable actor)."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
 
     user_id = int(user.get("user_id"))
-    is_admin = user_has_role(user_id, "ADMIN")
+    is_admin = is_admin_capable(user_id)
     is_lead = user_has_role(user_id, "PANTRY_LEAD")
 
     if not (is_admin or is_lead):
@@ -996,7 +1108,7 @@ def get_shift(shift_id: int) -> Any:
 
 @app.get("/api/shifts/<int:shift_id>/registrations")
 def get_shift_registrations(shift_id: int) -> Any:
-    """Get shift roles with registered volunteers (PANTRY_LEAD or ADMIN)."""
+    """Get shift roles with registered volunteers (PANTRY_LEAD or admin-capable actor)."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
@@ -1006,7 +1118,7 @@ def get_shift_registrations(shift_id: int) -> Any:
         return jsonify({"error": "Not found"}), 404
 
     user_id = int(user.get("user_id"))
-    is_admin = user_has_role(user_id, "ADMIN")
+    is_admin = is_admin_capable(user_id)
     pantry_id = int(shift.get("pantry_id"))
 
     if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
@@ -1051,7 +1163,7 @@ def get_shift_registrations(shift_id: int) -> Any:
 
 @app.patch("/api/shifts/<int:shift_id>")
 def update_shift(shift_id: int) -> Any:
-    """Update shift (PANTRY_LEAD or ADMIN)."""
+    """Update shift (PANTRY_LEAD or admin-capable actor)."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
@@ -1085,7 +1197,7 @@ def update_shift(shift_id: int) -> Any:
 
 @app.delete("/api/shifts/<int:shift_id>")
 def delete_shift(shift_id: int) -> Any:
-    """Cancel a shift (PANTRY_LEAD or ADMIN)."""
+    """Cancel a shift (PANTRY_LEAD or admin-capable actor)."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
@@ -1125,7 +1237,7 @@ def create_shift_role(shift_id: int) -> Any:
         return jsonify({"error": "Shift not found"}), 404
 
     user_id = int(user.get("user_id"))
-    is_admin = user_has_role(user_id, "ADMIN")
+    is_admin = is_admin_capable(user_id)
     pantry_id = int(shift.get("pantry_id"))
 
     if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
@@ -1158,7 +1270,7 @@ def create_shift_role(shift_id: int) -> Any:
 
 @app.patch("/api/shift-roles/<int:shift_role_id>")
 def update_shift_role(shift_role_id: int) -> Any:
-    """Update a shift role (PANTRY_LEAD or ADMIN)."""
+    """Update a shift role (PANTRY_LEAD or admin-capable actor)."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
@@ -1334,7 +1446,7 @@ def delete_signup(signup_id: int) -> Any:
 
     user_id = int(user.get("user_id"))
     signup_user_id = int(signup.get("user_id"))
-    is_admin = user_has_role(user_id, "ADMIN")
+    is_admin = is_admin_capable(user_id)
 
     if user_id != signup_user_id and not is_admin:
         return jsonify({"error": "Forbidden"}), 403
@@ -1356,7 +1468,7 @@ def reconfirm_signup(signup_id: int) -> Any:
 
     current_user_id = int(user.get("user_id"))
     signup_user_id = int(signup.get("user_id"))
-    is_admin = user_has_role(current_user_id, "ADMIN")
+    is_admin = is_admin_capable(current_user_id)
     if current_user_id != signup_user_id and not is_admin:
         return jsonify({"error": "Forbidden"}), 403
 
@@ -1412,7 +1524,7 @@ def reconfirm_signup(signup_id: int) -> Any:
 
 @app.patch("/api/signups/<int:signup_id>/attendance")
 def mark_signup_attendance(signup_id: int) -> Any:
-    """Mark signup attendance as SHOW_UP or NO_SHOW (PANTRY_LEAD for pantry or ADMIN)."""
+    """Mark signup attendance as SHOW_UP or NO_SHOW (PANTRY_LEAD for pantry or admin-capable actor)."""
     user = current_user()
     if not user:
         return jsonify({"error": "Forbidden"}), 403
@@ -1435,9 +1547,9 @@ def mark_signup_attendance(signup_id: int) -> Any:
 
 @app.patch("/api/signups/<int:signup_id>")
 def update_signup(signup_id: int) -> Any:
-    """Update signup status (ADMIN only)."""
+    """Update signup status (admin-capable actors only)."""
     user = current_user()
-    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+    if not user or not is_admin_capable(int(user.get("user_id"))):
         return jsonify({"error": "Forbidden"}), 403
 
     signup = backend.get_signup_by_id(signup_id)

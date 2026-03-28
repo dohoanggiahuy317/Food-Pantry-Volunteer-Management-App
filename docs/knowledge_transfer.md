@@ -432,14 +432,15 @@ Contains:
 - id
 - full name
 - email
-- password hashes
-- active flag
+- optional Firebase linkage (`auth_provider`, `auth_uid`)
+- attendance score
 - created timestamps
 
 **roles**
 
-Three system roles:
+Four seeded system roles:
 
+- SUPER_ADMIN (`role_id = 0`)
 - ADMIN
 - PANTRY_LEAD
 - VOLUNTEER
@@ -448,10 +449,15 @@ Three system roles:
 
 Maps users to roles.
 
+Runtime note:
+
+- the Admin Users flow enforces one editable system role per user
+- the protected seeded `SUPER_ADMIN` account (`user_id = 1`) is fixed and not editable through the app
+
 Examples:
 
-- user 4 → ADMIN
-- users 1–3 → PANTRY_LEAD
+- user 1 → SUPER_ADMIN
+- some seeded users → PANTRY_LEAD
 - others → VOLUNTEER
 
 **pantries**
@@ -515,13 +521,15 @@ Tables defined:
 **roles**
 
 - List of possible roles
+- seeded role ids are explicit; `SUPER_ADMIN` uses `role_id = 0`
 - role names must be unique
 
 **users**
 
 - Stores all accounts
 - unique email constraint
-- password hash
+- optional Firebase linkage (`auth_provider`, `auth_uid`)
+- attendance score
 - timestamps
 
 **user_roles**
@@ -529,6 +537,7 @@ Tables defined:
 - Mapping between users and roles
 - composite key `(user_id, role_id)`
 - cascade delete when user removed
+- runtime admin UI treats users as having one editable system role at a time
 
 **pantries**
 
@@ -689,6 +698,8 @@ Authentication and context:
 - `find_user_by_id(user_id)`
 - `get_user_roles(user_id)`
 - `user_has_role(user_id, role_name)`
+- `is_super_admin(user_id)`
+- `is_admin_capable(user_id)`
 - `current_user()`
 
 Pantry helpers:
@@ -732,7 +743,9 @@ Attendance helpers:
 
 - `GET /api/me`
 - `GET /api/users`
+- `GET /api/users/<user_id>`
 - `POST /api/users`
+- `PATCH /api/users/<user_id>/roles`
 - `GET /api/users/<user_id>/signups`
 - `GET /api/roles`
 
@@ -907,6 +920,11 @@ Responsive rules (≤768px):
 Purpose:  
 Front-end helper functions for admins and leads to manage pantries, leads, and roles, plus utility functions to populate select dropdowns.
 
+Note:
+
+- user search/profile/role editing now lives in `dashboard.js` + `user-functions.js`
+- `admin-functions.js` still mainly covers pantry and pantry-lead management
+
 Functions:
 
 `getPantries()`
@@ -1046,7 +1064,7 @@ Role-based UI:
 
 Determines visible tabs depending on roles:
 
-- Admin
+- Admin-capable (`ADMIN` or `SUPER_ADMIN`)
 - Pantry lead
 - Volunteer
 
@@ -1058,6 +1076,8 @@ Tab switching:
 - changes visible tab content
 - toggles pantry selector visibility
 - loads required data for that tab
+- Admin tab now has `Pantries` and `Users` subtabs
+- Admin `Users` subtab supports user search, profile viewing, and single-role updates
 
 
 Pantry management:
@@ -1439,8 +1459,8 @@ Navigation tabs:
 
 - Calendar (all users)
 - My Shifts (volunteers)
-- Manage Shifts (admin / leads)
-- Admin Panel (admin only)
+- Manage Shifts (admin-capable / leads)
+- Admin Panel (admin-capable only)
 
 Tabs are dynamically hidden or shown using JavaScript.
 
@@ -1488,9 +1508,15 @@ Tables for:
 
 Admin Panel
 
-- create pantry form
-- assign/remove pantry leads
-- table listing pantries and leads
+- Pantries subtab:
+  - create pantry form
+  - assign/remove pantry leads
+  - table listing pantries and leads
+- Users subtab:
+  - search + role filter
+  - user table
+  - user profile panel
+  - single-role selector for editable user roles
 
 
 Scripts loaded:

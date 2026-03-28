@@ -42,12 +42,16 @@ function displayCurrentUser(user, emailElementId = 'user-email', roleElementId =
 /**
  * Get all users (admin only)
  */
-async function getAllUsers(roleFilter = null) {
+async function getAllUsers(roleFilter = null, searchQuery = '') {
     try {
-        let path = '/api/users';
+        const params = new URLSearchParams();
         if (roleFilter) {
-            path += `?role=${encodeURIComponent(roleFilter)}`;
+            params.set('role', roleFilter);
         }
+        if (searchQuery) {
+            params.set('q', searchQuery);
+        }
+        const path = params.toString() ? `/api/users?${params.toString()}` : '/api/users';
         const users = await apiGet(path);
         return users;
     } catch (error) {
@@ -65,6 +69,15 @@ async function createUser(userData) {
         return user;
     } catch (error) {
         console.error('Failed to create user:', error);
+        throw error;
+    }
+}
+
+async function getUserProfile(userId) {
+    try {
+        return await apiGet(`/api/users/${userId}`);
+    } catch (error) {
+        console.error('Failed to get user profile:', error);
         throw error;
     }
 }
@@ -103,24 +116,11 @@ async function deleteCurrentUserAccount(payload = {}) {
 /**
  * Assign role to user
  */
-async function assignRole(userId, roleId) {
+async function updateUserRoles(userId, roleIds) {
     try {
-        const data = await apiPost(`/api/users/${userId}/roles`, { role_id: roleId });
-        return data;
+        return await apiPatch(`/api/users/${userId}/roles`, { role_ids: roleIds });
     } catch (error) {
-        console.error('Failed to assign role:', error);
-        throw error;
-    }
-}
-
-/**
- * Remove role from user
- */
-async function removeRole(userId, roleId) {
-    try {
-        await apiDelete(`/api/users/${userId}/roles/${roleId}`);
-    } catch (error) {
-        console.error('Failed to remove role:', error);
+        console.error('Failed to update user roles:', error);
         throw error;
     }
 }

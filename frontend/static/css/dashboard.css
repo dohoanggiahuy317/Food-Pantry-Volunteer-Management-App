@@ -289,6 +289,113 @@ body {
     display: block;
 }
 
+.admin-subtabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.admin-subtab {
+    padding: 0.75rem 1rem;
+    border: 1px solid #d2d6dc;
+    border-radius: 8px;
+    background: white;
+    color: #4a5568;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.admin-subtab:hover {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.admin-subtab.active {
+    background: #edf2ff;
+    border-color: #667eea;
+    color: #3c56c7;
+}
+
+.admin-subcontent {
+    display: none;
+}
+
+.admin-subcontent.active {
+    display: block;
+}
+
+.admin-users-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 1fr);
+    gap: 1.25rem;
+    align-items: start;
+}
+
+.admin-users-list-card,
+.admin-user-profile-card {
+    margin-bottom: 0;
+}
+
+.admin-user-row.selected {
+    background: #edf2ff;
+}
+
+.admin-user-summary-grid {
+    margin-bottom: 1rem;
+}
+
+.admin-user-role-editor {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 1rem;
+}
+
+.admin-user-role-title {
+    font-size: 1rem;
+    color: #2d3748;
+    margin-bottom: 0.75rem;
+}
+
+.admin-role-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.admin-role-option {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #2d3748;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.admin-role-option.selected {
+    background: #edf2ff;
+    border-color: #667eea;
+    color: #3c56c7;
+}
+
+.admin-role-option input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: #667eea;
+}
+
+.admin-user-role-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
 .shift-view-sections {
     display: flex;
     flex-direction: column;
@@ -443,6 +550,11 @@ body {
 
 .btn-danger:hover {
     background: #e53e3e;
+}
+
+.btn-sm {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.82rem;
 }
 
 .btn:disabled {
@@ -1118,6 +1230,14 @@ table tr:hover {
         width: 100%;
     }
 
+    .admin-subtabs {
+        flex-direction: column;
+    }
+
+    .admin-subtab {
+        width: 100%;
+    }
+
     .main-content {
         padding: 0 1rem;
     }
@@ -1132,6 +1252,10 @@ table tr:hover {
 
     .card {
         padding: 1.5rem;
+    }
+
+    .admin-users-layout {
+        grid-template-columns: 1fr;
     }
 
     .shift-actions {

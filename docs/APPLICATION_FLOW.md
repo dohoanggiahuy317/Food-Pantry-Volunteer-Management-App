@@ -244,7 +244,7 @@ window 'load' event fires
   │
   ├─ 1. getCurrentUser()          [user-functions.js]
   │       apiGet('/api/me')        [api-helpers.js → fetch]
-  │       ← { user_id, email, roles: ["ADMIN", ...] }
+  │       ← { user_id, email, roles: ["ADMIN" | "SUPER_ADMIN" | ...] }
   │       sets module-level: currentUser
   │       writes email/roles to #user-email, #user-role in DOM
   │
@@ -252,8 +252,8 @@ window 'load' event fires
   │       reads currentUser.roles
   │       shows/hides nav tabs:
   │         VOLUNTEER  → shows "My Shifts" tab
-  │         PANTRY_LEAD or ADMIN → shows "Manage Shifts" tab
-  │         ADMIN      → shows "Admin Panel" tab
+  │         PANTRY_LEAD or admin-capable → shows "Manage Shifts" tab
+  │         ADMIN or SUPER_ADMIN → shows "Admin Panel" tab
   │       returns the default tab name to activate
   │
   ├─ 3. loadPantries()            [dashboard.js:121]
@@ -266,9 +266,11 @@ window 'load' event fires
   │
   ├─ 4. setupEventListeners()     [dashboard.js:1152]
   │       attaches click handlers to nav tabs → activateTab()
+  │       attaches click handlers to Admin subtabs → setAdminSubtab() + loadAdminTab()
   │       attaches submit to #create-shift-form → createShift() + createShiftRole() loop
   │       attaches submit to #create-pantry-form → createPantry()
   │       attaches click to #assign-lead-btn → addPantryLead()
+  │       attaches Admin Users search/filter/profile/role-save handlers
   │       attaches change to #pantry-select → reloads shifts for selected pantry
   │
   └─ 5. activateTab(defaultTab)   [dashboard.js:91]
@@ -277,7 +279,7 @@ window 'load' event fires
             'calendar'   → loadCalendarShifts()
             'my-shifts'  → loadMyRegisteredShifts()
             'shifts'     → loadShiftsTable()
-            'admin'      → loadPantries() + loadPantryLeads() + updatePantriesTable()
+            'admin'      → loadAdminTab()
 ```
 
 ---
@@ -314,7 +316,7 @@ Route handler: create_shift(pantry_id=1)
   current_user()
     find_user_by_id(g.current_user_id)
       backend.get_user_by_id(4)             ← MySQLBackend: SELECT * FROM users WHERE user_id=4
-  user_has_role(4, "ADMIN")
+  is_admin_capable(4)
     backend.get_user_roles(4)               ← SELECT role_name FROM roles JOIN user_roles ...
   validate payload fields
   backend.create_shift(pantry_id, ...)      ← MySQLBackend
@@ -407,6 +409,27 @@ Flask app.py:
   firebase_admin.auth.delete_user(uid)
   backend.delete_user(user_id)
   clear Flask session
+
+Protected rule:
+  seeded user_id = 1 with SUPER_ADMIN
+  cannot delete itself
+```
+
+The Admin `Users` subtab is driven by the following flow:
+
+```
+Admin Users subtab
+  GET /api/users?q=<text>&role=<role>
+    └─ returns serialized users with roles for the table
+  click a user
+    GET /api/users/<user_id>
+      └─ returns the full profile payload for the side panel
+  choose one role button
+    PATCH /api/users/<user_id>/roles { role_ids: [<single_role_id>] }
+      ├─ enforces one editable role per user
+      ├─ blocks SUPER_ADMIN assignment/removal
+      ├─ blocks normal admins from removing another admin's ADMIN role
+      └─ refreshes the current session if the actor edits themself
 ```
 
 ---

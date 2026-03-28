@@ -18,6 +18,10 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_role_by_id(self, role_id: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_user_roles(self, user_id: int) -> list[str]:
         raise NotImplementedError
 
@@ -43,6 +47,10 @@ class StoreBackend(ABC):
 
     @abstractmethod
     def update_user(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def replace_user_roles(self, user_id: int, role_ids: list[int]) -> list[str] | None:
         raise NotImplementedError
 
     @abstractmethod

@@ -38,6 +38,7 @@ Defined in `backend/db/migrations/001_initial.sql`:
 - `shift_signups`
 
 Important constraints:
+- `roles.role_id` is seeded explicitly; the protected `SUPER_ADMIN` role uses `role_id = 0`.
 - `users.email` is unique.
 - `users.auth_uid` is unique when present and is used to link Firebase users to local accounts.
 - `user_roles` and `pantry_leads` use composite primary keys.
@@ -50,11 +51,13 @@ Important constraints:
 Current user/account fields:
 - `users` stores `full_name`, `email`, `phone_number`, `auth_provider`, `auth_uid`, `attendance_score`, `created_at`, and `updated_at`.
 - There is no `is_active` flag in the runtime schema; accounts are either present or deleted.
+- The current admin-management flow treats each user as having one editable system role at a time (`VOLUNTEER`, `PANTRY_LEAD`, or `ADMIN`), while the protected seeded `SUPER_ADMIN` account is fixed and not editable through the app.
 
 Account lifecycle notes:
 - Firebase mode uses Google sign-in and links users by Firebase UID after the first successful login.
 - Verified email changes are initiated client-side with a fresh Google reauthentication, then the backend syncs the new verified email by UID.
 - Account deletion deletes the linked Firebase user first and then removes the local user row.
+- The protected seeded `SUPER_ADMIN` account (`user_id = 1`) cannot delete itself.
 
 ## Concurrency safety
 `backend/backends/mysql_backend.py` uses transactions for signup creation and reconfirmation:

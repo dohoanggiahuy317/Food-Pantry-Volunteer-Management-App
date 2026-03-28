@@ -37,7 +37,7 @@ def _parse_iso_to_utc(value: Any) -> datetime | None:
 
 class MemoryBackend(StoreBackend):
     def __init__(self, data_path: Path | None = None) -> None:
-        self._data_path = data_path or (Path(__file__).resolve().parents[1] / "data" / "db.json")
+        self._data_path = data_path or (Path(__file__).resolve().parents[1] / "data" / "in_memory.json")
         self.store: dict[str, list[dict[str, Any]]] = {
             "users": [],
             "roles": [],
@@ -164,6 +164,9 @@ class MemoryBackend(StoreBackend):
             )
         )
 
+    def get_role_by_id(self, role_id: int) -> dict[str, Any] | None:
+        return self._copy(next((r for r in self.store["roles"] if int(r.get("role_id", -1)) == role_id), None))
+
     def get_user_roles(self, user_id: int) -> list[str]:
         role_ids = [
             ur.get("role_id")
@@ -197,7 +200,10 @@ class MemoryBackend(StoreBackend):
         normalized_email = str(email).strip().lower()
         if any(str(u.get("email", "")).strip().lower() == normalized_email for u in self.store["users"]):
             raise ValueError("Email already exists")
-        normalized_auth_uid = str(auth_uid).strip() or None
+        normalized_auth_provider = str(auth_provider).strip() if auth_provider is not None else ""
+        normalized_auth_uid = str(auth_uid).strip() if auth_uid is not None else ""
+        normalized_auth_provider = normalized_auth_provider or None
+        normalized_auth_uid = normalized_auth_uid or None
         if normalized_auth_uid and any(str(u.get("auth_uid", "")).strip() == normalized_auth_uid for u in self.store["users"]):
             raise ValueError("Authentication identity already exists")
 
@@ -211,7 +217,7 @@ class MemoryBackend(StoreBackend):
             "attendance_score": 100,
             "created_at": timestamp,
             "updated_at": timestamp,
-            "auth_provider": str(auth_provider).strip() or None,
+            "auth_provider": normalized_auth_provider,
             "auth_uid": normalized_auth_uid,
         }
         self.store["users"].append(new_user)
@@ -252,7 +258,8 @@ class MemoryBackend(StoreBackend):
             updates["email"] = normalized_email
 
         if "auth_uid" in updates:
-            normalized_auth_uid = str(updates["auth_uid"]).strip() or None
+            normalized_auth_uid = str(updates["auth_uid"]).strip() if updates["auth_uid"] is not None else ""
+            normalized_auth_uid = normalized_auth_uid or None
             if normalized_auth_uid and any(
                 int(existing.get("user_id", 0)) != user_id
                 and str(existing.get("auth_uid", "")).strip() == normalized_auth_uid
@@ -262,13 +269,45 @@ class MemoryBackend(StoreBackend):
             updates["auth_uid"] = normalized_auth_uid
 
         if "auth_provider" in updates:
-            updates["auth_provider"] = str(updates["auth_provider"]).strip() or None
+            normalized_auth_provider = str(updates["auth_provider"]).strip() if updates["auth_provider"] is not None else ""
+            updates["auth_provider"] = normalized_auth_provider or None
 
         for key, value in updates.items():
             user[key] = value
 
         user["updated_at"] = _utc_now_iso()
         return dict(user)
+
+    def replace_user_roles(self, user_id: int, role_ids: list[int]) -> list[str] | None:
+        user = next((u for u in self.store["users"] if int(u.get("user_id", 0)) == user_id), None)
+        if not user:
+            return None
+
+        valid_role_ids = {
+            int(role.get("role_id"))
+            for role in self.store["roles"]
+            if role.get("role_id") is not None
+        }
+        normalized_role_ids: list[int] = []
+        seen_role_ids: set[int] = set()
+        for role_id in role_ids:
+            normalized_role_id = int(role_id)
+            if normalized_role_id not in valid_role_ids or normalized_role_id in seen_role_ids:
+                continue
+            seen_role_ids.add(normalized_role_id)
+            normalized_role_ids.append(normalized_role_id)
+
+        self.store["user_roles"] = [
+            row for row in self.store["user_roles"] if int(row.get("user_id", 0)) != user_id
+        ]
+        for role_id in normalized_role_ids:
+            self.store["user_roles"].append({
+                "user_id": user_id,
+                "role_id": role_id,
+            })
+
+        user["updated_at"] = _utc_now_iso()
+        return self.get_user_roles(user_id)
 
     def delete_user(self, user_id: int) -> None:
         self.store["users"] = [user for user in self.store["users"] if int(user.get("user_id", 0)) != user_id]
