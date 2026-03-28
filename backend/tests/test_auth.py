@@ -15,9 +15,8 @@ if str(BACKEND_DIR) not in sys.path:
 class FakeFirebaseAuthService:
     mode = "firebase"
 
-    def __init__(self, email: str, firebase_uid: str, display_name: str = "Test User") -> None:
+    def __init__(self, email: str, display_name: str = "Test User") -> None:
         self.email = email
-        self.firebase_uid = firebase_uid
         self.display_name = display_name
 
     def get_client_config(self) -> dict[str, object]:
@@ -38,7 +37,6 @@ class FakeFirebaseAuthService:
             (),
             {
                 "provider": "firebase",
-                "provider_user_id": self.firebase_uid,
                 "email": self.email,
                 "email_verified": True,
                 "display_name": self.display_name,
@@ -110,7 +108,6 @@ def test_google_login_unknown_user_requires_signup_then_creates_volunteer():
     app_module.app.config["TESTING"] = True
     app_module.auth_service = FakeFirebaseAuthService(
         email="new.volunteer@example.org",
-        firebase_uid="firebase-user-1",
         display_name="New Volunteer",
     )
 
@@ -134,15 +131,13 @@ def test_google_login_unknown_user_requires_signup_then_creates_volunteer():
 
         backend_user = app_module.backend.get_user_by_email("new.volunteer@example.org")
         assert backend_user is not None
-        assert backend_user["firebase_uid"] == "firebase-user-1"
 
 
-def test_google_login_links_existing_local_user_by_email():
+def test_google_login_uses_existing_local_user_roles_by_email():
     app_module = load_app_module("memory")
     app_module.app.config["TESTING"] = True
     app_module.auth_service = FakeFirebaseAuthService(
-        email="super@example.org",
-        firebase_uid="firebase-admin-1",
+        email="jeremy.do.service@gmail.com",
         display_name="Admin User",
     )
 
@@ -151,9 +146,4 @@ def test_google_login_links_existing_local_user_by_email():
         assert login_response.status_code == 200
         payload = login_response.get_json()
         assert payload["next"] == "app"
-        assert payload["linked_existing_user"] is True
         assert "ADMIN" in payload["user"]["roles"]
-
-    linked_user = app_module.backend.get_user_by_email("super@example.org")
-    assert linked_user is not None
-    assert linked_user["firebase_uid"] == "firebase-admin-1"

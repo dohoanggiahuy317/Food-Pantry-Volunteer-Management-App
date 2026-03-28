@@ -13,19 +13,19 @@ class MemoryAuthService(AuthService):
             {
                 "id": "admin",
                 "label": "Admin User",
-                "email": "super@example.org",
+                "email": "jeremy.do.service@gmail.com",
                 "description": "Full admin access",
             },
             {
                 "id": "lead",
                 "label": "Pantry Lead",
-                "email": "courtney@licking-county-pantry.org",
+                "email": "jeremy.do.service@gmail.com",
                 "description": "Pantry lead access",
             },
             {
                 "id": "volunteer",
                 "label": "Volunteer",
-                "email": "alice@volunteer.org",
+                "email": "ben@volunteer.org",
                 "description": "Volunteer shift signup flow",
             },
         ]

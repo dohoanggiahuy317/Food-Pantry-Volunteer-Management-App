@@ -19,7 +19,6 @@ class AuthError(Exception):
 @dataclass(frozen=True)
 class IdentityPayload:
     provider: str
-    provider_user_id: str
     email: str
     email_verified: bool
     display_name: str | None = None

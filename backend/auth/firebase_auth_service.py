@@ -16,14 +16,14 @@ class FirebaseAuthService(AuthService):
             "projectId": os.getenv("FIREBASE_PROJECT_ID", "").strip(),
             "appId": os.getenv("FIREBASE_APP_ID", "").strip(),
         }
-        self._admin_credentials = os.getenv("FIREBASE_ADMIN_CREDENTIALS", "").strip()
-        self._firebase_auth = self._initialize_admin_auth()
+        self._service_account_credentials = os.getenv("FIREBASE_ADMIN_CREDENTIALS", "").strip()
+        self._firebase_auth = self._initialize_firebase_auth()
 
-    def _initialize_admin_auth(self) -> Any:
+    def _initialize_firebase_auth(self) -> Any:
         missing = [key for key, value in self._client_config.items() if not value]
         if missing:
             raise RuntimeError(f"Missing Firebase client configuration: {', '.join(missing)}")
-        if not self._admin_credentials:
+        if not self._service_account_credentials:
             raise RuntimeError("Missing FIREBASE_ADMIN_CREDENTIALS")
 
         try:
@@ -34,7 +34,7 @@ class FirebaseAuthService(AuthService):
             raise RuntimeError("firebase-admin is required for AUTH_PROVIDER=firebase") from exc
 
         if not firebase_admin._apps:
-            credential = credentials.Certificate(self._admin_credentials)
+            credential = credentials.Certificate(self._service_account_credentials)
             firebase_admin.initialize_app(credential)
         return firebase_auth
 
@@ -55,18 +55,16 @@ class FirebaseAuthService(AuthService):
             raise AuthError("Invalid or expired Firebase ID token", 401, "INVALID_ID_TOKEN") from exc
 
         email = str(decoded.get("email", "")).strip().lower()
-        firebase_uid = str(decoded.get("uid", "")).strip()
         email_verified = bool(decoded.get("email_verified"))
         display_name = decoded.get("name")
 
-        if not email or not firebase_uid:
+        if not email:
             raise AuthError("Firebase token did not include a valid email identity", 400, "INVALID_IDENTITY")
         if not email_verified:
             raise AuthError("Google account email must be verified", 403, "EMAIL_NOT_VERIFIED")
 
         return IdentityPayload(
             provider="firebase",
-            provider_user_id=firebase_uid,
             email=email,
             email_verified=email_verified,
             display_name=str(display_name).strip() if display_name else None,

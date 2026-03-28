@@ -14,10 +14,6 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_user_by_firebase_uid(self, firebase_uid: str) -> dict[str, Any] | None:
-        raise NotImplementedError
-
-    @abstractmethod
     def get_user_roles(self, user_id: int) -> list[str]:
         raise NotImplementedError
 
@@ -37,18 +33,7 @@ class StoreBackend(ABC):
         phone_number: str | None,
         is_active: bool,
         roles: list[str],
-        auth_provider: str | None = None,
-        firebase_uid: str | None = None,
     ) -> dict[str, Any]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def link_user_auth(
-        self,
-        user_id: int,
-        auth_provider: str,
-        firebase_uid: str,
-    ) -> dict[str, Any] | None:
         raise NotImplementedError
 
     @abstractmethod
