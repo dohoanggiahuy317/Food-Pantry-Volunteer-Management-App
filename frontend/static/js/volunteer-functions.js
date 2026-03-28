@@ -50,7 +50,7 @@ async function signupForShift(shiftRoleId, userId = null) {
     try {
         const payload = userId ? { user_id: userId } : {};
         const data = await apiPost(`/api/shift-roles/${shiftRoleId}/signup`, payload);
-        return data.signup;
+        return data;
     } catch (error) {
         console.error('Failed to signup for shift:', error);
         throw error;

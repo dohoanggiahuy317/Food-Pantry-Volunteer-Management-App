@@ -533,6 +533,21 @@ def update_pantry(pantry_id: int) -> Any:
     return jsonify(updated)
 
 
+@app.delete("/api/pantries/<int:pantry_id>")
+def delete_pantry(pantry_id: int) -> Any:
+    """Delete a pantry (ADMIN only)."""
+    user = current_user()
+    if not user or not user_has_role(int(user.get("user_id")), "ADMIN"):
+        return jsonify({"error": "Forbidden"}), 403
+
+    pantry = find_pantry_by_id(pantry_id)
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    backend.delete_pantry(pantry_id)
+    return jsonify({"success": True}), 200
+
+
 @app.post("/api/pantries/<int:pantry_id>/leads")
 def add_pantry_lead(pantry_id: int) -> Any:
     """Assign a pantry lead to a pantry (ADMIN only)."""
@@ -960,11 +975,21 @@ def create_signup(shift_role_id: int) -> Any:
     except LookupError:
         return jsonify({"error": "Shift role not found"}), 404
     except ValueError as exc:
+        if str(exc) == "Already signed up":
+            existing = next(
+                (s for s in get_shift_signups(shift_role_id) if int(s.get("user_id")) == user_id),
+                None,
+            )
+            if existing:
+                existing["user"] = serialize_signup_user(find_user_by_id(user_id))
+                existing["already_signed_up"] = True
+                return jsonify(existing), 200
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
 
     recalculate_shift_role_capacity(shift_role_id)
+    signup["already_signed_up"] = False
     signup["user"] = serialize_signup_user(find_user_by_id(user_id))
     return jsonify(signup), 201
 
