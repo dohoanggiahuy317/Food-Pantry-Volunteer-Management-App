@@ -190,13 +190,5 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def list_advance_reminder_candidates(self, window_start: str, window_end: str) -> list[dict[str, Any]]:
-        raise NotImplementedError
-
-    @abstractmethod
-    def mark_advance_reminder_sent(self, signup_id: int, sent_at: str) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
     def is_empty(self) -> bool:
         raise NotImplementedError

@@ -90,7 +90,6 @@ def _serialize_signup(row: dict[str, Any]) -> dict[str, Any]:
         "shift_role_id": row["shift_role_id"],
         "user_id": row["user_id"],
         "signup_status": row["signup_status"],
-        "advance_reminder_sent_at": _to_iso_z(row["advance_reminder_sent_at"]) if row.get("advance_reminder_sent_at") else None,
         "reservation_expires_at": _to_iso_z(reservation_expires_at) if reservation_expires_at else None,
         "created_at": _to_iso_z(row["created_at"]),
     }
@@ -1146,72 +1145,6 @@ class MySQLBackend(StoreBackend):
             conn.commit()
             updated = self.get_signup_by_id(signup_id)
             return {"result": "CONFIRMED", "signup": updated}
-
-    def list_advance_reminder_candidates(self, window_start: str, window_end: str) -> list[dict[str, Any]]:
-        start_dt = _parse_iso_to_dt(window_start)
-        end_dt = _parse_iso_to_dt(window_end)
-        with get_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                """
-                SELECT
-                    ss.signup_id,
-                    ss.user_id,
-                    u.full_name,
-                    u.email,
-                    s.shift_id,
-                    s.shift_name,
-                    s.start_time,
-                    s.end_time,
-                    p.pantry_id,
-                    p.name AS pantry_name,
-                    p.location_address,
-                    sr.shift_role_id,
-                    sr.role_title
-                FROM shift_signups ss
-                JOIN users u ON u.user_id = ss.user_id
-                JOIN shift_roles sr ON sr.shift_role_id = ss.shift_role_id
-                JOIN shifts s ON s.shift_id = sr.shift_id
-                JOIN pantries p ON p.pantry_id = s.pantry_id
-                WHERE UPPER(ss.signup_status) = 'CONFIRMED'
-                  AND ss.advance_reminder_sent_at IS NULL
-                  AND UPPER(s.status) != 'CANCELLED'
-                  AND UPPER(sr.status) != 'CANCELLED'
-                  AND s.start_time >= %s
-                  AND s.start_time < %s
-                ORDER BY s.start_time, ss.signup_id
-                """,
-                (start_dt, end_dt),
-            )
-            rows = cursor.fetchall()
-            return [
-                {
-                    "signup_id": int(row["signup_id"]),
-                    "user_id": int(row["user_id"]),
-                    "full_name": row["full_name"],
-                    "email": row["email"],
-                    "shift_id": int(row["shift_id"]),
-                    "shift_name": row["shift_name"],
-                    "start_time": _to_iso_z(row["start_time"]),
-                    "end_time": _to_iso_z(row["end_time"]),
-                    "pantry_id": int(row["pantry_id"]),
-                    "pantry_name": row["pantry_name"],
-                    "location_address": row["location_address"],
-                    "shift_role_id": int(row["shift_role_id"]),
-                    "role_title": row["role_title"],
-                }
-                for row in rows
-            ]
-
-    def mark_advance_reminder_sent(self, signup_id: int, sent_at: str) -> None:
-        sent_at_dt = _parse_iso_to_dt(sent_at)
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE shift_signups SET advance_reminder_sent_at = %s WHERE signup_id = %s",
-                (sent_at_dt, signup_id),
-            )
-            conn.commit()
 
     def is_empty(self) -> bool:
         with get_connection() as conn:

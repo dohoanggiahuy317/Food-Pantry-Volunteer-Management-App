@@ -7,17 +7,12 @@ import re
 from typing import Any
 
 from dotenv import load_dotenv
-from flask import Flask, g, jsonify, render_template, render_template_string, request, session
+from flask import Flask, g, jsonify, render_template, request, session
 from flask_cors import CORS
 
 from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
 from backends.factory import create_backend
-from notifications import (
-    build_signup_action_url,
-    send_initial_signup_confirmation,
-    verify_signup_action_token,
-)
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
@@ -447,17 +442,6 @@ def expire_pending_signups_if_started(shift_id: int) -> int:
     if expired > 0:
         recalculate_shift_capacities(shift_id)
     return expired
-
-
-def build_signup_email_links(signup_id: int) -> dict[str, str | None]:
-    base_url = str(os.getenv("APP_BASE_URL", "")).strip()
-    manage_url = base_url.rstrip("/") + "/dashboard" if base_url else None
-    secret_key = str(app.config["SECRET_KEY"])
-    return {
-        "confirm_url": build_signup_action_url(signup_id, "CONFIRM", secret_key),
-        "cancel_url": build_signup_action_url(signup_id, "CANCEL", secret_key),
-        "manage_url": manage_url,
-    }
 
 
 def signup_reconfirm_availability(signup_row: dict[str, Any]) -> tuple[bool, str | None]:
@@ -1431,18 +1415,6 @@ def create_signup(shift_role_id: int) -> Any:
     recalculate_shift_role_capacity(shift_role_id)
     signup["already_signed_up"] = False
     signup["user"] = serialize_signup_user(find_user_by_id(user_id))
-    pantry = find_pantry_by_id(int(shift.get("pantry_id")))
-    if pantry and signup.get("user"):
-        links = build_signup_email_links(int(signup.get("signup_id")))
-        send_initial_signup_confirmation(
-            recipient=signup["user"],
-            shift=shift,
-            pantry=pantry,
-            role=shift_role,
-            confirm_url=links["confirm_url"],
-            cancel_url=links["cancel_url"],
-            manage_url=links["manage_url"],
-        )
     return jsonify(signup), 201
 
 
@@ -1645,43 +1617,5 @@ def dashboard() -> Any:
     return render_template("dashboard.html")
 
 
-@app.get("/email-actions/signups/<int:signup_id>/<action>")
-def handle_signup_email_action(signup_id: int, action: str) -> Any:
-    normalized_action = str(action).strip().upper()
-    if normalized_action not in {"CONFIRM", "CANCEL"}:
-        return render_template_string("<h1>Invalid action</h1><p>This email link is not valid.</p>"), 400
-
-    token = str(request.args.get("token", "")).strip()
-    if not token or not verify_signup_action_token(signup_id, normalized_action, token, str(app.config["SECRET_KEY"])):
-        return render_template_string("<h1>Invalid link</h1><p>This email link is invalid or has expired.</p>"), 403
-
-    signup, shift_role, shift = get_signup_shift_context(signup_id)
-    if not signup or not shift_role or not shift:
-        return render_template_string("<h1>Signup not found</h1><p>This signup is no longer available.</p>"), 404
-
-    if normalized_action == "CANCEL":
-        if shift_has_started(shift):
-            return render_template_string("<h1>Too late to cancel</h1><p>This shift has already started.</p>"), 409
-        backend.delete_signup(signup_id)
-        return render_template_string("<h1>Signup cancelled</h1><p>Your signup has been cancelled successfully.</p>"), 200
-
-    current_status = str(signup.get("signup_status", "")).upper()
-    if current_status == SIGNUP_STATUS_CONFIRMED:
-        return render_template_string("<h1>Attendance confirmed</h1><p>You are still confirmed for this shift.</p>"), 200
-    if current_status != SIGNUP_STATUS_PENDING_CONFIRMATION:
-        return render_template_string("<h1>Signup unavailable</h1><p>This signup can no longer be confirmed from email.</p>"), 409
-
-    result = backend.reconfirm_pending_signup(signup_id, utc_now_iso())
-    result_code = str(result.get("result", "")).upper()
-    if result_code == "CONFIRMED":
-        return render_template_string("<h1>Attendance confirmed</h1><p>You are confirmed for this shift.</p>"), 200
-    if result_code == "WAITLISTED":
-        return render_template_string("<h1>Shift unavailable</h1><p>The shift is no longer available.</p>"), 409
-    if result_code == "EXPIRED":
-        return render_template_string("<h1>Link expired</h1><p>This reminder link has expired.</p>"), 409
-    return render_template_string("<h1>Unable to confirm</h1><p>Please open the dashboard to review your signup.</p>"), 400
-
-
 if __name__ == "__main__":
-    app.run(debug=True, port=int(os.getenv("PORT", "5000")), host="0.0.0.0")
-
+    app.run(debug=True, port=5000, host='0.0.0.0')
