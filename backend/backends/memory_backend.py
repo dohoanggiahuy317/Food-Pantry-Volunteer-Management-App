@@ -121,6 +121,8 @@ class MemoryBackend(StoreBackend):
             "shift_roles": list(data.get("shift_roles", [])),
             "shift_signups": list(data.get("shift_signups", [])),
         }
+        for signup in self.store["shift_signups"]:
+            signup.setdefault("advance_reminder_sent_at", None)
         for user in self.store["users"]:
             user.setdefault("updated_at", user.get("created_at"))
             user.setdefault("auth_provider", None)
@@ -615,6 +617,7 @@ class MemoryBackend(StoreBackend):
             "shift_role_id": shift_role_id,
             "user_id": user_id,
             "signup_status": signup_status,
+            "advance_reminder_sent_at": None,
             "reservation_expires_at": (
                 (datetime.now(timezone.utc) + timedelta(hours=RESERVATION_WINDOW_HOURS)).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
                 if str(signup_status).upper() == PENDING_SIGNUP_STATUS
@@ -770,6 +773,70 @@ class MemoryBackend(StoreBackend):
         self._recalculate_role_capacity(shift_role_id)
         self._recalculate_user_attendance_score(int(signup.get("user_id")))
         return {"result": "CONFIRMED", "signup": dict(signup)}
+
+    def list_advance_reminder_candidates(self, window_start: str, window_end: str) -> list[dict[str, Any]]:
+        start_dt = _parse_iso_to_utc(window_start)
+        end_dt = _parse_iso_to_utc(window_end)
+        if not start_dt or not end_dt:
+            return []
+
+        candidates: list[dict[str, Any]] = []
+        for signup in self.store["shift_signups"]:
+            if str(signup.get("signup_status", "")).upper() != "CONFIRMED":
+                continue
+            if signup.get("advance_reminder_sent_at"):
+                continue
+
+            shift_role = next(
+                (sr for sr in self.store["shift_roles"] if int(sr.get("shift_role_id", 0)) == int(signup.get("shift_role_id", 0))),
+                None,
+            )
+            if not shift_role or str(shift_role.get("status", "OPEN")).upper() == "CANCELLED":
+                continue
+
+            shift = next(
+                (s for s in self.store["shifts"] if int(s.get("shift_id", 0)) == int(shift_role.get("shift_id", 0))),
+                None,
+            )
+            if not shift or str(shift.get("status", "OPEN")).upper() == "CANCELLED":
+                continue
+
+            start_time = _parse_iso_to_utc(shift.get("start_time"))
+            if not start_time or not (start_dt <= start_time < end_dt):
+                continue
+
+            pantry = next(
+                (p for p in self.store["pantries"] if int(p.get("pantry_id", 0)) == int(shift.get("pantry_id", 0))),
+                None,
+            )
+            user = next((u for u in self.store["users"] if int(u.get("user_id", 0)) == int(signup.get("user_id", 0))), None)
+            if not pantry or not user or not user.get("email"):
+                continue
+
+            candidates.append(
+                {
+                    "signup_id": int(signup.get("signup_id", 0)),
+                    "user_id": int(user.get("user_id", 0)),
+                    "full_name": user.get("full_name"),
+                    "email": user.get("email"),
+                    "shift_id": int(shift.get("shift_id", 0)),
+                    "shift_name": shift.get("shift_name"),
+                    "start_time": shift.get("start_time"),
+                    "end_time": shift.get("end_time"),
+                    "pantry_id": int(pantry.get("pantry_id", 0)),
+                    "pantry_name": pantry.get("name"),
+                    "location_address": pantry.get("location_address"),
+                    "shift_role_id": int(shift_role.get("shift_role_id", 0)),
+                    "role_title": shift_role.get("role_title"),
+                }
+            )
+
+        return candidates
+
+    def mark_advance_reminder_sent(self, signup_id: int, sent_at: str) -> None:
+        signup = next((ss for ss in self.store["shift_signups"] if int(ss.get("signup_id", 0)) == signup_id), None)
+        if signup:
+            signup["advance_reminder_sent_at"] = sent_at
 
     def is_empty(self) -> bool:
         return not self.store["users"] and not self.store["roles"]

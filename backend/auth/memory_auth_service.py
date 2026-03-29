@@ -25,7 +25,7 @@ class MemoryAuthService(AuthService):
             {
                 "id": "volunteer",
                 "label": "Volunteer",
-                "email": "ben@volunteer.org",
+                "email": "pecokadangiu@gmail.com",
                 "description": "Volunteer shift signup flow",
             },
         ]
