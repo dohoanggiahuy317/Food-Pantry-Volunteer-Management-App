@@ -41,20 +41,22 @@ cp backend/env.example backend/.env
 Your `backend/.env` should look like this:
 
 ```env
-AUTH_PROVIDER=firebase
+AUTH_PROVIDER=memory
 DATA_BACKEND=mysql
 FLASK_SECRET_KEY=change-me
-
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
 MYSQL_DATABASE=volunteer_managing
 MYSQL_USER=volunteer_user
 MYSQL_PASSWORD=volunteer_pass
-
 MYSQL_POOL_SIZE=5
 MYSQL_CONNECT_TIMEOUT=10
-
 SEED_MYSQL_FROM_JSON_ON_EMPTY=true
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+FIREBASE_APP_ID=
+FIREBASE_ADMIN_CREDENTIALS=
 ```
 
 **Variable reference:**
