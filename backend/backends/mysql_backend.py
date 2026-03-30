@@ -632,6 +632,131 @@ class MySQLBackend(StoreBackend):
 
         return self.get_shift_by_id(shift_id)
 
+    def replace_shift_and_roles(
+        self,
+        shift_id: int,
+        shift_payload: dict[str, Any],
+        roles_payload: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM shifts WHERE shift_id = %s FOR UPDATE", (shift_id,))
+            shift_row = cursor.fetchone()
+            if not shift_row:
+                conn.rollback()
+                return None
+
+            cursor.execute("SELECT * FROM shift_roles WHERE shift_id = %s FOR UPDATE", (shift_id,))
+            existing_role_rows = cursor.fetchall()
+            existing_roles = {
+                int(row["shift_role_id"]): row
+                for row in existing_role_rows
+            }
+
+            normalized_roles: list[dict[str, Any]] = []
+            seen_role_ids: set[int] = set()
+            for payload in roles_payload:
+                role_title = str(payload.get("role_title") or "").strip()
+                if not role_title:
+                    conn.rollback()
+                    raise ValueError("role_title is required")
+
+                try:
+                    required_count = int(payload.get("required_count"))
+                except (TypeError, ValueError) as exc:
+                    conn.rollback()
+                    raise ValueError("required_count must be >= 1") from exc
+                if required_count < 1:
+                    conn.rollback()
+                    raise ValueError("required_count must be >= 1")
+
+                raw_role_id = payload.get("shift_role_id")
+                role_id = int(raw_role_id) if raw_role_id is not None else None
+                if role_id is not None:
+                    if role_id in seen_role_ids:
+                        conn.rollback()
+                        raise ValueError("Duplicate shift_role_id in roles payload")
+                    if role_id not in existing_roles:
+                        conn.rollback()
+                        raise ValueError("Shift role not found for this shift")
+                    seen_role_ids.add(role_id)
+
+                normalized_roles.append({
+                    "shift_role_id": role_id,
+                    "role_title": role_title,
+                    "required_count": required_count,
+                })
+
+            updates: list[str] = []
+            values: list[Any] = []
+            if "shift_name" in shift_payload:
+                updates.append("shift_name = %s")
+                values.append(shift_payload["shift_name"])
+            if "start_time" in shift_payload:
+                updates.append("start_time = %s")
+                values.append(_parse_iso_to_dt(shift_payload["start_time"]))
+            if "end_time" in shift_payload:
+                updates.append("end_time = %s")
+                values.append(_parse_iso_to_dt(shift_payload["end_time"]))
+            if "status" in shift_payload:
+                updates.append("status = %s")
+                values.append(shift_payload["status"])
+            updates.append("updated_at = %s")
+            values.append(_now_utc_naive())
+            values.append(shift_id)
+            cursor.execute(
+                f"UPDATE shifts SET {', '.join(updates)} WHERE shift_id = %s",
+                tuple(values),
+            )
+
+            submitted_existing_ids: set[int] = set()
+            for payload in normalized_roles:
+                role_id = payload.get("shift_role_id")
+                if role_id is not None:
+                    submitted_existing_ids.add(int(role_id))
+                    cursor.execute(
+                        """
+                        UPDATE shift_roles
+                        SET role_title = %s,
+                            required_count = %s
+                        WHERE shift_role_id = %s
+                        """,
+                        (payload["role_title"], payload["required_count"], int(role_id)),
+                    )
+                    continue
+
+                cursor.execute(
+                    """
+                    INSERT INTO shift_roles (shift_id, role_title, required_count, filled_count, status)
+                    VALUES (%s, %s, %s, 0, 'OPEN')
+                    """,
+                    (shift_id, payload["role_title"], payload["required_count"]),
+                )
+
+            omitted_role_ids = set(existing_roles) - submitted_existing_ids
+            for role_id in omitted_role_ids:
+                cursor.execute(
+                    "SELECT 1 FROM shift_signups WHERE shift_role_id = %s LIMIT 1",
+                    (role_id,),
+                )
+                has_signups = cursor.fetchone() is not None
+                if has_signups:
+                    cursor.execute(
+                        """
+                        UPDATE shift_roles
+                        SET status = 'CANCELLED',
+                            filled_count = 0
+                        WHERE shift_role_id = %s
+                        """,
+                        (role_id,),
+                    )
+                    continue
+                cursor.execute("DELETE FROM shift_roles WHERE shift_role_id = %s", (role_id,))
+
+            conn.commit()
+
+        return self.get_shift_by_id(shift_id)
+
     def delete_shift(self, shift_id: int) -> None:
         with get_connection() as conn:
             cursor = conn.cursor()

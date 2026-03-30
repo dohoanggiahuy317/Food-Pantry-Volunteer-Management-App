@@ -72,7 +72,7 @@ FIREBASE_ADMIN_CREDENTIALS=
 | `MYSQL_DATABASE` | The database name created by Docker on first start |
 | `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml` |
 | `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/db.json` if the tables are empty |
-| `RESEND_API_KEY` | API key used by `backend/notifications/notifications.py` to send signup confirmation emails |
+| `RESEND_API_KEY` | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
 | `RESEND_FROM_EMAIL` | Verified sender address used for outgoing email (for example `noreply@updates.example.com`) |
 
 ---
@@ -138,7 +138,7 @@ Flask serves the full application — both the frontend (HTML/CSS/JS) and the AP
 
 ## Step 5: Optional Resend Email Setup
 
-Signup confirmation emails are sent through `backend/notifications/notifications.py` when a signup becomes `CONFIRMED`.
+Volunteer notification emails are sent through `backend/notifications/notifications.py` for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
 
 **1. Make sure you control a sending domain**
 
@@ -171,14 +171,12 @@ Signup confirmation emails are sent through `backend/notifications/notifications
 
 **Behavior in this repo**
 
-- If `RESEND_API_KEY` or `RESEND_FROM_EMAIL` is missing, the notification helper returns a structured failure result and `app.py` logs a warning instead of crashing the signup flow.
-- If Resend is configured correctly, volunteers receive a signup confirmation email after a confirmed signup.
+- If `RESEND_API_KEY` or `RESEND_FROM_EMAIL` is missing, the notification helper returns a structured failure result and `app.py` logs a warning instead of crashing the signup or shift-management flow.
+- If Resend is configured correctly, volunteers receive emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
 
 ---
 
-## Upcoming: Firebase Authentication
-
-> **Status: Not yet active.** This section documents the planned Firebase Auth integration. Until it is complete, follow Step 4 above for dev access.
+## Firebase Authentication
 
 When Firebase Auth is integrated, the following will be required:
 

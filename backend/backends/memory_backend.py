@@ -483,6 +483,100 @@ class MemoryBackend(StoreBackend):
         shift["updated_at"] = _utc_now_iso()
         return dict(shift)
 
+    def replace_shift_and_roles(
+        self,
+        shift_id: int,
+        shift_payload: dict[str, Any],
+        roles_payload: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        shift = next((s for s in self.store["shifts"] if s.get("shift_id") == shift_id), None)
+        if not shift:
+            return None
+
+        existing_roles = {
+            int(role.get("shift_role_id")): role
+            for role in self.store["shift_roles"]
+            if int(role.get("shift_id")) == shift_id
+        }
+
+        normalized_roles: list[dict[str, Any]] = []
+        seen_role_ids: set[int] = set()
+        for payload in roles_payload:
+            role_title = str(payload.get("role_title") or "").strip()
+            if not role_title:
+                raise ValueError("role_title is required")
+
+            try:
+                required_count = int(payload.get("required_count"))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("required_count must be >= 1") from exc
+            if required_count < 1:
+                raise ValueError("required_count must be >= 1")
+
+            raw_role_id = payload.get("shift_role_id")
+            role_id = int(raw_role_id) if raw_role_id is not None else None
+            if role_id is not None:
+                if role_id in seen_role_ids:
+                    raise ValueError("Duplicate shift_role_id in roles payload")
+                if role_id not in existing_roles:
+                    raise ValueError("Shift role not found for this shift")
+                seen_role_ids.add(role_id)
+
+            normalized_roles.append({
+                "shift_role_id": role_id,
+                "role_title": role_title,
+                "required_count": required_count,
+            })
+
+        for key in ["shift_name", "start_time", "end_time", "status"]:
+            if key in shift_payload:
+                shift[key] = shift_payload[key]
+        shift["updated_at"] = _utc_now_iso()
+
+        submitted_existing_ids: set[int] = set()
+        for payload in normalized_roles:
+            role_id = payload.get("shift_role_id")
+            if role_id is not None:
+                submitted_existing_ids.add(int(role_id))
+                role = existing_roles[int(role_id)]
+                role["role_title"] = payload["role_title"]
+                role["required_count"] = payload["required_count"]
+                continue
+
+            role = {
+                "shift_role_id": self.next_shift_role_id,
+                "shift_id": shift_id,
+                "role_title": payload["role_title"],
+                "required_count": payload["required_count"],
+                "filled_count": 0,
+                "status": "OPEN",
+            }
+            self.next_shift_role_id += 1
+            self.store["shift_roles"].append(role)
+
+        omitted_role_ids = set(existing_roles) - submitted_existing_ids
+        roles_to_delete: set[int] = set()
+        for role_id in omitted_role_ids:
+            has_signups = any(
+                int(signup.get("shift_role_id")) == role_id
+                for signup in self.store["shift_signups"]
+            )
+            if has_signups:
+                role = existing_roles[role_id]
+                role["status"] = "CANCELLED"
+                role["filled_count"] = 0
+                continue
+            roles_to_delete.add(role_id)
+
+        if roles_to_delete:
+            self.store["shift_roles"] = [
+                role
+                for role in self.store["shift_roles"]
+                if int(role.get("shift_role_id")) not in roles_to_delete
+            ]
+
+        return dict(shift)
+
     def delete_shift(self, shift_id: int) -> None:
         shift_role_ids = [sr.get("shift_role_id") for sr in self.store["shift_roles"] if sr.get("shift_id") == shift_id]
         self.store["shift_signups"] = [

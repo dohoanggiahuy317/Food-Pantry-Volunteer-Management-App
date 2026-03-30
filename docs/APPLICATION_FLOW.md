@@ -16,7 +16,7 @@ volunteer_managing/
 │   ├── .env                        # Runtime config (DB credentials, backend type)
 │   ├── notifications/
 │   │   ├── __init__.py             # Notification package exports
-│   │   └── notifications.py        # Resend email helpers + structured notification results
+│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation + structured results
 │   │
 │   ├── backends/
 │   │   ├── base.py                 # Abstract interface: StoreBackend (ABC)
@@ -41,10 +41,10 @@ volunteer_managing/
         ├── css/
         │   └── dashboard.css
         └── js/
-            ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiDelete
+            ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiPut/apiDelete
             ├── user-functions.js   # getCurrentUser(), userHasRole(), createUser()
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
-            ├── lead-functions.js   # getShifts(), createShift(), updateShift(), markAttendance()
+            ├── lead-functions.js   # getShifts(), createShift(), updateShift(), updateFullShift(), markAttendance()
             ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup()
             └── dashboard.js        # App entry point: boot sequence, UI state, event handlers
 ```
@@ -134,7 +134,7 @@ app.py
     │    return MySQLBackend instance
     └─ NO  → return MemoryBackend instance
   backend = <chosen instance>            ← module-level singleton used by all routes
-  notifications.send_signup_confirmation() ← called after confirmed signups when email is configured
+  notifications.send_*()               ← called for confirmed signups, shift updates, and shift cancellations
   app.run(port=5000)
 ```
 
@@ -175,7 +175,10 @@ The notification module is intentionally separate from Flask route handlers:
 
 - Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
 - Normalizes shift/pantry/user data into an email payload
-- Sends the email through Resend
+- Sends the email through Resend for:
+  - confirmed signups
+  - shift updates that require reconfirmation
+  - shift cancellations
 - Returns a structured result dict with:
   - `ok`
   - `code`
@@ -184,7 +187,7 @@ The notification module is intentionally separate from Flask route handlers:
   - `subject`
   - `provider_response`
 
-`app.py` consumes that result in `send_signup_confirmation_if_configured(...)` and logs warning details when delivery is skipped or fails.
+`app.py` consumes that result in dedicated route helpers and logs warning details when delivery is skipped or fails.
 
 ---
 
@@ -244,8 +247,9 @@ if (typeof getCurrentUser === 'undefined') {
 dashboard.js  →  user-functions.js:     getCurrentUser(), userHasRole()
 dashboard.js  →  admin-functions.js:    getPantries(), createPantry(), addPantryLead(), removePantryLead()
 dashboard.js  →  lead-functions.js:     getShifts(), getActiveShifts(), createShift(), updateShift(),
-                                        deleteShift(), createShiftRole(), updateShiftRole(),
-                                        deleteShiftRole(), getShiftRegistrations(), markAttendance()
+                                        updateFullShift(), deleteShift(), createShiftRole(),
+                                        updateShiftRole(), deleteShiftRole(), getShiftRegistrations(),
+                                        markAttendance()
 dashboard.js  →  volunteer-functions.js: signupForShift(), cancelSignup(), reconfirmSignup(),
                                          getUserSignups(), classifyShiftBucket(), formatShiftDate(),
                                          formatShiftTime(), getCapacityStatus()

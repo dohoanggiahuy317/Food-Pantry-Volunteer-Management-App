@@ -13,7 +13,11 @@ from flask_cors import CORS
 from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
 from backends.factory import create_backend
-from notifications import send_signup_confirmation
+from notifications import (
+    send_shift_cancellation_notification,
+    send_shift_update_notification,
+    send_signup_confirmation,
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
@@ -422,10 +426,41 @@ def affected_contacts_from_signups(signups: list[dict[str, Any]]) -> list[dict[s
     return contacts
 
 
+def affected_signup_ids(signups: list[dict[str, Any]]) -> set[int]:
+    return {
+        int(signup.get("signup_id"))
+        for signup in signups
+        if signup.get("signup_id") is not None
+    }
+
+
+def signups_for_notification_by_user(
+    shift_id: int,
+    signups: list[dict[str, Any]],
+) -> dict[int, list[dict[str, Any]]]:
+    signup_ids = affected_signup_ids(signups)
+    rows_by_user: dict[int, list[dict[str, Any]]] = {}
+    for signup in signups:
+        user_id = signup.get("user_id")
+        if user_id is None:
+            continue
+        normalized_user_id = int(user_id)
+        if normalized_user_id in rows_by_user:
+            continue
+        rows = [
+            row
+            for row in backend.list_signups_by_user(normalized_user_id)
+            if int(row.get("shift_id", 0)) == shift_id and int(row.get("signup_id", 0)) in signup_ids
+        ]
+        if rows:
+            rows_by_user[normalized_user_id] = rows
+    return rows_by_user
+
+
 def mark_shift_signups_pending(shift_id: int) -> dict[str, Any]:
     shift = backend.get_shift_by_id(shift_id)
     if not shift or not is_upcoming_shift(shift):
-        return {"affected_signup_count": 0, "affected_volunteer_contacts": []}
+        return {"affected_signup_count": 0, "affected_volunteer_contacts": [], "affected_signups": []}
 
     reservation_expires_at = (datetime.now(timezone.utc) + timedelta(hours=RESERVATION_WINDOW_HOURS)).isoformat().replace("+00:00", "Z")
     changed_signups = backend.bulk_mark_shift_signups_pending(shift_id, reservation_expires_at)
@@ -435,6 +470,7 @@ def mark_shift_signups_pending(shift_id: int) -> dict[str, Any]:
     return {
         "affected_signup_count": len(changed_signups),
         "affected_volunteer_contacts": contacts,
+        "affected_signups": changed_signups,
     }
 
 
@@ -473,6 +509,62 @@ def send_signup_confirmation_if_configured(
             )
     except Exception:
         app.logger.exception("Failed to send signup confirmation for signup_id=%s", signup.get("signup_id"))
+
+
+def send_shift_notifications_if_configured(
+    *,
+    notification_type: str,
+    shift: dict[str, Any],
+    signups: list[dict[str, Any]],
+) -> None:
+    if not signups:
+        return
+
+    pantry_id = shift.get("pantry_id")
+    if pantry_id is None:
+        return
+
+    pantry = find_pantry_by_id(int(pantry_id))
+    if not pantry:
+        return
+
+    rows_by_user = signups_for_notification_by_user(int(shift.get("shift_id")), signups)
+    for user_id, signup_rows in rows_by_user.items():
+        recipient = find_user_by_id(user_id)
+        if not recipient:
+            continue
+
+        try:
+            if notification_type == "cancel":
+                result = send_shift_cancellation_notification(
+                    recipient=recipient,
+                    shift=shift,
+                    pantry=pantry,
+                    signups=signup_rows,
+                )
+            else:
+                result = send_shift_update_notification(
+                    recipient=recipient,
+                    shift=shift,
+                    pantry=pantry,
+                    signups=signup_rows,
+                )
+
+            if not result["ok"]:
+                app.logger.warning(
+                    "Shift notification not sent for shift_id=%s user_id=%s code=%s message=%s",
+                    shift.get("shift_id"),
+                    user_id,
+                    result["code"],
+                    result["message"],
+                )
+        except Exception:
+            app.logger.exception(
+                "Failed to send %s notification for shift_id=%s user_id=%s",
+                notification_type,
+                shift.get("shift_id"),
+                user_id,
+            )
 
 
 def expire_pending_signups_if_started(shift_id: int) -> int:
@@ -1222,14 +1314,110 @@ def update_shift(shift_id: int) -> Any:
     if not payload:
         return jsonify({"error": "No valid fields to update"}), 400
 
+    previous_status = str(shift.get("status", "OPEN")).upper()
     updated = backend.update_shift(shift_id, payload)
     if not updated:
         return jsonify({"error": "Not found"}), 404
 
     affected = mark_shift_signups_pending(shift_id)
+    notification_signups = affected.pop("affected_signups", [])
     recalculate_shift_capacities(shift_id)
     updated["roles"] = get_shift_roles(shift_id, include_cancelled=True)
     updated.update(affected)
+    if affected["affected_signup_count"] > 0:
+        next_status = str(updated.get("status", "OPEN")).upper()
+        notification_type = "cancel" if next_status == "CANCELLED" else "update"
+        if notification_type == "cancel" and previous_status == "CANCELLED":
+            return jsonify(updated)
+        send_shift_notifications_if_configured(
+            notification_type=notification_type,
+            shift=updated,
+            signups=notification_signups,
+        )
+    return jsonify(updated)
+
+
+@app.put("/api/shifts/<int:shift_id>/full-update")
+def replace_shift_and_roles(shift_id: int) -> Any:
+    """Update a shift and its roles in one request to avoid duplicate notifications."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Forbidden"}), 403
+
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift:
+        return jsonify({"error": "Not found"}), 404
+
+    user_id = int(user.get("user_id"))
+    if not ensure_shift_manager_permission(user_id, shift):
+        return jsonify({"error": "Forbidden"}), 403
+    if shift_has_ended(shift):
+        return past_shift_locked_response()
+
+    payload = request.get_json(silent=True) or {}
+    roles_payload = payload.get("roles")
+    if not isinstance(roles_payload, list):
+        return jsonify({"error": "roles must be an array"}), 400
+
+    shift_payload = {
+        key: value
+        for key, value in payload.items()
+        if key in {"shift_name", "start_time", "end_time", "status"}
+    }
+
+    normalized_roles: list[dict[str, Any]] = []
+    seen_role_ids: set[int] = set()
+    for role_payload in roles_payload:
+        if not isinstance(role_payload, dict):
+            return jsonify({"error": "Each role must be an object"}), 400
+
+        role_title = str(role_payload.get("role_title") or "").strip()
+        if not role_title:
+            return jsonify({"error": "role_title is required"}), 400
+
+        try:
+            required_count = int(role_payload.get("required_count"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "required_count must be >= 1"}), 400
+        if required_count < 1:
+            return jsonify({"error": "required_count must be >= 1"}), 400
+
+        normalized_role: dict[str, Any] = {
+            "role_title": role_title,
+            "required_count": required_count,
+        }
+        raw_role_id = role_payload.get("shift_role_id")
+        if raw_role_id is not None:
+            role_id = int(raw_role_id)
+            if role_id in seen_role_ids:
+                return jsonify({"error": "Duplicate shift_role_id in roles payload"}), 400
+            seen_role_ids.add(role_id)
+            normalized_role["shift_role_id"] = role_id
+        normalized_roles.append(normalized_role)
+
+    try:
+        updated = backend.replace_shift_and_roles(
+            shift_id=shift_id,
+            shift_payload=shift_payload,
+            roles_payload=normalized_roles,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if not updated:
+        return jsonify({"error": "Not found"}), 404
+
+    affected = mark_shift_signups_pending(shift_id)
+    notification_signups = affected.pop("affected_signups", [])
+    recalculate_shift_capacities(shift_id)
+    updated["roles"] = get_shift_roles(shift_id, include_cancelled=True)
+    updated.update(affected)
+    if affected["affected_signup_count"] > 0:
+        send_shift_notifications_if_configured(
+            notification_type="update",
+            shift=updated,
+            signups=notification_signups,
+        )
     return jsonify(updated)
 
 
@@ -1250,14 +1438,22 @@ def delete_shift(shift_id: int) -> Any:
     if shift_has_ended(shift):
         return past_shift_locked_response()
 
+    previous_status = str(shift.get("status", "OPEN")).upper()
     updated_shift = backend.update_shift(shift_id, {"status": "CANCELLED"})
     if not updated_shift:
         return jsonify({"error": "Not found"}), 404
 
     affected = mark_shift_signups_pending(shift_id)
+    notification_signups = affected.pop("affected_signups", [])
     recalculate_shift_capacities(shift_id)
     updated_shift["roles"] = get_shift_roles(shift_id, include_cancelled=True)
     updated_shift.update(affected)
+    if previous_status != "CANCELLED" and affected["affected_signup_count"] > 0:
+        send_shift_notifications_if_configured(
+            notification_type="cancel",
+            shift=updated_shift,
+            signups=notification_signups,
+        )
     return jsonify(updated_shift), 200
 
 
@@ -1348,9 +1544,18 @@ def update_shift_role(shift_role_id: int) -> Any:
 
     shift_id = int(shift.get("shift_id"))
     affected = mark_shift_signups_pending(shift_id)
+    notification_signups = affected.pop("affected_signups", [])
     recalculate_shift_role_capacity(shift_role_id)
     updated = backend.get_shift_role_by_id(shift_role_id) or updated
     updated.update(affected)
+    if affected["affected_signup_count"] > 0:
+        shift_with_roles = backend.get_shift_by_id(shift_id) or shift
+        shift_with_roles["roles"] = get_shift_roles(shift_id, include_cancelled=True)
+        send_shift_notifications_if_configured(
+            notification_type="update",
+            shift=shift_with_roles,
+            signups=notification_signups,
+        )
     return jsonify(updated)
 
 
@@ -1382,6 +1587,7 @@ def delete_shift_role(shift_role_id: int) -> Any:
 
     updated_role = backend.update_shift_role(shift_role_id, {"status": "CANCELLED", "filled_count": 0})
     affected = mark_shift_signups_pending(int(shift.get("shift_id")))
+    notification_signups = affected.pop("affected_signups", [])
     recalculate_shift_role_capacity(shift_role_id)
     updated_role = backend.get_shift_role_by_id(shift_role_id) or updated_role
 
@@ -1390,6 +1596,14 @@ def delete_shift_role(shift_role_id: int) -> Any:
         "role": updated_role,
         **affected,
     }
+    if affected["affected_signup_count"] > 0:
+        shift_with_roles = backend.get_shift_by_id(int(shift.get("shift_id"))) or shift
+        shift_with_roles["roles"] = get_shift_roles(int(shift.get("shift_id")), include_cancelled=True)
+        send_shift_notifications_if_configured(
+            notification_type="update",
+            shift=shift_with_roles,
+            signups=notification_signups,
+        )
     return jsonify(response), 200
 
 

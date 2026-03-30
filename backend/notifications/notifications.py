@@ -18,6 +18,7 @@ DEFAULT_RECIPIENT_NAME = "Volunteer"
 DEFAULT_LOCATION = "Location unavailable"
 DEFAULT_SHIFT_NAME = "your volunteer shift"
 TIME_UNAVAILABLE_LABEL = "Time unavailable"
+DEFAULT_SHIFT_ACTION = "Please review the latest details in My Shifts."
 
 
 class NotificationResult(TypedDict):
@@ -53,6 +54,20 @@ def _normalized_text(value: Any, fallback: str) -> str:
     return str(value or fallback).strip()
 
 
+def _normalized_role_titles(signups: list[dict[str, Any]]) -> str:
+    seen: set[str] = set()
+    titles: list[str] = []
+    for signup in signups:
+        role_title = _normalized_text(signup.get("role_title"), DEFAULT_ROLE_TITLE)
+        if role_title in seen:
+            continue
+        seen.add(role_title)
+        titles.append(role_title)
+    if not titles:
+        return DEFAULT_ROLE_TITLE
+    return ", ".join(titles)
+
+
 def _format_shift_window(shift: dict[str, Any]) -> str:
     start_time = _parse_iso_datetime_to_utc(shift.get("start_time"))
     end_time = _parse_iso_datetime_to_utc(shift.get("end_time"))
@@ -64,23 +79,23 @@ def _format_shift_window(shift: dict[str, Any]) -> str:
     )
 
 
-def _build_signup_confirmation_html(
+def _build_email_html(
     recipient_name: str,
-    pantry_name: str,
-    role_title: str,
-    shift_window: str,
-    location: str,
+    intro: str,
+    details: list[tuple[str, str]],
+    outro: str,
 ) -> str:
+    detail_items = "".join(
+        f"<li><strong>{label}:</strong> {value}</li>"
+        for label, value in details
+    )
     return (
         f"<p>Hi {recipient_name},</p>"
-        "<p>You are signed up for an upcoming volunteer shift.</p>"
+        f"<p>{intro}</p>"
         "<ul>"
-        f"<li><strong>Pantry:</strong> {pantry_name}</li>"
-        f"<li><strong>Role:</strong> {role_title}</li>"
-        f"<li><strong>When:</strong> {shift_window}</li>"
-        f"<li><strong>Where:</strong> {location}</li>"
+        f"{detail_items}"
         "</ul>"
-        "<p>Thank you for volunteering your time to help those in need! See you at your shift.</p>"
+        f"<p>{outro}</p>"
         "<p>Volunteer Managing Teams</p>"
     )
 
@@ -110,6 +125,8 @@ def _send_resend_email(
     *,
     recipient_email: str,
     subject: str,
+    success_code: str,
+    success_message: str,
 ) -> NotificationResult:
     if not RESEND_API_KEY:
         return _notification_result(
@@ -145,8 +162,8 @@ def _send_resend_email(
 
     return _notification_result(
         ok=True,
-        code="SIGNUP_CONFIRMATION_SENT",
-        message="Signup confirmation email sent.",
+        code=success_code,
+        message=success_message,
         recipient_email=recipient_email,
         subject=subject,
         provider_response=response,
@@ -173,7 +190,7 @@ def send_signup_confirmation(
     location = _normalized_text(pantry.get("location_address"), DEFAULT_LOCATION)
     shift_name = _normalized_text(shift.get("shift_name"), DEFAULT_SHIFT_NAME)
     shift_window = _format_shift_window(shift)
-    subject = f"Volunteer Signup confirmed: {shift_name}"
+    subject = f"Volunteer signup confirmed: {shift_name}"
 
     if not RESEND_FROM_EMAIL:
         return _notification_result(
@@ -188,12 +205,16 @@ def send_signup_confirmation(
         "from": RESEND_FROM_EMAIL,
         "to": [to_email],
         "subject": subject,
-        "html": _build_signup_confirmation_html(
+        "html": _build_email_html(
             recipient_name=recipient_name,
-            pantry_name=pantry_name,
-            role_title=role_title,
-            shift_window=shift_window,
-            location=location,
+            intro="Your volunteer signup is confirmed.",
+            details=[
+                ("Pantry", pantry_name),
+                ("Role", role_title),
+                ("When", shift_window),
+                ("Where", location),
+            ],
+            outro="Thank you for volunteering your time to help those in need. We will see you at your shift.",
         ),
     }
 
@@ -201,4 +222,120 @@ def send_signup_confirmation(
         params,
         recipient_email=to_email,
         subject=subject,
+        success_code="SIGNUP_CONFIRMATION_SENT",
+        success_message="Signup confirmation email sent.",
+    )
+
+
+def send_shift_update_notification(
+    recipient: dict[str, Any],
+    shift: dict[str, Any],
+    pantry: dict[str, Any],
+    signups: list[dict[str, Any]],
+) -> NotificationResult:
+    to_email = _normalized_text(recipient.get("email"), "")
+    if not to_email:
+        return _notification_result(
+            ok=False,
+            code="RECIPIENT_EMAIL_MISSING",
+            message="Recipient email is missing.",
+        )
+
+    recipient_name = _normalized_text(recipient.get("full_name"), DEFAULT_RECIPIENT_NAME)
+    pantry_name = _normalized_text(pantry.get("name"), DEFAULT_PANTRY_NAME)
+    role_titles = _normalized_role_titles(signups)
+    location = _normalized_text(pantry.get("location_address"), DEFAULT_LOCATION)
+    shift_name = _normalized_text(shift.get("shift_name"), DEFAULT_SHIFT_NAME)
+    shift_window = _format_shift_window(shift)
+    subject = f"Shift updated: action needed for {shift_name}"
+
+    if not RESEND_FROM_EMAIL:
+        return _notification_result(
+            ok=False,
+            code="SENDER_EMAIL_MISSING",
+            message="Resend sender email is not configured.",
+            recipient_email=to_email,
+            subject=subject,
+        )
+
+    params = {
+        "from": RESEND_FROM_EMAIL,
+        "to": [to_email],
+        "subject": subject,
+        "html": _build_email_html(
+            recipient_name=recipient_name,
+            intro="Your volunteer shift details changed. Please review the updated details below and reconfirm from My Shifts.",
+            details=[
+                ("Pantry", pantry_name),
+                ("Role", role_titles),
+                ("When", shift_window),
+                ("Where", location),
+            ],
+            outro=DEFAULT_SHIFT_ACTION,
+        ),
+    }
+
+    return _send_resend_email(
+        params,
+        recipient_email=to_email,
+        subject=subject,
+        success_code="SHIFT_UPDATE_NOTIFICATION_SENT",
+        success_message="Shift update notification email sent.",
+    )
+
+
+def send_shift_cancellation_notification(
+    recipient: dict[str, Any],
+    shift: dict[str, Any],
+    pantry: dict[str, Any],
+    signups: list[dict[str, Any]],
+) -> NotificationResult:
+    to_email = _normalized_text(recipient.get("email"), "")
+    if not to_email:
+        return _notification_result(
+            ok=False,
+            code="RECIPIENT_EMAIL_MISSING",
+            message="Recipient email is missing.",
+        )
+
+    recipient_name = _normalized_text(recipient.get("full_name"), DEFAULT_RECIPIENT_NAME)
+    pantry_name = _normalized_text(pantry.get("name"), DEFAULT_PANTRY_NAME)
+    role_titles = _normalized_role_titles(signups)
+    location = _normalized_text(pantry.get("location_address"), DEFAULT_LOCATION)
+    shift_name = _normalized_text(shift.get("shift_name"), DEFAULT_SHIFT_NAME)
+    shift_window = _format_shift_window(shift)
+    subject = f"Shift cancelled: {shift_name}"
+
+    if not RESEND_FROM_EMAIL:
+        return _notification_result(
+            ok=False,
+            code="SENDER_EMAIL_MISSING",
+            message="Resend sender email is not configured.",
+            recipient_email=to_email,
+            subject=subject,
+        )
+
+    params = {
+        "from": RESEND_FROM_EMAIL,
+        "to": [to_email],
+        "subject": subject,
+        "html": _build_email_html(
+            recipient_name=recipient_name,
+            intro="Your volunteer shift has been cancelled. No attendance is expected for this shift.",
+            details=[
+                ("Pantry", pantry_name),
+                ("Role", role_titles),
+                ("When", shift_window),
+                ("Where", location),
+            ],
+            outro="Thank you for your flexibility and for volunteering with us.",
+        ),
+    }
+
+    return _send_resend_email(
+        params,
+        recipient_email=to_email,
+        subject=subject,
+        success_code="SHIFT_CANCELLATION_NOTIFICATION_SENT",
+        success_message="Shift cancellation notification email sent.",
     )
