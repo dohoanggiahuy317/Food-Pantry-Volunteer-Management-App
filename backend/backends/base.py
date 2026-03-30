@@ -130,6 +130,15 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def replace_shift_and_roles(
+        self,
+        shift_id: int,
+        shift_payload: dict[str, Any],
+        roles_payload: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
     def delete_shift(self, shift_id: int) -> None:
         raise NotImplementedError
 

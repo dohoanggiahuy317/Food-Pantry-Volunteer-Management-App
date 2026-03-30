@@ -12,6 +12,7 @@ A web application for managing volunteer shifts at food pantries. Pantry leads a
 | Frontend | Vanilla JS, HTML, CSS (served directly via Flask templates, no build tools required) |
 | Database | MySQL 8.4 (containerized via Docker) |
 | Auth | Configurable auth provider: in-memory demo auth or Firebase Authentication with Google sign-in. Flask uses session cookies after login. |
+| Email notifications | Resend API for signup confirmation, shift update, and shift cancellation emails |
 
 ---
 
@@ -35,6 +36,16 @@ Authentication is configured separately from data storage:
 
 After a successful login or signup, Flask stores the authenticated local user in a session cookie and all protected API routes use that session.
 
+### Notification Flow
+
+- `backend/notifications/notifications.py` is the shared email service layer for volunteer notifications.
+- `app.py` sends notification emails for 3 scenarios:
+  - signup confirmed
+  - shift updated and reconfirmation required
+  - shift cancelled
+- The notification service returns a structured result payload with `ok`, `code`, `message`, `recipient_email`, `subject`, and `provider_response`.
+- `app.py` logs warning details when the email is skipped or fails, instead of mixing Flask `jsonify(...)` responses into the notification helper.
+
 ### Core API Routes
 
 | Method | Route | Description |
@@ -55,7 +66,8 @@ After a successful login or signup, Flask stores the authenticated local user in
 | `GET` | `/api/pantries/<id>/shifts` | List all shifts for a pantry (admin/lead view) |
 | `GET` | `/api/pantries/<id>/active-shifts` | List non-expired shifts (public/volunteer view) |
 | `POST` | `/api/pantries/<id>/shifts` | Create a new shift |
-| `PATCH` | `/api/shifts/<id>` | Update shift details |
+| `PATCH` | `/api/shifts/<id>` | Update simple shift details or reopen a cancelled shift |
+| `PUT` | `/api/shifts/<id>/full-update` | Update a shift and all of its roles in one request for the edit form |
 | `DELETE` | `/api/shifts/<id>` | Cancel a shift |
 | `POST` | `/api/shift-roles/<id>/signup` | Volunteer signs up for a shift role |
 | `PATCH` | `/api/signups/<id>/reconfirm` | Volunteer confirms/cancels after shift edits |
@@ -102,6 +114,10 @@ The app now shows an auth gate before the dashboard.
 - Can reconfirm after shift edits.
 - If they cancel during reconfirmation, the signup row is removed (same as normal cancel), so they can sign up again later if capacity is available.
 - Can manage their own profile from `My Account`, including verified Firebase email changes and full account deletion.
+- Receives email notifications when Resend is configured for:
+  - confirmed signup
+  - shift updates that require reconfirmation
+  - shift cancellations
 
 ### Public (unauthenticated)
 - Can view open shifts for any pantry via the public endpoint using a pantry slug (e.g., `/api/public/pantries/licking-county-pantry/shifts`).
@@ -111,6 +127,8 @@ The app now shows an auth gate before the dashboard.
 ## Quick Start
 
 For detailed local setup instructions, including Docker configuration and database seeding, please refer to `SETUP.md`.
+
+If you want real email delivery in development or production, configure Resend in `backend/.env` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Resend’s official docs say sending uses a domain you own and recommend a subdomain such as `updates.yourdomain.com`; if your team does not already own a domain, register one first, then follow the Resend domain setup docs and DNS provider guide before using that sender address. Useful references: [Managing Domains](https://resend.com/docs/dashboard/domains/introduction), [DNS Guides](https://resend.com/docs/knowledge-base/introduction), and [API Keys](https://resend.com/docs/dashboard/api-keys/introduction).
 
 For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes apply cleanly.
 

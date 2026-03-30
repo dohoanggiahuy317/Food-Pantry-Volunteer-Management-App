@@ -64,6 +64,17 @@ async function apiPatch(path, data) {
 }
 
 /**
+ * PUT request
+ */
+async function apiPut(path, data) {
+    return apiCall(path, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+}
+
+/**
  * DELETE request
  */
 async function apiDelete(path) {

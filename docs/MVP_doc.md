@@ -116,6 +116,7 @@ Use:
 - SMS/email delivery tracking: sent, delivered (if provider supports), failed
 - Retry strategy for transient failures
 - Idempotent endpoints for confirm/cancel links
+- Current repo implementation includes Resend email delivery for signup confirmations, shift updates that require reconfirmation, and shift cancellations; sender setup still requires a verified domain/subdomain before production sending
 
 ### 4.2. Security & privacy
 - Magic-link tokens for volunteer actions (no passwords for volunteers)

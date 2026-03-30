@@ -15,7 +15,9 @@
     - init_schema.py
     - mysql.py
     - seed.py
-  - IV. app.py
+  - IV. Notifications
+    - notifications.py
+  - V. app.py
 - B. Frontend
   - I. css
     - dashboard.css
@@ -683,7 +685,51 @@ Used to decide whether seeding should occur.
 
 ---
 
-## IV. app.py
+## IV. Notifications
+
+### 1. notifications.py
+
+**Purpose:**  
+Send volunteer notification emails through Resend without coupling the notification helper to Flask response objects.
+
+**Setup and configuration**
+
+- Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
+- Uses a verified sender such as `noreply@updates.example.com`
+- Expects the team to own the sending domain or subdomain and verify the DNS records in Resend before enabling delivery
+
+**Key structures**
+
+- `NotificationResult`
+  - `ok`
+  - `provider`
+  - `code`
+  - `message`
+  - `recipient_email`
+  - `subject`
+  - `provider_response`
+
+**Main helpers**
+
+- `_parse_iso_datetime_to_utc(value) -> datetime|None`
+- `_normalized_text(value, fallback) -> str`
+- `_format_shift_window(shift) -> str`
+- `_build_email_html(...) -> str`
+- `_notification_result(...) -> NotificationResult`
+- `_send_resend_email(params, recipient_email, subject, success_code, success_message) -> NotificationResult`
+- `send_signup_confirmation(recipient, shift, pantry, role) -> NotificationResult`
+- `send_shift_update_notification(recipient, shift, pantry, signups) -> NotificationResult`
+- `send_shift_cancellation_notification(recipient, shift, pantry, signups) -> NotificationResult`
+
+**Behavior**
+
+- Builds a shared HTML email layout for 3 scenarios: signup confirmed, shift updated/reconfirm required, and shift cancelled.
+- Returns structured success/failure metadata instead of `jsonify(...)`.
+- Lets `app.py` decide how to log or ignore non-fatal email delivery problems.
+
+---
+
+## V. app.py
 
 **Purpose:**  
 Serve the dashboard UI and provide REST APIs for users, pantries, shifts, roles, signups, attendance, and public views.
@@ -719,6 +765,11 @@ Time helpers:
 - `is_upcoming_shift()`
 - `shift_has_started()`
 - `shift_has_ended()`
+
+Notification helpers:
+
+- `send_signup_confirmation_if_configured()`
+- `send_shift_notifications_if_configured()`
 
 Permission helpers:
 
@@ -764,6 +815,7 @@ Attendance helpers:
 - `POST /api/pantries/<pantry_id>/shifts`
 - `GET /api/shifts/<shift_id>`
 - `PATCH /api/shifts/<shift_id>`
+- `PUT /api/shifts/<shift_id>/full-update`
 - `DELETE /api/shifts/<shift_id>`
 
 **Shift roles**
@@ -1282,7 +1334,11 @@ API helpers:
 
 `updateShift(shiftId, shiftData)`
 
-- update shift
+- update simple shift fields or reopen a cancelled shift
+
+`updateFullShift(shiftId, shiftData)`
+
+- update shift fields and roles in one request for the edit form
 
 `deleteShift(shiftId)`
 
@@ -1338,6 +1394,7 @@ Functions:
 - `getShiftRegistrations(shiftId)`
 - `createShift(pantryId, shiftData)`
 - `updateShift(shiftId, shiftData)`
+- `updateFullShift(shiftId, shiftData)`
 - `deleteShift(shiftId)`
 - `markAttendance(signupId, attendanceStatus)`
 - `getShiftRoles(shiftId)`

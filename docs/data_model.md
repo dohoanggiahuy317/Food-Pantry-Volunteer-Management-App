@@ -13,6 +13,7 @@ At backend startup:
    - `backend/backends/mysql_backend.py` is initialized.
    - If DB is empty and `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`, seed data is loaded from `backend/data/db.json`.
 4. API routes continue using the same request/response contract as before.
+5. `backend/app.py` can call `backend/notifications/notifications.py` to send Resend emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
 
 ## Configuration (`backend/.env`)
 - `DATA_BACKEND=mysql`
@@ -24,6 +25,29 @@ At backend startup:
 - `MYSQL_POOL_SIZE=5`
 - `MYSQL_CONNECT_TIMEOUT=10`
 - `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`
+- `RESEND_API_KEY=<your resend api key>`
+- `RESEND_FROM_EMAIL=noreply@updates.example.com`
+
+## Notification flow
+
+- `backend/notifications/notifications.py` is a service module, not a Flask route module.
+- It returns a structured notification result payload:
+  - `ok`
+  - `code`
+  - `message`
+  - `recipient_email`
+  - `subject`
+  - `provider_response`
+- `backend/app.py` uses that payload to log skipped or failed email sends without interrupting the signup or shift-management API response.
+- Current notification scenarios:
+  - confirmed signup
+  - shift update / reconfirmation required
+  - shift cancellation
+
+## Resend domain note
+
+- Resend requires a domain you control for sending and recommends using a subdomain such as `updates.yourdomain.com`.
+- If your team does not already own a domain, register one first, add it to Resend, then follow Resend’s DNS verification steps with your DNS provider before setting `RESEND_FROM_EMAIL`.
 
 ## MySQL schema
 Defined in `backend/db/migrations/001_initial.sql`:
@@ -60,11 +84,12 @@ Account lifecycle notes:
 - The protected seeded `SUPER_ADMIN` account (`user_id = 1`) cannot delete itself.
 
 ## Concurrency safety
-`backend/backends/mysql_backend.py` uses transactions for signup creation and reconfirmation:
+`backend/backends/mysql_backend.py` uses transactions for signup creation, full shift/role replacement, and reconfirmation:
 
 - Locks `shift_roles` row with `SELECT ... FOR UPDATE`.
 - Checks duplicate signup and reservation-aware capacity inside transaction.
 - Inserts signup and updates `filled_count/status` atomically.
+- Full shift edit path updates the shift, upserts submitted roles, and soft-cancels omitted roles with signups inside one transaction.
 - Reconfirm path locks signup + role (+ shift checks) so reduced-capacity reconfirmation is first-come-first-serve without overbooking.
 
 ## File roles
@@ -72,6 +97,7 @@ Account lifecycle notes:
 - `backend/backends/memory_backend.py`: legacy in-memory backend.
 - `backend/backends/mysql_backend.py`: MySQL backend.
 - `backend/backends/factory.py`: backend selection + startup initialization/seed.
+- `backend/notifications/notifications.py`: volunteer email notification service and structured notification result builder.
 - `backend/db/mysql.py`: MySQL connection pool.
 - `backend/db/init_schema.py`: schema application at startup.
 - `backend/db/migrations/001_initial.sql`: table/index/FK definitions.

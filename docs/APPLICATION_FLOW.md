@@ -14,6 +14,9 @@ volunteer_managing/
 │   ├── app.py                      # Flask app: all routes, auth logic, business rules
 │   ├── requirements.txt
 │   ├── .env                        # Runtime config (DB credentials, backend type)
+│   ├── notifications/
+│   │   ├── __init__.py             # Notification package exports
+│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation + structured results
 │   │
 │   ├── backends/
 │   │   ├── base.py                 # Abstract interface: StoreBackend (ABC)
@@ -38,10 +41,10 @@ volunteer_managing/
         ├── css/
         │   └── dashboard.css
         └── js/
-            ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiDelete
+            ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiPut/apiDelete
             ├── user-functions.js   # getCurrentUser(), userHasRole(), createUser()
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
-            ├── lead-functions.js   # getShifts(), createShift(), updateShift(), markAttendance()
+            ├── lead-functions.js   # getShifts(), createShift(), updateShift(), updateFullShift(), markAttendance()
             ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup()
             └── dashboard.js        # App entry point: boot sequence, UI state, event handlers
 ```
@@ -118,7 +121,7 @@ role_name           full_name
 
 ```
 app.py
-  load_dotenv("backend/.env")           ← reads DATA_BACKEND, MYSQL_* vars
+  load_dotenv("backend/.env")           ← reads DATA_BACKEND, MYSQL_*, RESEND_* vars
   create_backend()   [factory.py]
     │  DATA_BACKEND == "mysql"?
     ├─ YES →
@@ -131,6 +134,7 @@ app.py
     │    return MySQLBackend instance
     └─ NO  → return MemoryBackend instance
   backend = <chosen instance>            ← module-level singleton used by all routes
+  notifications.send_*()               ← called for confirmed signups, shift updates, and shift cancellations
   app.run(port=5000)
 ```
 
@@ -164,6 +168,26 @@ app.py calls:        backend.create_shift(...)
         (mysql_backend.py)              (memory_backend.py)
         runs SQL INSERT                 appends to Python dict
 ```
+
+### Notification service (`notifications/notifications.py`)
+
+The notification module is intentionally separate from Flask route handlers:
+
+- Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
+- Normalizes shift/pantry/user data into an email payload
+- Sends the email through Resend for:
+  - confirmed signups
+  - shift updates that require reconfirmation
+  - shift cancellations
+- Returns a structured result dict with:
+  - `ok`
+  - `code`
+  - `message`
+  - `recipient_email`
+  - `subject`
+  - `provider_response`
+
+`app.py` consumes that result in dedicated route helpers and logs warning details when delivery is skipped or fails.
 
 ---
 
@@ -223,8 +247,9 @@ if (typeof getCurrentUser === 'undefined') {
 dashboard.js  →  user-functions.js:     getCurrentUser(), userHasRole()
 dashboard.js  →  admin-functions.js:    getPantries(), createPantry(), addPantryLead(), removePantryLead()
 dashboard.js  →  lead-functions.js:     getShifts(), getActiveShifts(), createShift(), updateShift(),
-                                        deleteShift(), createShiftRole(), updateShiftRole(),
-                                        deleteShiftRole(), getShiftRegistrations(), markAttendance()
+                                        updateFullShift(), deleteShift(), createShiftRole(),
+                                        updateShiftRole(), deleteShiftRole(), getShiftRegistrations(),
+                                        markAttendance()
 dashboard.js  →  volunteer-functions.js: signupForShift(), cancelSignup(), reconfirmSignup(),
                                          getUserSignups(), classifyShiftBucket(), formatShiftDate(),
                                          formatShiftTime(), getCapacityStatus()

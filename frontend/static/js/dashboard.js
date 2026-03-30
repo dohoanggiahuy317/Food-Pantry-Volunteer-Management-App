@@ -1571,7 +1571,7 @@ async function cancelShiftConfirm(shiftId) {
     try {
         const response = await deleteShift(shiftId);
         const affected = response.affected_signup_count || 0;
-        showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation.`, 'success');
+        showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation and volunteers were notified.`, 'success');
         await loadShiftsTable();
         await loadCalendarShifts(); // Update calendar view too
         const myShiftsTab = document.getElementById('content-my-shifts');
@@ -1587,8 +1587,12 @@ async function revokeShiftConfirm(shiftId) {
     if (!confirm('Revoke this cancelled shift? Previously signed-up volunteers will stay pending confirmation.')) return;
 
     try {
-        await updateShift(shiftId, { status: 'OPEN' });
-        showMessage('shifts', 'Shift revoked successfully! Volunteers remain pending confirmation until they reconfirm.', 'success');
+        const response = await updateShift(shiftId, { status: 'OPEN' });
+        const affected = response.affected_signup_count || 0;
+        const notifiedMsg = affected > 0
+            ? ` ${affected} volunteer(s) were notified to review and reconfirm.`
+            : '';
+        showMessage('shifts', `Shift revoked successfully! Volunteers remain pending confirmation until they reconfirm.${notifiedMsg}`, 'success');
         await loadShiftsTable();
         await loadCalendarShifts();
         const myShiftsTab = document.getElementById('content-my-shifts');
@@ -1898,37 +1902,17 @@ function setupEventListeners() {
             return;
         }
 
-        const existingRoleIds = new Set((editingShiftSnapshot.roles || []).map(role => Number(role.shift_role_id)));
-        const submittedRoleIds = new Set(roleInputs.filter(role => role.shift_role_id).map(role => Number(role.shift_role_id)));
-        const roleIdsToDelete = Array.from(existingRoleIds).filter(roleId => !submittedRoleIds.has(roleId));
-
         try {
-            const responses = [];
+            const response = await updateFullShift(shiftId, {
+                ...updatedShiftPayload,
+                roles: roleInputs.map(role => ({
+                    ...(role.shift_role_id ? { shift_role_id: role.shift_role_id } : {}),
+                    role_title: role.role_title,
+                    required_count: role.required_count
+                }))
+            });
 
-            const shiftResponse = await updateShift(shiftId, updatedShiftPayload);
-            responses.push(shiftResponse);
-
-            for (const role of roleInputs) {
-                if (role.shift_role_id) {
-                    const updatedRole = await updateShiftRole(role.shift_role_id, {
-                        role_title: role.role_title,
-                        required_count: role.required_count
-                    });
-                    responses.push(updatedRole);
-                } else {
-                    await createShiftRole(shiftId, {
-                        role_title: role.role_title,
-                        required_count: role.required_count
-                    });
-                }
-            }
-
-            for (const roleId of roleIdsToDelete) {
-                const deletedRoleResponse = await deleteShiftRole(roleId);
-                responses.push(deletedRoleResponse);
-            }
-
-            const impacted = collectAffectedContacts(responses);
+            const impacted = collectAffectedContacts([response]);
             const impactedMsg = impacted.uniqueVolunteers > 0
                 ? ` ${impacted.uniqueVolunteers} volunteer(s) need reconfirmation.`
                 : '';
