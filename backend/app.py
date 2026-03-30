@@ -13,6 +13,7 @@ from flask_cors import CORS
 from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
 from backends.factory import create_backend
+from notifications import send_signup_confirmation
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
@@ -435,6 +436,43 @@ def mark_shift_signups_pending(shift_id: int) -> dict[str, Any]:
         "affected_signup_count": len(changed_signups),
         "affected_volunteer_contacts": contacts,
     }
+
+
+def send_signup_confirmation_if_configured(
+    signup: dict[str, Any],
+    recipient: dict[str, Any] | None,
+    shift: dict[str, Any],
+    shift_role: dict[str, Any],
+) -> None:
+    if str(signup.get("signup_status", "")).upper() != SIGNUP_STATUS_CONFIRMED:
+        return
+    if not recipient:
+        return
+
+    pantry_id = shift.get("pantry_id")
+    if pantry_id is None:
+        return
+
+    pantry = find_pantry_by_id(int(pantry_id))
+    if not pantry:
+        return
+
+    try:
+        result = send_signup_confirmation(
+            recipient=recipient,
+            shift=shift,
+            pantry=pantry,
+            role=shift_role,
+        )
+        if not result["ok"]:
+            app.logger.warning(
+                "Signup confirmation not sent for signup_id=%s code=%s message=%s",
+                signup.get("signup_id"),
+                result["code"],
+                result["message"],
+            )
+    except Exception:
+        app.logger.exception("Failed to send signup confirmation for signup_id=%s", signup.get("signup_id"))
 
 
 def expire_pending_signups_if_started(shift_id: int) -> int:
@@ -1414,7 +1452,9 @@ def create_signup(shift_role_id: int) -> Any:
 
     recalculate_shift_role_capacity(shift_role_id)
     signup["already_signed_up"] = False
-    signup["user"] = serialize_signup_user(find_user_by_id(user_id))
+    signup_user = find_user_by_id(user_id)
+    signup["user"] = serialize_signup_user(signup_user)
+    send_signup_confirmation_if_configured(signup, signup_user, shift, shift_role)
     return jsonify(signup), 201
 
 

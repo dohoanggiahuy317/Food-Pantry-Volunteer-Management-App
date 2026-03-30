@@ -13,6 +13,7 @@ At backend startup:
    - `backend/backends/mysql_backend.py` is initialized.
    - If DB is empty and `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`, seed data is loaded from `backend/data/db.json`.
 4. API routes continue using the same request/response contract as before.
+5. When a signup reaches `CONFIRMED`, `backend/app.py` can call `backend/notifications/notifications.py` to send a Resend signup confirmation email.
 
 ## Configuration (`backend/.env`)
 - `DATA_BACKEND=mysql`
@@ -24,6 +25,25 @@ At backend startup:
 - `MYSQL_POOL_SIZE=5`
 - `MYSQL_CONNECT_TIMEOUT=10`
 - `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`
+- `RESEND_API_KEY=<your resend api key>`
+- `RESEND_FROM_EMAIL=noreply@updates.example.com`
+
+## Notification flow
+
+- `backend/notifications/notifications.py` is a service module, not a Flask route module.
+- It returns a structured notification result payload:
+  - `ok`
+  - `code`
+  - `message`
+  - `recipient_email`
+  - `subject`
+  - `provider_response`
+- `backend/app.py` uses that payload to log skipped or failed email sends without interrupting the signup API response.
+
+## Resend domain note
+
+- Resend requires a domain you control for sending and recommends using a subdomain such as `updates.yourdomain.com`.
+- If your team does not already own a domain, register one first, add it to Resend, then follow Resend’s DNS verification steps with your DNS provider before setting `RESEND_FROM_EMAIL`.
 
 ## MySQL schema
 Defined in `backend/db/migrations/001_initial.sql`:
@@ -72,6 +92,7 @@ Account lifecycle notes:
 - `backend/backends/memory_backend.py`: legacy in-memory backend.
 - `backend/backends/mysql_backend.py`: MySQL backend.
 - `backend/backends/factory.py`: backend selection + startup initialization/seed.
+- `backend/notifications/notifications.py`: signup confirmation email service and structured notification result builder.
 - `backend/db/mysql.py`: MySQL connection pool.
 - `backend/db/init_schema.py`: schema application at startup.
 - `backend/db/migrations/001_initial.sql`: table/index/FK definitions.

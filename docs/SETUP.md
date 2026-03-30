@@ -52,6 +52,8 @@ MYSQL_PASSWORD=volunteer_pass
 MYSQL_POOL_SIZE=5
 MYSQL_CONNECT_TIMEOUT=10
 SEED_MYSQL_FROM_JSON_ON_EMPTY=true
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=noreply@updates.example.com
 FIREBASE_API_KEY=
 FIREBASE_AUTH_DOMAIN=
 FIREBASE_PROJECT_ID=
@@ -70,6 +72,8 @@ FIREBASE_ADMIN_CREDENTIALS=
 | `MYSQL_DATABASE` | The database name created by Docker on first start |
 | `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml` |
 | `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/db.json` if the tables are empty |
+| `RESEND_API_KEY` | API key used by `backend/notifications/notifications.py` to send signup confirmation emails |
+| `RESEND_FROM_EMAIL` | Verified sender address used for outgoing email (for example `noreply@updates.example.com`) |
 
 ---
 
@@ -129,6 +133,46 @@ Flask serves the full application — both the frontend (HTML/CSS/JS) and the AP
 
 - If `AUTH_PROVIDER=memory`, the first screen shows sample demo accounts for login/logout testing.
 - If `AUTH_PROVIDER=firebase`, the first screen shows Google login/signup and the app requires the Firebase variables described below.
+
+---
+
+## Step 5: Optional Resend Email Setup
+
+Signup confirmation emails are sent through `backend/notifications/notifications.py` when a signup becomes `CONFIRMED`.
+
+**1. Make sure you control a sending domain**
+
+- Resend requires a domain you own and recommends using a subdomain such as `updates.yourdomain.com`.
+- If your team does not already own a domain, register one first with your preferred registrar.
+
+**2. Add the domain in Resend**
+
+- Create or log in to your Resend account.
+- Add the domain or subdomain you want to send from.
+- Official doc: [Managing Domains](https://resend.com/docs/dashboard/domains/introduction)
+
+**3. Verify DNS records with your DNS provider**
+
+- Copy the SPF and DKIM records shown by Resend into your DNS provider.
+- Resend’s domain docs describe the verification flow and the official DNS provider guides show the exact steps for providers such as Cloudflare, GoDaddy, Namecheap, Route 53, and others.
+- After adding the records, trigger verification in Resend and wait until the domain status is `verified`.
+- Official DNS guide index: [Resend DNS Guides](https://resend.com/docs/knowledge-base/introduction)
+
+**4. Create a sending API key**
+
+- In the Resend dashboard, create an API key with `Sending access` or `Full access`.
+- Paste that value into `RESEND_API_KEY` in `backend/.env`.
+- Official doc: [Resend API Keys](https://resend.com/docs/dashboard/api-keys/introduction)
+
+**5. Configure the sender address**
+
+- Set `RESEND_FROM_EMAIL` to a verified sender on your Resend domain, for example `noreply@updates.example.com`.
+- Restart Flask after changing env values.
+
+**Behavior in this repo**
+
+- If `RESEND_API_KEY` or `RESEND_FROM_EMAIL` is missing, the notification helper returns a structured failure result and `app.py` logs a warning instead of crashing the signup flow.
+- If Resend is configured correctly, volunteers receive a signup confirmation email after a confirmed signup.
 
 ---
 

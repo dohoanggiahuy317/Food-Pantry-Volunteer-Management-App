@@ -12,6 +12,7 @@ A web application for managing volunteer shifts at food pantries. Pantry leads a
 | Frontend | Vanilla JS, HTML, CSS (served directly via Flask templates, no build tools required) |
 | Database | MySQL 8.4 (containerized via Docker) |
 | Auth | Configurable auth provider: in-memory demo auth or Firebase Authentication with Google sign-in. Flask uses session cookies after login. |
+| Email notifications | Resend API for signup confirmation emails |
 
 ---
 
@@ -34,6 +35,13 @@ Authentication is configured separately from data storage:
 - **`AUTH_PROVIDER=firebase`** — Google sign-in with Firebase Authentication, verified server-side through the Firebase Admin SDK.
 
 After a successful login or signup, Flask stores the authenticated local user in a session cookie and all protected API routes use that session.
+
+### Notification Flow
+
+- `backend/notifications/notifications.py` is the email service layer for signup confirmations.
+- `app.py` calls `send_signup_confirmation(...)` after a signup reaches `CONFIRMED`.
+- The notification service returns a structured result payload with `ok`, `code`, `message`, `recipient_email`, `subject`, and `provider_response`.
+- `app.py` logs warning details when the email is skipped or fails, instead of mixing Flask `jsonify(...)` responses into the notification helper.
 
 ### Core API Routes
 
@@ -102,6 +110,7 @@ The app now shows an auth gate before the dashboard.
 - Can reconfirm after shift edits.
 - If they cancel during reconfirmation, the signup row is removed (same as normal cancel), so they can sign up again later if capacity is available.
 - Can manage their own profile from `My Account`, including verified Firebase email changes and full account deletion.
+- Receives a signup confirmation email when Resend is configured and the signup becomes `CONFIRMED`.
 
 ### Public (unauthenticated)
 - Can view open shifts for any pantry via the public endpoint using a pantry slug (e.g., `/api/public/pantries/licking-county-pantry/shifts`).
@@ -111,6 +120,8 @@ The app now shows an auth gate before the dashboard.
 ## Quick Start
 
 For detailed local setup instructions, including Docker configuration and database seeding, please refer to `SETUP.md`.
+
+If you want real email delivery in development or production, configure Resend in `backend/.env` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Resend’s official docs say sending uses a domain you own and recommend a subdomain such as `updates.yourdomain.com`; if your team does not already own a domain, register one first, then follow the Resend domain setup docs and DNS provider guide before using that sender address. Useful references: [Managing Domains](https://resend.com/docs/dashboard/domains/introduction), [DNS Guides](https://resend.com/docs/knowledge-base/introduction), and [API Keys](https://resend.com/docs/dashboard/api-keys/introduction).
 
 For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes apply cleanly.
 

@@ -14,6 +14,9 @@ volunteer_managing/
 │   ├── app.py                      # Flask app: all routes, auth logic, business rules
 │   ├── requirements.txt
 │   ├── .env                        # Runtime config (DB credentials, backend type)
+│   ├── notifications/
+│   │   ├── __init__.py             # Notification package exports
+│   │   └── notifications.py        # Resend email helpers + structured notification results
 │   │
 │   ├── backends/
 │   │   ├── base.py                 # Abstract interface: StoreBackend (ABC)
@@ -118,7 +121,7 @@ role_name           full_name
 
 ```
 app.py
-  load_dotenv("backend/.env")           ← reads DATA_BACKEND, MYSQL_* vars
+  load_dotenv("backend/.env")           ← reads DATA_BACKEND, MYSQL_*, RESEND_* vars
   create_backend()   [factory.py]
     │  DATA_BACKEND == "mysql"?
     ├─ YES →
@@ -131,6 +134,7 @@ app.py
     │    return MySQLBackend instance
     └─ NO  → return MemoryBackend instance
   backend = <chosen instance>            ← module-level singleton used by all routes
+  notifications.send_signup_confirmation() ← called after confirmed signups when email is configured
   app.run(port=5000)
 ```
 
@@ -164,6 +168,23 @@ app.py calls:        backend.create_shift(...)
         (mysql_backend.py)              (memory_backend.py)
         runs SQL INSERT                 appends to Python dict
 ```
+
+### Notification service (`notifications/notifications.py`)
+
+The notification module is intentionally separate from Flask route handlers:
+
+- Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
+- Normalizes shift/pantry/user data into an email payload
+- Sends the email through Resend
+- Returns a structured result dict with:
+  - `ok`
+  - `code`
+  - `message`
+  - `recipient_email`
+  - `subject`
+  - `provider_response`
+
+`app.py` consumes that result in `send_signup_confirmation_if_configured(...)` and logs warning details when delivery is skipped or fails.
 
 ---
 
