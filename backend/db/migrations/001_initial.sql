@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS roles (
-  role_id INT AUTO_INCREMENT PRIMARY KEY,
+  role_id INT PRIMARY KEY,
   role_name VARCHAR(64) NOT NULL UNIQUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -7,11 +7,13 @@ CREATE TABLE IF NOT EXISTS users (
   user_id INT AUTO_INCREMENT PRIMARY KEY,
   full_name VARCHAR(255) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
-  password_hash VARCHAR(255) NOT NULL,
-  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  phone_number VARCHAR(32) NULL,
+  auth_provider VARCHAR(64) NULL,
+  auth_uid VARCHAR(255) NULL,
   attendance_score INT NOT NULL DEFAULT 100,
   created_at DATETIME(6) NOT NULL,
-  updated_at DATETIME(6) NOT NULL
+  updated_at DATETIME(6) NOT NULL,
+  UNIQUE KEY idx_users_auth_uid (auth_uid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS user_roles (
@@ -55,7 +57,7 @@ CREATE TABLE IF NOT EXISTS shifts (
   start_time DATETIME(6) NOT NULL,
   end_time DATETIME(6) NOT NULL,
   status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
-  created_by INT NOT NULL,
+  created_by INT NULL,
   created_at DATETIME(6) NOT NULL,
   updated_at DATETIME(6) NOT NULL,
   INDEX idx_shifts_pantry_id (pantry_id),
@@ -64,7 +66,7 @@ CREATE TABLE IF NOT EXISTS shifts (
     ON DELETE CASCADE,
   CONSTRAINT fk_shifts_created_by
     FOREIGN KEY (created_by) REFERENCES users(user_id)
-    ON DELETE RESTRICT
+    ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS shift_roles (

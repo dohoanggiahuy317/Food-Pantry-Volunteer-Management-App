@@ -39,8 +39,9 @@ def _serialize_user(row: dict[str, Any]) -> dict[str, Any]:
         "user_id": row["user_id"],
         "full_name": row["full_name"],
         "email": row["email"],
-        "password_hash": row["password_hash"],
-        "is_active": bool(row["is_active"]),
+        "phone_number": row.get("phone_number"),
+        "auth_provider": row.get("auth_provider"),
+        "auth_uid": row.get("auth_uid"),
         "attendance_score": int(row.get("attendance_score", 100)),
         "created_at": _to_iso_z(row["created_at"]),
         "updated_at": _to_iso_z(row["updated_at"]),
@@ -164,6 +165,31 @@ class MySQLBackend(StoreBackend):
             row = cursor.fetchone()
             return _serialize_user(row) if row else None
 
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        normalized_email = str(email).strip().lower()
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM users WHERE LOWER(email) = %s LIMIT 1", (normalized_email,))
+            row = cursor.fetchone()
+            return _serialize_user(row) if row else None
+
+    def get_user_by_auth_uid(self, auth_uid: str) -> dict[str, Any] | None:
+        normalized_auth_uid = str(auth_uid).strip()
+        if not normalized_auth_uid:
+            return None
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM users WHERE auth_uid = %s LIMIT 1", (normalized_auth_uid,))
+            row = cursor.fetchone()
+            return _serialize_user(row) if row else None
+
+    def get_role_by_id(self, role_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT role_id, role_name FROM roles WHERE role_id = %s LIMIT 1", (role_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
     def get_user_roles(self, user_id: int) -> list[str]:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -208,10 +234,16 @@ class MySQLBackend(StoreBackend):
         self,
         full_name: str,
         email: str,
-        password_hash: str,
-        is_active: bool,
+        phone_number: str | None,
         roles: list[str],
+        auth_provider: str | None = None,
+        auth_uid: str | None = None,
     ) -> dict[str, Any]:
+        normalized_email = str(email).strip().lower()
+        normalized_auth_provider = str(auth_provider).strip() if auth_provider is not None else ""
+        normalized_auth_uid = str(auth_uid).strip() if auth_uid is not None else ""
+        normalized_auth_provider = normalized_auth_provider or None
+        normalized_auth_uid = normalized_auth_uid or None
         timestamp = _now_utc_naive()
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -221,18 +253,30 @@ class MySQLBackend(StoreBackend):
                     INSERT INTO users (
                         full_name,
                         email,
-                        password_hash,
-                        is_active,
+                        phone_number,
+                        auth_provider,
+                        auth_uid,
                         attendance_score,
                         created_at,
                         updated_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (full_name, email, password_hash, 1 if is_active else 0, 100, timestamp, timestamp),
+                    (
+                        full_name,
+                        normalized_email,
+                        phone_number,
+                        normalized_auth_provider,
+                        normalized_auth_uid,
+                        100,
+                        timestamp,
+                        timestamp,
+                    ),
                 )
             except IntegrityError:
                 conn.rollback()
+                if normalized_auth_uid and self.get_user_by_auth_uid(normalized_auth_uid):
+                    raise ValueError("Authentication identity already exists")
                 raise ValueError("Email already exists")
 
             user_id = int(cursor.lastrowid)
@@ -254,14 +298,97 @@ class MySQLBackend(StoreBackend):
             return {
                 "user_id": user_id,
                 "full_name": full_name,
-                "email": email,
-                "password_hash": password_hash,
-                "is_active": is_active,
+                "email": normalized_email,
+                "phone_number": phone_number,
+                "auth_provider": normalized_auth_provider,
+                "auth_uid": normalized_auth_uid,
                 "attendance_score": 100,
                 "created_at": _to_iso_z(timestamp),
                 "updated_at": _to_iso_z(timestamp),
                 "roles": assigned_roles,
             }
+
+    def update_user(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        existing = self.get_user_by_id(user_id)
+        if not existing:
+            return None
+
+        updates: list[str] = []
+        values: list[Any] = []
+
+        if "full_name" in payload:
+            updates.append("full_name = %s")
+            values.append(payload["full_name"])
+        if "email" in payload:
+            updates.append("email = %s")
+            values.append(str(payload["email"]).strip().lower())
+        if "phone_number" in payload:
+            updates.append("phone_number = %s")
+            values.append(payload["phone_number"])
+        if "auth_provider" in payload:
+            updates.append("auth_provider = %s")
+            normalized_auth_provider = str(payload["auth_provider"]).strip() if payload["auth_provider"] is not None else ""
+            values.append(normalized_auth_provider or None)
+        if "auth_uid" in payload:
+            updates.append("auth_uid = %s")
+            normalized_auth_uid = str(payload["auth_uid"]).strip() if payload["auth_uid"] is not None else ""
+            values.append(normalized_auth_uid or None)
+
+        if not updates:
+            return existing
+
+        updates.append("updated_at = %s")
+        values.append(_now_utc_naive())
+        values.append(user_id)
+
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    f"UPDATE users SET {', '.join(updates)} WHERE user_id = %s",
+                    tuple(values),
+                )
+            except IntegrityError:
+                conn.rollback()
+                attempted_auth_uid = str(payload.get("auth_uid", "")).strip() or None
+                if attempted_auth_uid and self.get_user_by_auth_uid(attempted_auth_uid):
+                    raise ValueError("Authentication identity already exists")
+                raise ValueError("Email already exists")
+            conn.commit()
+
+        return self.get_user_by_id(user_id)
+
+    def replace_user_roles(self, user_id: int, role_ids: list[int]) -> list[str] | None:
+        if not self.get_user_by_id(user_id):
+            return None
+
+        normalized_role_ids: list[int] = []
+        seen_role_ids: set[int] = set()
+        for role_id in role_ids:
+            normalized_role_id = int(role_id)
+            if normalized_role_id in seen_role_ids:
+                continue
+            seen_role_ids.add(normalized_role_id)
+            normalized_role_ids.append(normalized_role_id)
+
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
+            for role_id in normalized_role_ids:
+                cursor.execute(
+                    "INSERT IGNORE INTO user_roles (user_id, role_id) VALUES (%s, %s)",
+                    (user_id, role_id),
+                )
+            cursor.execute("UPDATE users SET updated_at = %s WHERE user_id = %s", (_now_utc_naive(), user_id))
+            conn.commit()
+
+        return self.get_user_roles(user_id)
+
+    def delete_user(self, user_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+            conn.commit()
 
     def list_pantries(self) -> list[dict[str, Any]]:
         with get_connection() as conn:
@@ -354,6 +481,25 @@ class MySQLBackend(StoreBackend):
             raise RuntimeError("Failed to create pantry")
         pantry["leads"] = self.get_pantry_leads(pantry_id)
         return pantry
+
+    def update_pantry(self, pantry_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        allowed = {k: v for k, v in payload.items() if k in {"name", "location_address"}}
+        if not allowed:
+            return self.get_pantry_by_id(pantry_id)
+        allowed["updated_at"] = _now_utc_naive()
+        set_clause = ", ".join(f"{k} = %s" for k in allowed)
+        values = list(allowed.values()) + [pantry_id]
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"UPDATE pantries SET {set_clause} WHERE pantry_id = %s", values)
+            conn.commit()
+        return self.get_pantry_by_id(pantry_id)
+
+    def delete_pantry(self, pantry_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM pantries WHERE pantry_id = %s", (pantry_id,))
+            conn.commit()
 
     def add_pantry_lead(self, pantry_id: int, user_id: int) -> None:
         with get_connection() as conn:
@@ -496,6 +642,131 @@ class MySQLBackend(StoreBackend):
                     tuple(values),
                 )
                 conn.commit()
+
+        return self.get_shift_by_id(shift_id)
+
+    def replace_shift_and_roles(
+        self,
+        shift_id: int,
+        shift_payload: dict[str, Any],
+        roles_payload: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM shifts WHERE shift_id = %s FOR UPDATE", (shift_id,))
+            shift_row = cursor.fetchone()
+            if not shift_row:
+                conn.rollback()
+                return None
+
+            cursor.execute("SELECT * FROM shift_roles WHERE shift_id = %s FOR UPDATE", (shift_id,))
+            existing_role_rows = cursor.fetchall()
+            existing_roles = {
+                int(row["shift_role_id"]): row
+                for row in existing_role_rows
+            }
+
+            normalized_roles: list[dict[str, Any]] = []
+            seen_role_ids: set[int] = set()
+            for payload in roles_payload:
+                role_title = str(payload.get("role_title") or "").strip()
+                if not role_title:
+                    conn.rollback()
+                    raise ValueError("role_title is required")
+
+                try:
+                    required_count = int(payload.get("required_count"))
+                except (TypeError, ValueError) as exc:
+                    conn.rollback()
+                    raise ValueError("required_count must be >= 1") from exc
+                if required_count < 1:
+                    conn.rollback()
+                    raise ValueError("required_count must be >= 1")
+
+                raw_role_id = payload.get("shift_role_id")
+                role_id = int(raw_role_id) if raw_role_id is not None else None
+                if role_id is not None:
+                    if role_id in seen_role_ids:
+                        conn.rollback()
+                        raise ValueError("Duplicate shift_role_id in roles payload")
+                    if role_id not in existing_roles:
+                        conn.rollback()
+                        raise ValueError("Shift role not found for this shift")
+                    seen_role_ids.add(role_id)
+
+                normalized_roles.append({
+                    "shift_role_id": role_id,
+                    "role_title": role_title,
+                    "required_count": required_count,
+                })
+
+            updates: list[str] = []
+            values: list[Any] = []
+            if "shift_name" in shift_payload:
+                updates.append("shift_name = %s")
+                values.append(shift_payload["shift_name"])
+            if "start_time" in shift_payload:
+                updates.append("start_time = %s")
+                values.append(_parse_iso_to_dt(shift_payload["start_time"]))
+            if "end_time" in shift_payload:
+                updates.append("end_time = %s")
+                values.append(_parse_iso_to_dt(shift_payload["end_time"]))
+            if "status" in shift_payload:
+                updates.append("status = %s")
+                values.append(shift_payload["status"])
+            updates.append("updated_at = %s")
+            values.append(_now_utc_naive())
+            values.append(shift_id)
+            cursor.execute(
+                f"UPDATE shifts SET {', '.join(updates)} WHERE shift_id = %s",
+                tuple(values),
+            )
+
+            submitted_existing_ids: set[int] = set()
+            for payload in normalized_roles:
+                role_id = payload.get("shift_role_id")
+                if role_id is not None:
+                    submitted_existing_ids.add(int(role_id))
+                    cursor.execute(
+                        """
+                        UPDATE shift_roles
+                        SET role_title = %s,
+                            required_count = %s
+                        WHERE shift_role_id = %s
+                        """,
+                        (payload["role_title"], payload["required_count"], int(role_id)),
+                    )
+                    continue
+
+                cursor.execute(
+                    """
+                    INSERT INTO shift_roles (shift_id, role_title, required_count, filled_count, status)
+                    VALUES (%s, %s, %s, 0, 'OPEN')
+                    """,
+                    (shift_id, payload["role_title"], payload["required_count"]),
+                )
+
+            omitted_role_ids = set(existing_roles) - submitted_existing_ids
+            for role_id in omitted_role_ids:
+                cursor.execute(
+                    "SELECT 1 FROM shift_signups WHERE shift_role_id = %s LIMIT 1",
+                    (role_id,),
+                )
+                has_signups = cursor.fetchone() is not None
+                if has_signups:
+                    cursor.execute(
+                        """
+                        UPDATE shift_roles
+                        SET status = 'CANCELLED',
+                            filled_count = 0
+                        WHERE shift_role_id = %s
+                        """,
+                        (role_id,),
+                    )
+                    continue
+                cursor.execute("DELETE FROM shift_roles WHERE shift_role_id = %s", (role_id,))
+
+            conn.commit()
 
         return self.get_shift_by_id(shift_id)
 
@@ -685,7 +956,8 @@ class MySQLBackend(StoreBackend):
                 "SELECT 1 FROM shift_signups WHERE shift_role_id = %s AND user_id = %s",
                 (shift_role_id, user_id),
             )
-            if cursor.fetchone() is not None:
+            existing = cursor.fetchone()
+            if existing is not None:
                 conn.rollback()
                 raise ValueError("Already signed up")
 
@@ -737,15 +1009,18 @@ class MySQLBackend(StoreBackend):
                 conn.rollback()
                 raise ValueError("Already signed up")
 
+            signup_id = int(cursor.lastrowid)
             self._recalculate_role_capacity(cursor, shift_role_id)
             self._recalculate_user_attendance_score(cursor, user_id)
-            signup_id = int(cursor.lastrowid)
             conn.commit()
 
-        signup = self.get_signup_by_id(signup_id)
-        if not signup:
-            raise RuntimeError("Failed to create signup")
-        return signup
+        return {
+            "signup_id": signup_id,
+            "shift_role_id": shift_role_id,
+            "user_id": user_id,
+            "signup_status": signup_status,
+            "created_at": _to_iso_z(now),
+        }
 
     def delete_signup(self, signup_id: int) -> None:
         with get_connection() as conn:

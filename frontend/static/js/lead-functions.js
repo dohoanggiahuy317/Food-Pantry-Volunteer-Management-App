@@ -81,6 +81,19 @@ async function updateShift(shiftId, shiftData) {
 }
 
 /**
+ * Update shift and roles in one request
+ */
+async function updateFullShift(shiftId, shiftData) {
+    try {
+        const shift = await apiPut(`/api/shifts/${shiftId}/full-update`, shiftData);
+        return shift;
+    } catch (error) {
+        console.error('Failed to fully update shift:', error);
+        throw error;
+    }
+}
+
+/**
  * Cancel a shift (soft-cancel with volunteer reconfirmation flow)
  */
 async function deleteShift(shiftId) {

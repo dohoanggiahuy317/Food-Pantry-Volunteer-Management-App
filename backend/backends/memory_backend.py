@@ -13,7 +13,7 @@ RESERVATION_WINDOW_HOURS = 48
 
 
 def _utc_now_iso() -> str:
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _parse_iso_to_utc(value: Any) -> datetime | None:
@@ -37,7 +37,7 @@ def _parse_iso_to_utc(value: Any) -> datetime | None:
 
 class MemoryBackend(StoreBackend):
     def __init__(self, data_path: Path | None = None) -> None:
-        self._data_path = data_path or (Path(__file__).resolve().parents[1] / "data" / "db.json")
+        self._data_path = data_path or (Path(__file__).resolve().parents[1] / "data" / "in_memory.json")
         self.store: dict[str, list[dict[str, Any]]] = {
             "users": [],
             "roles": [],
@@ -121,6 +121,10 @@ class MemoryBackend(StoreBackend):
             "shift_roles": list(data.get("shift_roles", [])),
             "shift_signups": list(data.get("shift_signups", [])),
         }
+        for user in self.store["users"]:
+            user.setdefault("updated_at", user.get("created_at"))
+            user.setdefault("auth_provider", None)
+            user.setdefault("auth_uid", None)
         if self.store["shifts"]:
             self.next_shift_id = max(s.get("shift_id", 0) for s in self.store["shifts"]) + 1
         if self.store["shift_roles"]:
@@ -131,6 +135,37 @@ class MemoryBackend(StoreBackend):
 
     def get_user_by_id(self, user_id: int) -> dict[str, Any] | None:
         return self._copy(next((u for u in self.store["users"] if u.get("user_id") == user_id), None))
+
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        normalized_email = str(email).strip().lower()
+        return self._copy(
+            next(
+                (
+                    u
+                    for u in self.store["users"]
+                    if str(u.get("email", "")).strip().lower() == normalized_email
+                ),
+                None,
+            )
+        )
+
+    def get_user_by_auth_uid(self, auth_uid: str) -> dict[str, Any] | None:
+        normalized_auth_uid = str(auth_uid).strip()
+        if not normalized_auth_uid:
+            return None
+        return self._copy(
+            next(
+                (
+                    u
+                    for u in self.store["users"]
+                    if str(u.get("auth_uid", "")).strip() == normalized_auth_uid
+                ),
+                None,
+            )
+        )
+
+    def get_role_by_id(self, role_id: int) -> dict[str, Any] | None:
+        return self._copy(next((r for r in self.store["roles"] if int(r.get("role_id", -1)) == role_id), None))
 
     def get_user_roles(self, user_id: int) -> list[str]:
         role_ids = [
@@ -157,24 +192,33 @@ class MemoryBackend(StoreBackend):
         self,
         full_name: str,
         email: str,
-        password_hash: str,
-        is_active: bool,
+        phone_number: str | None,
         roles: list[str],
+        auth_provider: str | None = None,
+        auth_uid: str | None = None,
     ) -> dict[str, Any]:
-        if any(u.get("email") == email for u in self.store["users"]):
+        normalized_email = str(email).strip().lower()
+        if any(str(u.get("email", "")).strip().lower() == normalized_email for u in self.store["users"]):
             raise ValueError("Email already exists")
+        normalized_auth_provider = str(auth_provider).strip() if auth_provider is not None else ""
+        normalized_auth_uid = str(auth_uid).strip() if auth_uid is not None else ""
+        normalized_auth_provider = normalized_auth_provider or None
+        normalized_auth_uid = normalized_auth_uid or None
+        if normalized_auth_uid and any(str(u.get("auth_uid", "")).strip() == normalized_auth_uid for u in self.store["users"]):
+            raise ValueError("Authentication identity already exists")
 
         user_id = max((u.get("user_id", 0) for u in self.store["users"]), default=0) + 1
         timestamp = _utc_now_iso()
         new_user = {
             "user_id": user_id,
             "full_name": full_name,
-            "email": email,
-            "password_hash": password_hash,
-            "is_active": is_active,
+            "email": normalized_email,
+            "phone_number": phone_number,
             "attendance_score": 100,
             "created_at": timestamp,
             "updated_at": timestamp,
+            "auth_provider": normalized_auth_provider,
+            "auth_uid": normalized_auth_uid,
         }
         self.store["users"].append(new_user)
 
@@ -192,6 +236,87 @@ class MemoryBackend(StoreBackend):
         response = dict(new_user)
         response["roles"] = assigned_roles
         return response
+
+    def update_user(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        user = next((u for u in self.store["users"] if u.get("user_id") == user_id), None)
+        if not user:
+            return None
+
+        allowed_keys = {"full_name", "email", "phone_number", "auth_provider", "auth_uid"}
+        updates = {key: value for key, value in payload.items() if key in allowed_keys}
+        if not updates:
+            return dict(user)
+
+        if "email" in updates:
+            normalized_email = str(updates["email"]).strip().lower()
+            if any(
+                int(existing.get("user_id", 0)) != user_id
+                and str(existing.get("email", "")).strip().lower() == normalized_email
+                for existing in self.store["users"]
+            ):
+                raise ValueError("Email already exists")
+            updates["email"] = normalized_email
+
+        if "auth_uid" in updates:
+            normalized_auth_uid = str(updates["auth_uid"]).strip() if updates["auth_uid"] is not None else ""
+            normalized_auth_uid = normalized_auth_uid or None
+            if normalized_auth_uid and any(
+                int(existing.get("user_id", 0)) != user_id
+                and str(existing.get("auth_uid", "")).strip() == normalized_auth_uid
+                for existing in self.store["users"]
+            ):
+                raise ValueError("Authentication identity already exists")
+            updates["auth_uid"] = normalized_auth_uid
+
+        if "auth_provider" in updates:
+            normalized_auth_provider = str(updates["auth_provider"]).strip() if updates["auth_provider"] is not None else ""
+            updates["auth_provider"] = normalized_auth_provider or None
+
+        for key, value in updates.items():
+            user[key] = value
+
+        user["updated_at"] = _utc_now_iso()
+        return dict(user)
+
+    def replace_user_roles(self, user_id: int, role_ids: list[int]) -> list[str] | None:
+        user = next((u for u in self.store["users"] if int(u.get("user_id", 0)) == user_id), None)
+        if not user:
+            return None
+
+        valid_role_ids = {
+            int(role.get("role_id"))
+            for role in self.store["roles"]
+            if role.get("role_id") is not None
+        }
+        normalized_role_ids: list[int] = []
+        seen_role_ids: set[int] = set()
+        for role_id in role_ids:
+            normalized_role_id = int(role_id)
+            if normalized_role_id not in valid_role_ids or normalized_role_id in seen_role_ids:
+                continue
+            seen_role_ids.add(normalized_role_id)
+            normalized_role_ids.append(normalized_role_id)
+
+        self.store["user_roles"] = [
+            row for row in self.store["user_roles"] if int(row.get("user_id", 0)) != user_id
+        ]
+        for role_id in normalized_role_ids:
+            self.store["user_roles"].append({
+                "user_id": user_id,
+                "role_id": role_id,
+            })
+
+        user["updated_at"] = _utc_now_iso()
+        return self.get_user_roles(user_id)
+
+    def delete_user(self, user_id: int) -> None:
+        self.store["users"] = [user for user in self.store["users"] if int(user.get("user_id", 0)) != user_id]
+        self.store["user_roles"] = [row for row in self.store["user_roles"] if int(row.get("user_id", 0)) != user_id]
+        self.store["pantry_leads"] = [row for row in self.store["pantry_leads"] if int(row.get("user_id", 0)) != user_id]
+        self.store["shift_signups"] = [row for row in self.store["shift_signups"] if int(row.get("user_id", 0)) != user_id]
+        for shift in self.store["shifts"]:
+            if int(shift.get("created_by", 0)) == user_id:
+                shift["created_by"] = None
 
     def list_pantries(self) -> list[dict[str, Any]]:
         return [dict(p) for p in self.store["pantries"]]
@@ -245,6 +370,50 @@ class MemoryBackend(StoreBackend):
         response = dict(pantry)
         response["leads"] = self.get_pantry_leads(pantry_id)
         return response
+
+    def update_pantry(self, pantry_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        pantry = next((p for p in self.store["pantries"] if p.get("pantry_id") == pantry_id), None)
+        if not pantry:
+            return None
+        for key in ["name", "location_address"]:
+            if key in payload:
+                pantry[key] = payload[key]
+        pantry["updated_at"] = _utc_now_iso()
+        return dict(pantry)
+
+    def delete_pantry(self, pantry_id: int) -> None:
+        shift_ids = [shift.get("shift_id") for shift in self.store["shifts"] if shift.get("pantry_id") == pantry_id]
+        shift_role_ids = [
+            role.get("shift_role_id")
+            for role in self.store["shift_roles"]
+            if role.get("shift_id") in shift_ids
+        ]
+
+        self.store["shift_signups"] = [
+            signup
+            for signup in self.store["shift_signups"]
+            if signup.get("shift_role_id") not in shift_role_ids
+        ]
+        self.store["shift_roles"] = [
+            role
+            for role in self.store["shift_roles"]
+            if role.get("shift_id") not in shift_ids
+        ]
+        self.store["shifts"] = [
+            shift
+            for shift in self.store["shifts"]
+            if shift.get("pantry_id") != pantry_id
+        ]
+        self.store["pantry_leads"] = [
+            pantry_lead
+            for pantry_lead in self.store["pantry_leads"]
+            if pantry_lead.get("pantry_id") != pantry_id
+        ]
+        self.store["pantries"] = [
+            pantry
+            for pantry in self.store["pantries"]
+            if pantry.get("pantry_id") != pantry_id
+        ]
 
     def add_pantry_lead(self, pantry_id: int, user_id: int) -> None:
         if self.is_pantry_lead(pantry_id, user_id):
@@ -330,6 +499,100 @@ class MemoryBackend(StoreBackend):
             if key in payload:
                 shift[key] = payload[key]
         shift["updated_at"] = _utc_now_iso()
+        return dict(shift)
+
+    def replace_shift_and_roles(
+        self,
+        shift_id: int,
+        shift_payload: dict[str, Any],
+        roles_payload: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        shift = next((s for s in self.store["shifts"] if s.get("shift_id") == shift_id), None)
+        if not shift:
+            return None
+
+        existing_roles = {
+            int(role.get("shift_role_id")): role
+            for role in self.store["shift_roles"]
+            if int(role.get("shift_id")) == shift_id
+        }
+
+        normalized_roles: list[dict[str, Any]] = []
+        seen_role_ids: set[int] = set()
+        for payload in roles_payload:
+            role_title = str(payload.get("role_title") or "").strip()
+            if not role_title:
+                raise ValueError("role_title is required")
+
+            try:
+                required_count = int(payload.get("required_count"))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("required_count must be >= 1") from exc
+            if required_count < 1:
+                raise ValueError("required_count must be >= 1")
+
+            raw_role_id = payload.get("shift_role_id")
+            role_id = int(raw_role_id) if raw_role_id is not None else None
+            if role_id is not None:
+                if role_id in seen_role_ids:
+                    raise ValueError("Duplicate shift_role_id in roles payload")
+                if role_id not in existing_roles:
+                    raise ValueError("Shift role not found for this shift")
+                seen_role_ids.add(role_id)
+
+            normalized_roles.append({
+                "shift_role_id": role_id,
+                "role_title": role_title,
+                "required_count": required_count,
+            })
+
+        for key in ["shift_name", "start_time", "end_time", "status"]:
+            if key in shift_payload:
+                shift[key] = shift_payload[key]
+        shift["updated_at"] = _utc_now_iso()
+
+        submitted_existing_ids: set[int] = set()
+        for payload in normalized_roles:
+            role_id = payload.get("shift_role_id")
+            if role_id is not None:
+                submitted_existing_ids.add(int(role_id))
+                role = existing_roles[int(role_id)]
+                role["role_title"] = payload["role_title"]
+                role["required_count"] = payload["required_count"]
+                continue
+
+            role = {
+                "shift_role_id": self.next_shift_role_id,
+                "shift_id": shift_id,
+                "role_title": payload["role_title"],
+                "required_count": payload["required_count"],
+                "filled_count": 0,
+                "status": "OPEN",
+            }
+            self.next_shift_role_id += 1
+            self.store["shift_roles"].append(role)
+
+        omitted_role_ids = set(existing_roles) - submitted_existing_ids
+        roles_to_delete: set[int] = set()
+        for role_id in omitted_role_ids:
+            has_signups = any(
+                int(signup.get("shift_role_id")) == role_id
+                for signup in self.store["shift_signups"]
+            )
+            if has_signups:
+                role = existing_roles[role_id]
+                role["status"] = "CANCELLED"
+                role["filled_count"] = 0
+                continue
+            roles_to_delete.add(role_id)
+
+        if roles_to_delete:
+            self.store["shift_roles"] = [
+                role
+                for role in self.store["shift_roles"]
+                if int(role.get("shift_role_id")) not in roles_to_delete
+            ]
+
         return dict(shift)
 
     def delete_shift(self, shift_id: int) -> None:

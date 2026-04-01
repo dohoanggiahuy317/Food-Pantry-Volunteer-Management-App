@@ -14,6 +14,9 @@ volunteer_managing/
 │   ├── app.py                      # Flask app: all routes, auth logic, business rules
 │   ├── requirements.txt
 │   ├── .env                        # Runtime config (DB credentials, backend type)
+│   ├── notifications/
+│   │   ├── __init__.py             # Notification package exports
+│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation + structured results
 │   │
 │   ├── backends/
 │   │   ├── base.py                 # Abstract interface: StoreBackend (ABC)
@@ -38,10 +41,10 @@ volunteer_managing/
         ├── css/
         │   └── dashboard.css
         └── js/
-            ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiDelete
+            ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiPut/apiDelete
             ├── user-functions.js   # getCurrentUser(), userHasRole(), createUser()
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
-            ├── lead-functions.js   # getShifts(), createShift(), updateShift(), markAttendance()
+            ├── lead-functions.js   # getShifts(), createShift(), updateShift(), updateFullShift(), markAttendance()
             ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup()
             └── dashboard.js        # App entry point: boot sequence, UI state, event handlers
 ```
@@ -58,8 +61,10 @@ roles               users
 role_id (PK)        user_id (PK)
 role_name           full_name
                     email
-        └──────────── password_hash
-                    is_active
+                    phone_number
+                    auth_provider
+                    auth_uid
+                    attendance_score
                     created_at / updated_at
          │
     user_roles (join table)
@@ -85,7 +90,7 @@ role_name           full_name
        shift_name
        start_time / end_time
        status          ← OPEN | FULL | CANCELLED
-       created_by (FK → users)
+       created_by (nullable FK → users)
          │
     shift_roles
     ───────────
@@ -106,7 +111,7 @@ role_name           full_name
     UNIQUE (shift_role_id, user_id)  ← prevents double signup
 ```
 
-**Cascade rules:** Deleting a pantry cascades to shifts → shift_roles → shift_signups. Deleting a user cascades out of signups and pantry_leads but is RESTRICTED if they created a shift.
+**Cascade rules:** Deleting a pantry cascades to shifts → shift_roles → shift_signups. Deleting a user cascades out of signups and pantry leads, and any `shifts.created_by` references are set to `NULL`.
 
 ---
 
@@ -116,7 +121,7 @@ role_name           full_name
 
 ```
 app.py
-  load_dotenv("backend/.env")           ← reads DATA_BACKEND, MYSQL_* vars
+  load_dotenv("backend/.env")           ← reads DATA_BACKEND, MYSQL_*, RESEND_* vars
   create_backend()   [factory.py]
     │  DATA_BACKEND == "mysql"?
     ├─ YES →
@@ -129,6 +134,7 @@ app.py
     │    return MySQLBackend instance
     └─ NO  → return MemoryBackend instance
   backend = <chosen instance>            ← module-level singleton used by all routes
+  notifications.send_*()               ← called for confirmed signups, shift updates, and shift cancellations
   app.run(port=5000)
 ```
 
@@ -162,6 +168,26 @@ app.py calls:        backend.create_shift(...)
         (mysql_backend.py)              (memory_backend.py)
         runs SQL INSERT                 appends to Python dict
 ```
+
+### Notification service (`notifications/notifications.py`)
+
+The notification module is intentionally separate from Flask route handlers:
+
+- Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
+- Normalizes shift/pantry/user data into an email payload
+- Sends the email through Resend for:
+  - confirmed signups
+  - shift updates that require reconfirmation
+  - shift cancellations
+- Returns a structured result dict with:
+  - `ok`
+  - `code`
+  - `message`
+  - `recipient_email`
+  - `subject`
+  - `provider_response`
+
+`app.py` consumes that result in dedicated route helpers and logs warning details when delivery is skipped or fails.
 
 ---
 
@@ -221,8 +247,9 @@ if (typeof getCurrentUser === 'undefined') {
 dashboard.js  →  user-functions.js:     getCurrentUser(), userHasRole()
 dashboard.js  →  admin-functions.js:    getPantries(), createPantry(), addPantryLead(), removePantryLead()
 dashboard.js  →  lead-functions.js:     getShifts(), getActiveShifts(), createShift(), updateShift(),
-                                        deleteShift(), createShiftRole(), updateShiftRole(),
-                                        deleteShiftRole(), getShiftRegistrations(), markAttendance()
+                                        updateFullShift(), deleteShift(), createShiftRole(),
+                                        updateShiftRole(), deleteShiftRole(), getShiftRegistrations(),
+                                        markAttendance()
 dashboard.js  →  volunteer-functions.js: signupForShift(), cancelSignup(), reconfirmSignup(),
                                          getUserSignups(), classifyShiftBucket(), formatShiftDate(),
                                          formatShiftTime(), getCapacityStatus()
@@ -242,7 +269,7 @@ window 'load' event fires
   │
   ├─ 1. getCurrentUser()          [user-functions.js]
   │       apiGet('/api/me')        [api-helpers.js → fetch]
-  │       ← { user_id, email, roles: ["ADMIN", ...] }
+  │       ← { user_id, email, roles: ["ADMIN" | "SUPER_ADMIN" | ...] }
   │       sets module-level: currentUser
   │       writes email/roles to #user-email, #user-role in DOM
   │
@@ -250,8 +277,8 @@ window 'load' event fires
   │       reads currentUser.roles
   │       shows/hides nav tabs:
   │         VOLUNTEER  → shows "My Shifts" tab
-  │         PANTRY_LEAD or ADMIN → shows "Manage Shifts" tab
-  │         ADMIN      → shows "Admin Panel" tab
+  │         PANTRY_LEAD or admin-capable → shows "Manage Shifts" tab
+  │         ADMIN or SUPER_ADMIN → shows "Admin Panel" tab
   │       returns the default tab name to activate
   │
   ├─ 3. loadPantries()            [dashboard.js:121]
@@ -264,9 +291,11 @@ window 'load' event fires
   │
   ├─ 4. setupEventListeners()     [dashboard.js:1152]
   │       attaches click handlers to nav tabs → activateTab()
+  │       attaches click handlers to Admin subtabs → setAdminSubtab() + loadAdminTab()
   │       attaches submit to #create-shift-form → createShift() + createShiftRole() loop
   │       attaches submit to #create-pantry-form → createPantry()
   │       attaches click to #assign-lead-btn → addPantryLead()
+  │       attaches Admin Users search/filter/profile/role-save handlers
   │       attaches change to #pantry-select → reloads shifts for selected pantry
   │
   └─ 5. activateTab(defaultTab)   [dashboard.js:91]
@@ -275,7 +304,7 @@ window 'load' event fires
             'calendar'   → loadCalendarShifts()
             'my-shifts'  → loadMyRegisteredShifts()
             'shifts'     → loadShiftsTable()
-            'admin'      → loadPantries() + loadPantryLeads() + updatePantriesTable()
+            'admin'      → loadAdminTab()
 ```
 
 ---
@@ -312,7 +341,7 @@ Route handler: create_shift(pantry_id=1)
   current_user()
     find_user_by_id(g.current_user_id)
       backend.get_user_by_id(4)             ← MySQLBackend: SELECT * FROM users WHERE user_id=4
-  user_has_role(4, "ADMIN")
+  is_admin_capable(4)
     backend.get_user_roles(4)               ← SELECT role_name FROM roles JOIN user_roles ...
   validate payload fields
   backend.create_shift(pantry_id, ...)      ← MySQLBackend
@@ -349,33 +378,83 @@ dashboard.js: receives shift object
 
 ## 8. Authentication Lifecycle
 
-### Current State: Mock (Active)
+### Current State: Session + Firebase Google Auth
 
-There is no login. Identity is the `?user_id=` URL parameter, defaulting to user 4 (Admin). `api-helpers.js:apiCall()` automatically propagates this parameter on every request. Flask's `@app.before_request` reads it and stores it in `g` — Flask's per-request context object that is created fresh for each request and discarded after the response is sent.
-
-### Planned: Firebase Auth (Not Yet Active)
-
-> This documents the planned integration. Nothing below exists in the current codebase.
+The app now has a real authentication gate:
 
 ```
-Browser: user submits login form
-  firebase.auth().signInWithEmailAndPassword(email, password)
-  ← Firebase returns a signed JWT (ID token, expires in 1 hour)
+Browser
+  auth.js: bootstrapAuthShell()
+    GET /api/auth/config
+    GET /api/me
+      └─ if 401 → stay on auth gate
+      └─ if 200 → enter dashboard
 
-api-helpers.js: apiCall() — updated to:
-  const token = await firebase.auth().currentUser.getIdToken()
-  fetch(path, { headers: { 'Authorization': `Bearer ${token}` } })
+Firebase mode:
+  Browser opens Google popup
+  firebase.auth().signInWithPopup(GoogleAuthProvider)
+  Browser gets Firebase ID token
+  POST /api/auth/login/google
 
-app.py: @app.before_request — updated to:
-  token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-  decoded = firebase_admin.auth.verify_id_token(token)  ← validates signature + expiry
-  user = backend.get_user_by_firebase_uid(decoded["uid"])
-  g.current_user_id = user["user_id"]
+Flask app.py:
+  verify_google_token(id_token)
+  lookup local user by auth_uid first
+  fallback to email only for one-time legacy linking
+  sync verified Firebase email if it changed
+  store local user_id in Flask session cookie
 
-  ← if token missing/invalid: return 401 before route handler runs
-  ← if user not in local DB: return 403
+Protected route requests:
+  browser sends Flask session cookie
+  @app.before_request loads session["user_id"] into g.current_user_id
+  route handlers use the local session-backed user
+```
 
-Token refresh: Firebase SDK calls onIdTokenChanged() silently — transparent to the user.
+`/api/me` now powers the `My Account` tab. It returns current profile fields, roles, attendance score, auth metadata, and timestamps.
+
+Sensitive account actions:
+
+```
+Email change
+  My Account tab
+    POST /api/me/email-change/prepare
+    force fresh Google popup reauthentication
+    firebase User.verifyBeforeUpdateEmail(new_email)
+    user clicks verification link
+    next successful Google login syncs the verified email into the local account by auth_uid
+
+Account deletion
+  My Account tab
+    force fresh Google popup reauthentication
+    get fresh Firebase ID token
+    DELETE /api/me { id_token }
+
+Flask app.py:
+  verify_google_token(id_token)
+  confirm Firebase uid matches current local auth_uid
+  firebase_admin.auth.delete_user(uid)
+  backend.delete_user(user_id)
+  clear Flask session
+
+Protected rule:
+  seeded user_id = 1 with SUPER_ADMIN
+  cannot delete itself
+```
+
+The Admin `Users` subtab is driven by the following flow:
+
+```
+Admin Users subtab
+  GET /api/users?q=<text>&role=<role>
+    └─ returns serialized users with roles for the table
+  click a user
+    GET /api/users/<user_id>
+      └─ returns the full profile payload for the side panel
+  choose one role button
+    PATCH /api/users/<user_id>/roles { role_ids: [<single_role_id>] }
+      ├─ enforces one editable role per user
+      ├─ blocks SUPER_ADMIN assignment/removal
+      ├─ blocks normal admins from removing another admin's ADMIN role
+      └─ refreshes the current session if the actor edits themself
 ```
 
 ---

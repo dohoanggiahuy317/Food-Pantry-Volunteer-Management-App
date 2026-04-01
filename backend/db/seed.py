@@ -90,18 +90,20 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     user_id,
                     full_name,
                     email,
-                    password_hash,
-                    is_active,
+                    phone_number,
+                    auth_provider,
+                    auth_uid,
                     attendance_score,
                     created_at,
                     updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     full_name = VALUES(full_name),
                     email = VALUES(email),
-                    password_hash = VALUES(password_hash),
-                    is_active = VALUES(is_active),
+                    phone_number = VALUES(phone_number),
+                    auth_provider = VALUES(auth_provider),
+                    auth_uid = VALUES(auth_uid),
                     attendance_score = VALUES(attendance_score),
                     updated_at = VALUES(updated_at)
                 """,
@@ -109,8 +111,9 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     user["user_id"],
                     user["full_name"],
                     user["email"],
-                    user["password_hash"],
-                    1 if user.get("is_active", True) else 0,
+                    user.get("phone_number"),
+                    user.get("auth_provider"),
+                    user.get("auth_uid"),
                     int(user.get("attendance_score", 100)),
                     parse_iso_to_dt(user.get("created_at")),
                     parse_iso_to_dt(user.get("updated_at") or user.get("created_at")),

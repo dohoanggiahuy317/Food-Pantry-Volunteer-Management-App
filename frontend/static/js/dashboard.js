@@ -7,83 +7,89 @@ let expandedShiftContext = null;
 let registrationsCache = {};
 let editingShiftSnapshot = null;
 let activeManageShiftsSubtab = 'create';
+let activeAdminSubtab = 'pantries';
+let adminRoles = [];
+let adminUsers = [];
+let selectedAdminUserId = null;
+let dashboardBootPromise = null;
+let dashboardEventListenersBound = false;
 
-// Wait for all scripts to load before initializing
-window.addEventListener('load', async function () {
-    try {
-        // Verify functions are loaded
-        if (typeof getCurrentUser === 'undefined') {
-            throw new Error('Required functions not loaded. Please refresh the page.');
-        }
+function currentUserHasRole(roleName) {
+    return Boolean(currentUser && Array.isArray(currentUser.roles) && currentUser.roles.includes(roleName));
+}
 
-        // Load current user
-        currentUser = await getCurrentUser();
-        document.getElementById('user-email').textContent = currentUser.email;
+function currentUserIsAdminCapable() {
+    return currentUserHasRole('ADMIN') || currentUserHasRole('SUPER_ADMIN');
+}
 
-        // Display roles
-        const roleNames = currentUser.roles.join(', ');
-        document.getElementById('user-role').textContent = roleNames;
+async function initializeDashboardApp() {
+    if (dashboardBootPromise) {
+        return dashboardBootPromise;
+    }
 
-        // Setup UI based on role and choose default tab
-        const defaultTab = setupRoleBasedUI();
+    dashboardBootPromise = (async () => {
+        try {
+            if (typeof getCurrentUser === 'undefined') {
+                throw new Error('Required functions not loaded. Please refresh the page.');
+            }
 
-        // Load pantries
-        await loadPantries();
+            currentUser = await getCurrentUser();
+            document.getElementById('user-email').textContent = currentUser.email;
+            document.getElementById('user-role').textContent = currentUser.roles.join(', ');
 
-        // Setup event listeners
-        setupEventListeners();
+            const defaultTab = setupRoleBasedUI();
+            await loadPantries();
 
-        // Load initial tab content
-        await activateTab(defaultTab);
+            if (!dashboardEventListenersBound) {
+                setupEventListeners();
+                dashboardEventListenersBound = true;
+            }
 
-    } catch (error) {
-        console.error('Failed to initialize:', error);
-        showMessage('calendar', `Failed to load: ${error.message}`, 'error');
-        // Display error on page
-        document.getElementById('shifts-container').innerHTML = `
+            await activateTab(defaultTab);
+        } catch (error) {
+            dashboardBootPromise = null;
+            console.error('Failed to initialize dashboard:', error);
+            showMessage('calendar', `Failed to load: ${error.message}`, 'error');
+            const shiftsContainer = document.getElementById('shifts-container');
+            if (shiftsContainer) {
+                shiftsContainer.innerHTML = `
                     <div style="background: #fed7d7; border: 2px solid #f56565; padding: 2rem; border-radius: 12px; text-align: center;">
-                        <h3 style="color: #742a2a; margin-bottom: 1rem;">⚠️ Failed to Load</h3>
-                        <p style="color: #742a2a; margin-bottom: 1rem;"><strong>${error.message}</strong></p>
-                        <p style="color: #742a2a; font-size: 0.875rem;">
-                            Make sure you include <code>?user_id=X</code> in the URL<br>
-                            Example: <code>http://127.0.0.1:5000/?user_id=4</code>
-                        </p>
-                        <button onclick="window.location.href='/?user_id=4'" class="btn btn-primary" style="margin-top: 1rem;">
-                            Load as Admin
-                        </button>
+                        <h3 style="color: #742a2a; margin-bottom: 1rem;">Failed to Load</h3>
+                        <p style="color: #742a2a;"><strong>${escapeHtml(error.message || 'Unknown error')}</strong></p>
                     </div>
                 `;
-    }
-});
+            }
+            throw error;
+        }
+    })();
+
+    return dashboardBootPromise;
+}
 
 // Setup UI based on role
 function setupRoleBasedUI() {
-    const isAdmin = currentUser.roles.includes('ADMIN');
-    const isPantryLead = currentUser.roles.includes('PANTRY_LEAD');
-    const isVolunteer = currentUser.roles.includes('VOLUNTEER');
+    const isAdmin = currentUserIsAdminCapable();
+    const isPantryLead = currentUserHasRole('PANTRY_LEAD');
+    const isVolunteer = currentUserHasRole('VOLUNTEER');
     const calendarTab = document.querySelector('.nav-tab[data-tab="calendar"]');
     const calendarContent = document.getElementById('content-calendar');
+    const shiftsTab = document.getElementById('tab-shifts');
+    const adminTab = document.getElementById('tab-admin');
+    const myShiftsTab = document.getElementById('tab-my-shifts');
     let defaultTab = 'calendar';
 
     const hideCalendarForLead = isPantryLead && !isAdmin && !isVolunteer;
-    if (hideCalendarForLead && calendarTab) {
-        calendarTab.classList.add('hidden');
-        calendarContent?.classList.remove('active');
-        defaultTab = 'shifts';
+    if (calendarTab) {
+        calendarTab.classList.toggle('hidden', hideCalendarForLead);
+        if (hideCalendarForLead) {
+            calendarContent?.classList.remove('active');
+            defaultTab = 'shifts';
+        }
     }
 
-    // Show/hide tabs based on role
-    if (isAdmin || isPantryLead) {
-        document.getElementById('tab-shifts').classList.remove('hidden');
-    }
-
-    if (isAdmin) {
-        document.getElementById('tab-admin').classList.remove('hidden');
-    }
-
-    if (isVolunteer) {
-        document.getElementById('tab-my-shifts').classList.remove('hidden');
-    }
+    shiftsTab?.classList.toggle('hidden', !(isAdmin || isPantryLead));
+    adminTab?.classList.toggle('hidden', !isAdmin);
+    myShiftsTab?.classList.toggle('hidden', !isVolunteer);
 
     return defaultTab;
 }
@@ -103,15 +109,20 @@ async function activateTab(targetTab) {
     // Show/hide pantry selector based on tab
     const pantrySelector = document.getElementById('pantry-selector');
     if (pantrySelector) {
-        pantrySelector.style.display = (targetTab === 'calendar' || targetTab === 'my-shifts') ? 'none' : 'block';
+        pantrySelector.style.display = (targetTab === 'calendar' || targetTab === 'my-shifts' || targetTab === 'my-account' || targetTab === 'admin') ? 'none' : 'block';
     }
 
     // Load tab-specific data
     if (targetTab === 'shifts') {
         setManageShiftsSubtab(activeManageShiftsSubtab);
         await loadShiftsTable();
+    } else if (targetTab === 'admin') {
+        setAdminSubtab(activeAdminSubtab);
+        await loadAdminTab();
     } else if (targetTab === 'my-shifts') {
         await loadMyRegisteredShifts();
+    } else if (targetTab === 'my-account') {
+        await loadMyAccount();
     } else if (targetTab === 'calendar') {
         await loadCalendarShifts();
     }
@@ -124,12 +135,17 @@ async function loadPantries() {
         allPublicPantries = await getAllPantries();
         const select = document.getElementById('pantry-select');
         const assignSelect = document.getElementById('assign-pantry');
+        const selectedPantryStillExists = allPantries.some(pantry => pantry.pantry_id === currentPantryId);
 
         select.innerHTML = '';
         assignSelect.innerHTML = '<option value="">-- Select Pantry --</option>';
 
         if (allPantries.length === 0) {
+            currentPantryId = null;
             select.innerHTML = '<option value="">No pantries available</option>';
+            if (currentUserIsAdminCapable()) {
+                await updatePantriesTable();
+            }
             return;
         }
 
@@ -143,14 +159,11 @@ async function loadPantries() {
             assignSelect.appendChild(assignOpt);
         });
 
-        // Select first pantry by default
-        if (allPantries.length > 0) {
-            currentPantryId = allPantries[0].pantry_id;
-            select.value = currentPantryId;
-        }
+        currentPantryId = selectedPantryStillExists ? currentPantryId : allPantries[0].pantry_id;
+        select.value = currentPantryId;
 
         // Load pantry leads for admin
-        if (currentUser.roles.includes('ADMIN')) {
+        if (currentUserIsAdminCapable()) {
             await loadPantryLeads();
         }
     } catch (error) {
@@ -186,7 +199,7 @@ async function updatePantriesTable() {
     tbody.innerHTML = '';
 
     if (allPantries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #718096;">No pantries yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #718096;">No pantries yet</td></tr>';
         return;
     }
 
@@ -198,8 +211,51 @@ async function updatePantriesTable() {
                     <td>${pantry.leads && pantry.leads.length > 0
                 ? pantry.leads.map(l => `<span style="background: #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 4px; margin-right: 0.5rem; display: inline-block; margin-bottom: 0.25rem;">${l.full_name}</span>`).join('')
                 : '<span style="color: #718096;">No leads assigned</span>'}</td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-secondary btn-sm edit-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}" data-address="${pantry.location_address || ''}">Edit</button>
+                            <button class="btn btn-danger btn-sm delete-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}">Delete</button>
+                        </div>
+                    </td>
                 `;
         tbody.appendChild(tr);
+    });
+
+    document.querySelectorAll('.edit-pantry-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('edit-pantry-id').value = btn.dataset.id;
+            document.getElementById('edit-pantry-name').value = btn.dataset.name;
+            document.getElementById('edit-pantry-address').value = btn.dataset.address;
+            document.getElementById('edit-pantry-modal').style.display = 'flex';
+        });
+    });
+
+    document.querySelectorAll('.delete-pantry-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const pantryId = parseInt(btn.dataset.id);
+            const pantryName = btn.dataset.name;
+            const confirmed = window.confirm(
+                `Delete pantry "${pantryName}"? This will also remove its shifts, roles, signups, and lead assignments.`
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            try {
+                await deletePantry(pantryId);
+
+                if (currentPantryId === pantryId) {
+                    currentPantryId = null;
+                    resetEditShiftForm();
+                }
+
+                showMessage('pantry', 'Pantry deleted successfully!', 'success');
+                await loadPantries();
+            } catch (error) {
+                showMessage('pantry', `Error: ${error.message}`, 'error');
+            }
+        });
     });
 }
 
@@ -375,19 +431,39 @@ function displayShiftCard(grid, shift) {
 
 // Signup for role
 async function signupForRole(roleId) {
-    try {
-        await signupForShift(roleId);
-        showMessage('calendar', 'Successfully signed up!', 'success');
-        await loadCalendarShifts(); // Reload to show updated counts
+    if (!currentUser || !currentUser.user_id) {
+        showMessage('calendar', 'Signup failed: Missing current user context', 'error');
+        return;
+    }
 
-        const myShiftsTab = document.getElementById('content-my-shifts');
-        const isVolunteer = currentUser && currentUser.roles.includes('VOLUNTEER');
-        if (isVolunteer && myShiftsTab && myShiftsTab.classList.contains('active')) {
-            await loadMyRegisteredShifts();
+    let message = 'Successfully signed up!';
+    let messageType = 'success';
+
+    try {
+        const signupResult = await signupForShift(roleId, currentUser.user_id);
+        if (signupResult && signupResult.already_signed_up) {
+            message = 'You already signed up for this shift.';
+            messageType = 'error';
         }
     } catch (error) {
         showMessage('calendar', `Signup failed: ${error.message}`, 'error');
+        await loadCalendarShifts(); 
+        return;
     }
+
+    try {
+
+        const myShiftsTab = document.getElementById('content-my-shifts');
+        const isVolunteer = currentUserHasRole('VOLUNTEER');
+        if (isVolunteer && myShiftsTab && myShiftsTab.classList.contains('active')) {
+            await loadMyRegisteredShifts();
+        }
+        showMessage('calendar', message, messageType);
+    } catch (error) {
+        showMessage('calendar', `Signup completed, but refresh failed: ${error.message}`, 'error');
+    }
+
+    await loadCalendarShifts(); // Reload to show updated counts no matter the error or success
 }
 
 function escapeHtml(value) {
@@ -485,6 +561,248 @@ function setManageShiftsSubtab(target) {
     }
 }
 
+function setAdminSubtab(target) {
+    const normalized = target === 'users' ? 'users' : 'pantries';
+    activeAdminSubtab = normalized;
+
+    document.querySelectorAll('.admin-subtab').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.adminSubtab === normalized);
+    });
+
+    document.querySelectorAll('.admin-subcontent').forEach((section) => {
+        section.classList.toggle('active', section.id === `admin-subcontent-${normalized}`);
+    });
+}
+
+function formatAuthProviderLabel(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) {
+        return 'Not linked';
+    }
+    return normalized.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+async function ensureAdminRolesLoaded() {
+    if (adminRoles.length > 0) {
+        return adminRoles;
+    }
+    adminRoles = await getRoles();
+    return adminRoles;
+}
+
+async function loadAdminTab() {
+    if (activeAdminSubtab === 'users') {
+        await loadAdminUsers();
+        return;
+    }
+    await updatePantriesTable();
+}
+
+function renderAdminUserTable() {
+    const tbody = document.getElementById('admin-users-table-body');
+    if (!tbody) {
+        return;
+    }
+
+    if (!adminUsers.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #718096;">No users found.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = adminUsers.map((user) => {
+        const rolesText = Array.isArray(user.roles) && user.roles.length ? user.roles.join(', ') : 'No roles';
+        const isSelected = selectedAdminUserId === user.user_id;
+        return `
+            <tr class="admin-user-row ${isSelected ? 'selected' : ''}" data-admin-user-row="${user.user_id}">
+                <td>${escapeHtml(formatAccountValue(user.full_name))}</td>
+                <td>${escapeHtml(formatAccountValue(user.email))}</td>
+                <td>${escapeHtml(formatAccountValue(user.phone_number))}</td>
+                <td>${escapeHtml(rolesText)}</td>
+                <td>${escapeHtml(String(Number(user.attendance_score || 0)))}%</td>
+                <td>${escapeHtml(formatAuthProviderLabel(user.auth_provider))}</td>
+                <td>${escapeHtml(formatAccountTimestamp(user.created_at))}</td>
+                <td><button type="button" class="btn btn-secondary btn-sm" data-open-admin-user="${user.user_id}">View Profile</button></td>
+            </tr>
+        `;
+    }).join('');
+
+    tbody.querySelectorAll('[data-open-admin-user]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            await openAdminUserProfile(Number(button.dataset.openAdminUser));
+        });
+    });
+}
+
+function renderAdminRoleOptions(userProfile) {
+    const editableRoles = adminRoles.filter((role) => role.role_name !== 'SUPER_ADMIN');
+    const selectedRole = Array.isArray(userProfile.roles) && userProfile.roles.length ? userProfile.roles[0] : '';
+    return editableRoles.map((role) => `
+        <label class="admin-role-option ${selectedRole === role.role_name ? 'selected' : ''}">
+            <input
+                type="radio"
+                name="admin-user-role"
+                value="${role.role_id}"
+                ${selectedRole === role.role_name ? 'checked' : ''}
+            >
+            <span>${escapeHtml(role.role_name)}</span>
+        </label>
+    `).join('');
+}
+
+function renderAdminUserProfile(userProfile) {
+    const panel = document.getElementById('admin-user-profile-panel');
+    if (!panel) {
+        return;
+    }
+
+    const rolesText = Array.isArray(userProfile.roles) && userProfile.roles.length ? userProfile.roles.join(', ') : 'No roles';
+    const isProtectedSuperAdmin = userProfile.user_id === 1 || (Array.isArray(userProfile.roles) && userProfile.roles.includes('SUPER_ADMIN'));
+    const canEditRoles = !isProtectedSuperAdmin;
+    const roleNote = isProtectedSuperAdmin
+        ? '<div class="account-note memory-note">This protected super admin account is read-only. Its roles cannot be changed or removed.</div>'
+        : '<div class="account-note">Update the selected user roles below. SUPER_ADMIN is intentionally excluded from editable controls.</div>';
+
+    panel.innerHTML = `
+        <div class="admin-user-profile">
+            <div class="account-summary-grid admin-user-summary-grid">
+                ${renderAccountSummaryItem('Full Name', formatAccountValue(userProfile.full_name))}
+                ${renderAccountSummaryItem('Email', formatAccountValue(userProfile.email))}
+                ${renderAccountSummaryItem('Phone Number', formatAccountValue(userProfile.phone_number))}
+                ${renderAccountSummaryItem('Roles', rolesText)}
+                ${renderAccountSummaryItem('Attendance Score', `${Number(userProfile.attendance_score || 0)}%`)}
+                ${renderAccountSummaryItem('Auth Provider', formatAuthProviderLabel(userProfile.auth_provider))}
+                ${renderAccountSummaryItem('Auth UID', formatAccountValue(userProfile.auth_uid))}
+                ${renderAccountSummaryItem('Created At', formatAccountTimestamp(userProfile.created_at))}
+                ${renderAccountSummaryItem('Updated At', formatAccountTimestamp(userProfile.updated_at))}
+            </div>
+            <div class="admin-user-role-editor">
+                <h3 class="admin-user-role-title">Roles</h3>
+                ${roleNote}
+                <form id="admin-user-role-form">
+                    <div class="admin-role-options">
+                        ${renderAdminRoleOptions(userProfile)}
+                    </div>
+                    <div class="admin-user-role-actions">
+                        <button type="submit" class="btn btn-primary" ${canEditRoles ? '' : 'disabled'}>Save Roles</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    const roleForm = document.getElementById('admin-user-role-form');
+    roleForm?.querySelectorAll('input[name="admin-user-role"]').forEach((input) => {
+        input.addEventListener('change', () => {
+            roleForm.querySelectorAll('.admin-role-option').forEach((option) => {
+                option.classList.toggle('selected', option.contains(input) && input.checked);
+            });
+        });
+    });
+    roleForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (!canEditRoles) {
+            showMessage('admin-users', 'The protected super admin account cannot be edited.', 'error');
+            return;
+        }
+
+        const selectedRoleInput = roleForm.querySelector('input[name="admin-user-role"]:checked');
+        if (!selectedRoleInput) {
+            showMessage('admin-users', 'Select one role before saving.', 'error');
+            return;
+        }
+
+        const selectedRoleIds = [Number(selectedRoleInput.value)];
+        const editingSelf = currentUser && currentUser.user_id === userProfile.user_id;
+
+        try {
+            const updatedProfile = await updateUserRoles(userProfile.user_id, selectedRoleIds);
+            showMessage('admin-users', 'User roles updated successfully.', 'success');
+            await refreshCurrentUserState();
+            if (editingSelf) {
+                await loadPantries();
+                if (!currentUserIsAdminCapable()) {
+                    await activateTab(setupRoleBasedUI());
+                    return;
+                }
+            }
+            await loadAdminUsers({ preserveSelection: true, preferredUserId: updatedProfile.user_id });
+        } catch (error) {
+            showMessage('admin-users', `Failed to update roles: ${error.message}`, 'error');
+        }
+    });
+}
+
+async function openAdminUserProfile(userId) {
+    selectedAdminUserId = userId;
+    renderAdminUserTable();
+
+    const panel = document.getElementById('admin-user-profile-panel');
+    if (panel) {
+        panel.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading user profile...</p></div>';
+    }
+
+    try {
+        const profile = await getUserProfile(userId);
+        renderAdminUserProfile(profile);
+    } catch (error) {
+        if (panel) {
+            panel.innerHTML = `<p class="my-shift-load-error">Failed to load user profile: ${escapeHtml(error.message)}</p>`;
+        }
+        showMessage('admin-users', `Failed to load user profile: ${error.message}`, 'error');
+    }
+}
+
+async function loadAdminUsers(options = {}) {
+    const preserveSelection = Boolean(options.preserveSelection);
+    const preferredUserId = options.preferredUserId || null;
+    const searchInput = document.getElementById('admin-user-search');
+    const roleFilterSelect = document.getElementById('admin-user-role-filter');
+    const panel = document.getElementById('admin-user-profile-panel');
+
+    try {
+        await ensureAdminRolesLoaded();
+
+        if (roleFilterSelect && !roleFilterSelect.dataset.initialized) {
+            roleFilterSelect.innerHTML = '<option value="">All roles</option>';
+            adminRoles.forEach((role) => {
+                const option = document.createElement('option');
+                option.value = role.role_name;
+                option.textContent = role.role_name;
+                roleFilterSelect.appendChild(option);
+            });
+            roleFilterSelect.dataset.initialized = 'true';
+        }
+
+        const roleFilter = roleFilterSelect ? roleFilterSelect.value : '';
+        const searchQuery = searchInput ? searchInput.value.trim() : '';
+        adminUsers = await getAllUsers(roleFilter || null, searchQuery);
+
+        if (!preserveSelection) {
+            selectedAdminUserId = null;
+        }
+
+        if (preferredUserId) {
+            selectedAdminUserId = preferredUserId;
+        } else if (selectedAdminUserId && !adminUsers.some((user) => user.user_id === selectedAdminUserId)) {
+            selectedAdminUserId = null;
+        }
+
+        renderAdminUserTable();
+
+        if (selectedAdminUserId) {
+            await openAdminUserProfile(selectedAdminUserId);
+        } else if (panel) {
+            panel.innerHTML = '<p class="auth-empty">Select a user to view the full profile and manage roles.</p>';
+        }
+    } catch (error) {
+        if (panel) {
+            panel.innerHTML = `<p class="my-shift-load-error">Failed to load users: ${escapeHtml(error.message)}</p>`;
+        }
+        showMessage('admin-users', `Failed to load users: ${error.message}`, 'error');
+    }
+}
+
 function formatShiftRange(startTime, endTime) {
     const start = safeDateValue(startTime);
     const end = safeDateValue(endTime);
@@ -550,6 +868,133 @@ function renderCredibilitySummary(attendanceScore) {
             <p class="credibility-detail">Based on marked attendance records.</p>
         </section>
     `;
+}
+
+function formatAccountValue(value, fallback = '—') {
+    if (value === null || value === undefined || value === '') {
+        return fallback;
+    }
+    return String(value);
+}
+
+function formatAccountTimestamp(value) {
+    const parsed = safeDateValue(value);
+    return parsed ? parsed.toLocaleString() : '—';
+}
+
+function renderAccountSummaryItem(label, value) {
+    return `
+        <div class="account-summary-item">
+            <span class="account-summary-label">${escapeHtml(label)}</span>
+            <div class="account-summary-value">${escapeHtml(value)}</div>
+        </div>
+    `;
+}
+
+function updateAccountEmailUi() {
+    const note = document.getElementById('my-account-email-note');
+    const submitButton = document.getElementById('account-email-submit-btn');
+    const newEmailInput = document.getElementById('account-new-email');
+    const currentEmailInput = document.getElementById('account-current-email');
+
+    if (!note || !submitButton || !newEmailInput || !currentEmailInput || !currentUser) {
+        return;
+    }
+
+    currentEmailInput.value = currentUser.email || '';
+
+    if (currentUser.email_change_supported) {
+        note.className = 'account-note firebase-note';
+        note.innerHTML = 'We will ask you to confirm with Google of <b>the current email</b>, send a verification link to the new email, then update the app after your next sign-in.';
+        submitButton.disabled = false;
+        newEmailInput.disabled = false;
+    } else {
+        note.className = 'account-note memory-note';
+        note.textContent = currentUser.auth_mode === 'firebase'
+            ? 'This account is not linked to Firebase yet. Sign out and sign in again with Google before changing email.'
+            : 'Demo auth allows editing name and phone number only. Email changes are not available in memory mode.';
+        submitButton.disabled = true;
+        newEmailInput.disabled = true;
+    }
+}
+
+function updateDeleteAccountUi() {
+    const deleteButton = document.getElementById('delete-account-btn');
+    const deleteNote = document.querySelector('.delete-account-note');
+    if (!deleteButton || !deleteNote || !currentUser) {
+        return;
+    }
+
+    const isProtectedSuperAdmin = currentUser.user_id === 1 || currentUserHasRole('SUPER_ADMIN');
+    if (isProtectedSuperAdmin) {
+        deleteButton.disabled = true;
+        deleteNote.textContent = 'The protected super admin account cannot delete itself.';
+        return;
+    }
+
+    deleteButton.disabled = false;
+    deleteNote.textContent = 'Deleting your account removes your local app user, signs you out, and in Firebase mode also deletes the linked Firebase account after a fresh Google reauthentication.';
+}
+
+function renderMyAccountSummary() {
+    const container = document.getElementById('my-account-summary');
+    if (!container || !currentUser) {
+        return;
+    }
+
+    const rolesText = Array.isArray(currentUser.roles) && currentUser.roles.length > 0
+        ? currentUser.roles.join(', ')
+        : 'No roles';
+
+    container.innerHTML = `
+        ${renderAccountSummaryItem('Full Name', formatAccountValue(currentUser.full_name))}
+        ${renderAccountSummaryItem('Email', formatAccountValue(currentUser.email))}
+        ${renderAccountSummaryItem('Phone Number', formatAccountValue(currentUser.phone_number))}
+        ${renderAccountSummaryItem('Roles', rolesText)}
+        ${renderAccountSummaryItem('Attendance Score', `${Number(currentUser.attendance_score || 0)}%`)}
+        ${renderAccountSummaryItem('Created At', formatAccountTimestamp(currentUser.created_at))}
+        ${renderAccountSummaryItem('Updated At', formatAccountTimestamp(currentUser.updated_at))}
+    `;
+}
+
+function syncMyAccountForms() {
+    if (!currentUser) {
+        return;
+    }
+
+    const fullNameInput = document.getElementById('account-full-name');
+    const phoneInput = document.getElementById('account-phone-number');
+    const newEmailInput = document.getElementById('account-new-email');
+
+    if (fullNameInput) {
+        fullNameInput.value = currentUser.full_name || '';
+    }
+    if (phoneInput) {
+        phoneInput.value = currentUser.phone_number || '';
+    }
+    if (newEmailInput) {
+        newEmailInput.value = '';
+    }
+
+    updateAccountEmailUi();
+    updateDeleteAccountUi();
+}
+
+async function refreshCurrentUserState() {
+    currentUser = await getCurrentUser();
+    document.getElementById('user-email').textContent = currentUser.email;
+    document.getElementById('user-role').textContent = currentUser.roles.join(', ');
+    setupRoleBasedUI();
+    renderMyAccountSummary();
+    syncMyAccountForms();
+}
+
+async function loadMyAccount() {
+    if (!currentUser) {
+        return;
+    }
+    renderMyAccountSummary();
+    syncMyAccountForms();
 }
 
 function renderMyShiftCard(signup, now) {
@@ -745,7 +1190,7 @@ async function markSignupAttendance(signupId, attendanceStatus, shiftId) {
 function renderRegistrationsRowContent(shiftRegistrations) {
     const roles = shiftRegistrations.roles || [];
     const windowInfo = getAttendanceWindowInfo(shiftRegistrations.start_time, shiftRegistrations.end_time);
-    const canMarkAttendance = currentUser && (currentUser.roles.includes('ADMIN') || currentUser.roles.includes('PANTRY_LEAD'));
+    const canMarkAttendance = currentUser && (currentUserIsAdminCapable() || currentUserHasRole('PANTRY_LEAD'));
 
     if (roles.length === 0) {
         return `
@@ -1126,7 +1571,7 @@ async function cancelShiftConfirm(shiftId) {
     try {
         const response = await deleteShift(shiftId);
         const affected = response.affected_signup_count || 0;
-        showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation.`, 'success');
+        showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation and volunteers were notified.`, 'success');
         await loadShiftsTable();
         await loadCalendarShifts(); // Update calendar view too
         const myShiftsTab = document.getElementById('content-my-shifts');
@@ -1142,8 +1587,12 @@ async function revokeShiftConfirm(shiftId) {
     if (!confirm('Revoke this cancelled shift? Previously signed-up volunteers will stay pending confirmation.')) return;
 
     try {
-        await updateShift(shiftId, { status: 'OPEN' });
-        showMessage('shifts', 'Shift revoked successfully! Volunteers remain pending confirmation until they reconfirm.', 'success');
+        const response = await updateShift(shiftId, { status: 'OPEN' });
+        const affected = response.affected_signup_count || 0;
+        const notifiedMsg = affected > 0
+            ? ` ${affected} volunteer(s) were notified to review and reconfirm.`
+            : '';
+        showMessage('shifts', `Shift revoked successfully! Volunteers remain pending confirmation until they reconfirm.${notifiedMsg}`, 'success');
         await loadShiftsTable();
         await loadCalendarShifts();
         const myShiftsTab = document.getElementById('content-my-shifts');
@@ -1158,6 +1607,7 @@ async function revokeShiftConfirm(shiftId) {
 // Setup event listeners
 function setupEventListeners() {
     setManageShiftsSubtab(activeManageShiftsSubtab);
+    setAdminSubtab(activeAdminSubtab);
 
     document.querySelectorAll('.manage-shifts-subtab').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -1169,37 +1619,137 @@ function setupEventListeners() {
         });
     });
 
+    document.querySelectorAll('.admin-subtab').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const targetSubtab = button.dataset.adminSubtab === 'users' ? 'users' : 'pantries';
+            setAdminSubtab(targetSubtab);
+            await loadAdminTab();
+        });
+    });
+
     // Tab navigation
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', async () => {
-            const targetTab = tab.dataset.tab;
-
-            // Update active tab style
-            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-
-            // Show target content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`content-${targetTab}`).classList.add('active');
-
-            // Show/hide pantry selector based on tab
-            const pantrySelector = document.getElementById('pantry-selector');
-            if (targetTab === 'calendar' || targetTab === 'my-shifts' ||  targetTab === 'admin') {
-                pantrySelector.style.display = 'none';
-            } else {
-                pantrySelector.style.display = 'block';
-            }
-
-            // Load tab-specific data
-            if (targetTab === 'shifts') {
-                setManageShiftsSubtab(activeManageShiftsSubtab);
-                await loadShiftsTable();
-            } else if (targetTab === 'my-shifts') {
-                await loadMyRegisteredShifts();
-            }
+            await activateTab(tab.dataset.tab);
         });
+    });
+
+    document.getElementById('admin-user-search-btn')?.addEventListener('click', async () => {
+        await loadAdminUsers();
+    });
+
+    document.getElementById('admin-user-search')?.addEventListener('keydown', async (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            await loadAdminUsers();
+        }
+    });
+
+    document.getElementById('admin-user-role-filter')?.addEventListener('change', async () => {
+        await loadAdminUsers();
+    });
+
+    document.getElementById('my-account-profile-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const fullName = document.getElementById('account-full-name').value.trim();
+        const phoneNumber = document.getElementById('account-phone-number').value.trim();
+        if (!fullName) {
+            showMessage('my-account', 'Full name is required.', 'error');
+            return;
+        }
+
+        try {
+            currentUser = await updateCurrentUserProfile({
+                full_name: fullName,
+                phone_number: phoneNumber
+            });
+            await refreshCurrentUserState();
+            showMessage('my-account', 'Basic information updated successfully.', 'success');
+        } catch (error) {
+            showMessage('my-account', `Failed to update profile: ${error.message}`, 'error');
+        }
+    });
+
+    document.getElementById('my-account-email-form').addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        if (!currentUser?.email_change_supported) {
+            showMessage('my-account', 'Email changes are unavailable for this account.', 'error');
+            return;
+        }
+
+        const newEmail = document.getElementById('account-new-email').value.trim().toLowerCase();
+        if (!newEmail) {
+            showMessage('my-account', 'Enter a new email address first.', 'error');
+            return;
+        }
+
+        try {
+            await prepareCurrentUserEmailChange(newEmail);
+            const result = await window.requestFirebaseEmailChange(currentUser, newEmail);
+            const note = document.getElementById('my-account-email-note');
+            if (note && result?.message) {
+                note.className = 'account-note account-note-success';
+                note.textContent = result.message;
+            }
+            document.getElementById('account-new-email').value = '';
+            showMessage('my-account', 'Email verification started. Confirm the change from your email, then <b>log out this tab</b> and sign in again.', 'success');
+        } catch (error) {
+            updateAccountEmailUi();
+            showMessage('my-account', `Failed to start email change: ${error.message}`, 'error');
+        }
+    });
+
+    document.getElementById('delete-account-btn').addEventListener('click', async () => {
+        if (!currentUser) {
+            showMessage('my-account', 'No user is loaded.', 'error');
+            return;
+        }
+
+        const confirmed = confirm('Delete your account permanently? This cannot be undone.');
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            let payload = {};
+            if (currentUser.auth_mode === 'firebase' && currentUser.auth_provider === 'firebase') {
+                const result = await window.requestFirebaseAccountDeletion(currentUser);
+                payload = { id_token: result.idToken };
+            }
+
+            await deleteCurrentUserAccount(payload);
+            window.location.reload();
+        } catch (error) {
+            showMessage('my-account', `Failed to delete account: ${error.message}`, 'error');
+        }
+    });
+
+    // Edit pantry modal - cancel
+    document.getElementById('cancel-edit-pantry-btn').addEventListener('click', () => {
+        document.getElementById('edit-pantry-modal').style.display = 'none';
+    });
+
+    // Edit pantry modal - save
+    document.getElementById('save-edit-pantry-btn').addEventListener('click', async () => {
+        const pantryId = parseInt(document.getElementById('edit-pantry-id').value);
+        const name = document.getElementById('edit-pantry-name').value.trim();
+        const location_address = document.getElementById('edit-pantry-address').value.trim();
+
+        if (!name || !location_address) {
+            showMessage('edit-pantry', 'Both fields are required.', 'error');
+            return;
+        }
+
+        try {
+            await updatePantry(pantryId, { name, location_address });
+            document.getElementById('edit-pantry-modal').style.display = 'none';
+            showMessage('pantry', 'Pantry updated successfully!', 'success');
+            await loadPantries();
+        } catch (error) {
+            showMessage('edit-pantry', `Error: ${error.message}`, 'error');
+        }
     });
 
     // Pantry selection
@@ -1207,7 +1757,7 @@ function setupEventListeners() {
         currentPantryId = parseInt(e.target.value);
         resetEditShiftForm();
         await loadCalendarShifts();
-        if (currentUser.roles.includes('ADMIN') || currentUser.roles.includes('PANTRY_LEAD')) {
+        if (currentUserIsAdminCapable() || currentUserHasRole('PANTRY_LEAD')) {
             await loadShiftsTable();
         }
     });
@@ -1352,37 +1902,17 @@ function setupEventListeners() {
             return;
         }
 
-        const existingRoleIds = new Set((editingShiftSnapshot.roles || []).map(role => Number(role.shift_role_id)));
-        const submittedRoleIds = new Set(roleInputs.filter(role => role.shift_role_id).map(role => Number(role.shift_role_id)));
-        const roleIdsToDelete = Array.from(existingRoleIds).filter(roleId => !submittedRoleIds.has(roleId));
-
         try {
-            const responses = [];
+            const response = await updateFullShift(shiftId, {
+                ...updatedShiftPayload,
+                roles: roleInputs.map(role => ({
+                    ...(role.shift_role_id ? { shift_role_id: role.shift_role_id } : {}),
+                    role_title: role.role_title,
+                    required_count: role.required_count
+                }))
+            });
 
-            const shiftResponse = await updateShift(shiftId, updatedShiftPayload);
-            responses.push(shiftResponse);
-
-            for (const role of roleInputs) {
-                if (role.shift_role_id) {
-                    const updatedRole = await updateShiftRole(role.shift_role_id, {
-                        role_title: role.role_title,
-                        required_count: role.required_count
-                    });
-                    responses.push(updatedRole);
-                } else {
-                    await createShiftRole(shiftId, {
-                        role_title: role.role_title,
-                        required_count: role.required_count
-                    });
-                }
-            }
-
-            for (const roleId of roleIdsToDelete) {
-                const deletedRoleResponse = await deleteShiftRole(roleId);
-                responses.push(deletedRoleResponse);
-            }
-
-            const impacted = collectAffectedContacts(responses);
+            const impacted = collectAffectedContacts([response]);
             const impactedMsg = impacted.uniqueVolunteers > 0
                 ? ` ${impacted.uniqueVolunteers} volunteer(s) need reconfirmation.`
                 : '';
@@ -1472,15 +2002,27 @@ function setupEventListeners() {
 
 // Show message helper
 function showMessage(target, text, type = 'info') {
-    const messageEl = document.getElementById(`message-${target}`);
-    if (!messageEl) return;
+    const modal = document.getElementById('notification-modal');
+    const box = document.getElementById('notification-modal-box');
+    const textEl = document.getElementById('notification-modal-text');
+    const iconEl = document.getElementById('notification-modal-icon');
+    if (!modal || !textEl) return;
 
-    messageEl.className = `message message-${type} show`;
-    messageEl.textContent = text;
+    const styles = {
+        success: { icon: '✓', color: '#22543d', bg: '#c6f6d5', border: '#48bb78' },
+        error:   { icon: '✕', color: '#742a2a', bg: '#fed7d7', border: '#f56565' },
+        info:    { icon: 'ℹ', color: '#2c5282', bg: '#bee3f8', border: '#4299e1' },
+    };
+    const s = styles[type] || styles.info;
 
-    setTimeout(() => {
-        messageEl.classList.remove('show');
-    }, 5000);
+    box.style.borderTop = `4px solid ${s.border}`;
+    box.style.background = s.bg;
+    iconEl.textContent = s.icon;
+    iconEl.style.color = s.border;
+    textEl.innerHTML = text;
+    textEl.style.color = s.color;
+
+    modal.style.display = 'flex';
 }
 
 // Make functions globally available
@@ -1492,3 +2034,4 @@ window.toggleShiftRegistrations = toggleShiftRegistrations;
 window.cancelMySignup = cancelMySignup;
 window.reconfirmMySignup = reconfirmMySignup;
 window.markSignupAttendance = markSignupAttendance;
+window.initializeDashboardApp = initializeDashboardApp;

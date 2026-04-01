@@ -15,7 +15,9 @@
     - init_schema.py
     - mysql.py
     - seed.py
-  - IV. app.py
+  - IV. Notifications
+    - notifications.py
+  - V. app.py
 - B. Frontend
   - I. css
     - dashboard.css
@@ -54,8 +56,20 @@ Defines StoreBackend, the abstract interface every data backend (MySQL, in-memor
 - `list_roles() -> list[dict]`  
   List available role records.
 
-- `create_user(full_name, email, password_hash, is_active, roles:list[str]) -> dict`  
+- `get_user_by_email(email:str) -> dict|None`  
+  Fetch a user by normalized email.
+
+- `get_user_by_auth_uid(auth_uid:str) -> dict|None`  
+  Fetch a user by linked Firebase UID.
+
+- `create_user(full_name, email, phone_number, roles:list[str], auth_provider=None, auth_uid=None) -> dict`  
   Create user and assign given role names.
+
+- `update_user(user_id:int, payload:dict) -> dict|None`  
+  Update allowed user fields such as name, phone, email, and auth linkage.
+
+- `delete_user(user_id:int) -> None`  
+  Delete a local user. Signups and pantry-lead links cascade; shift ownership becomes nullable in SQL.
 
 - `list_pantries() -> list[dict]`  
   List all pantries.
@@ -216,8 +230,20 @@ Dev/demo datastore kept in Python dicts, optionally seeded from `data/db.json`. 
 - `list_roles() -> list[dict]`  
   All role records (copies).
 
-- `create_user(full_name, email, password_hash, is_active, roles) -> dict`  
-  Raises `ValueError` if email already exists; creates user with timestamps; links any requested roles that already exist; returns created user with the roles it actually assigned.
+- `get_user_by_email(email) -> dict|None`  
+  Finds a user by normalized email.
+
+- `get_user_by_auth_uid(auth_uid) -> dict|None`  
+  Finds a user by linked Firebase UID.
+
+- `create_user(full_name, email, phone_number, roles, auth_provider=None, auth_uid=None) -> dict`  
+  Raises `ValueError` if email or auth UID already exists; creates the user with timestamps and optional Firebase linkage; links any requested roles that already exist; returns the created user with the roles it actually assigned.
+
+- `update_user(user_id, payload) -> dict|None`  
+  Updates allowed user fields and refreshes `updated_at`.
+
+- `delete_user(user_id) -> None`  
+  Removes the user and related join/sign-up records; in memory mode any `created_by` shift references are set to `None`.
 
 
 ---
@@ -408,14 +434,15 @@ Contains:
 - id
 - full name
 - email
-- password hashes
-- active flag
+- optional Firebase linkage (`auth_provider`, `auth_uid`)
+- attendance score
 - created timestamps
 
 **roles**
 
-Three system roles:
+Four seeded system roles:
 
+- SUPER_ADMIN (`role_id = 0`)
 - ADMIN
 - PANTRY_LEAD
 - VOLUNTEER
@@ -424,10 +451,15 @@ Three system roles:
 
 Maps users to roles.
 
+Runtime note:
+
+- the Admin Users flow enforces one editable system role per user
+- the protected seeded `SUPER_ADMIN` account (`user_id = 1`) is fixed and not editable through the app
+
 Examples:
 
-- user 4 → ADMIN
-- users 1–3 → PANTRY_LEAD
+- user 1 → SUPER_ADMIN
+- some seeded users → PANTRY_LEAD
 - others → VOLUNTEER
 
 **pantries**
@@ -491,13 +523,15 @@ Tables defined:
 **roles**
 
 - List of possible roles
+- seeded role ids are explicit; `SUPER_ADMIN` uses `role_id = 0`
 - role names must be unique
 
 **users**
 
 - Stores all accounts
 - unique email constraint
-- password hash
+- optional Firebase linkage (`auth_provider`, `auth_uid`)
+- attendance score
 - timestamps
 
 **user_roles**
@@ -505,6 +539,7 @@ Tables defined:
 - Mapping between users and roles
 - composite key `(user_id, role_id)`
 - cascade delete when user removed
+- runtime admin UI treats users as having one editable system role at a time
 
 **pantries**
 
@@ -650,7 +685,51 @@ Used to decide whether seeding should occur.
 
 ---
 
-## IV. app.py
+## IV. Notifications
+
+### 1. notifications.py
+
+**Purpose:**  
+Send volunteer notification emails through Resend without coupling the notification helper to Flask response objects.
+
+**Setup and configuration**
+
+- Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
+- Uses a verified sender such as `noreply@updates.example.com`
+- Expects the team to own the sending domain or subdomain and verify the DNS records in Resend before enabling delivery
+
+**Key structures**
+
+- `NotificationResult`
+  - `ok`
+  - `provider`
+  - `code`
+  - `message`
+  - `recipient_email`
+  - `subject`
+  - `provider_response`
+
+**Main helpers**
+
+- `_parse_iso_datetime_to_utc(value) -> datetime|None`
+- `_normalized_text(value, fallback) -> str`
+- `_format_shift_window(shift) -> str`
+- `_build_email_html(...) -> str`
+- `_notification_result(...) -> NotificationResult`
+- `_send_resend_email(params, recipient_email, subject, success_code, success_message) -> NotificationResult`
+- `send_signup_confirmation(recipient, shift, pantry, role) -> NotificationResult`
+- `send_shift_update_notification(recipient, shift, pantry, signups) -> NotificationResult`
+- `send_shift_cancellation_notification(recipient, shift, pantry, signups) -> NotificationResult`
+
+**Behavior**
+
+- Builds a shared HTML email layout for 3 scenarios: signup confirmed, shift updated/reconfirm required, and shift cancelled.
+- Returns structured success/failure metadata instead of `jsonify(...)`.
+- Lets `app.py` decide how to log or ignore non-fatal email delivery problems.
+
+---
+
+## V. app.py
 
 **Purpose:**  
 Serve the dashboard UI and provide REST APIs for users, pantries, shifts, roles, signups, attendance, and public views.
@@ -665,6 +744,8 @@ Authentication and context:
 - `find_user_by_id(user_id)`
 - `get_user_roles(user_id)`
 - `user_has_role(user_id, role_name)`
+- `is_super_admin(user_id)`
+- `is_admin_capable(user_id)`
 - `current_user()`
 
 Pantry helpers:
@@ -684,6 +765,11 @@ Time helpers:
 - `is_upcoming_shift()`
 - `shift_has_started()`
 - `shift_has_ended()`
+
+Notification helpers:
+
+- `send_signup_confirmation_if_configured()`
+- `send_shift_notifications_if_configured()`
 
 Permission helpers:
 
@@ -708,7 +794,9 @@ Attendance helpers:
 
 - `GET /api/me`
 - `GET /api/users`
+- `GET /api/users/<user_id>`
 - `POST /api/users`
+- `PATCH /api/users/<user_id>/roles`
 - `GET /api/users/<user_id>/signups`
 - `GET /api/roles`
 
@@ -727,6 +815,7 @@ Attendance helpers:
 - `POST /api/pantries/<pantry_id>/shifts`
 - `GET /api/shifts/<shift_id>`
 - `PATCH /api/shifts/<shift_id>`
+- `PUT /api/shifts/<shift_id>/full-update`
 - `DELETE /api/shifts/<shift_id>`
 
 **Shift roles**
@@ -883,6 +972,11 @@ Responsive rules (≤768px):
 Purpose:  
 Front-end helper functions for admins and leads to manage pantries, leads, and roles, plus utility functions to populate select dropdowns.
 
+Note:
+
+- user search/profile/role editing now lives in `dashboard.js` + `user-functions.js`
+- `admin-functions.js` still mainly covers pantry and pantry-lead management
+
 Functions:
 
 `getPantries()`
@@ -1022,7 +1116,7 @@ Role-based UI:
 
 Determines visible tabs depending on roles:
 
-- Admin
+- Admin-capable (`ADMIN` or `SUPER_ADMIN`)
 - Pantry lead
 - Volunteer
 
@@ -1034,6 +1128,8 @@ Tab switching:
 - changes visible tab content
 - toggles pantry selector visibility
 - loads required data for that tab
+- Admin tab now has `Pantries` and `Users` subtabs
+- Admin `Users` subtab supports user search, profile viewing, and single-role updates
 
 
 Pantry management:
@@ -1238,7 +1334,11 @@ API helpers:
 
 `updateShift(shiftId, shiftData)`
 
-- update shift
+- update simple shift fields or reopen a cancelled shift
+
+`updateFullShift(shiftId, shiftData)`
+
+- update shift fields and roles in one request for the edit form
 
 `deleteShift(shiftId)`
 
@@ -1294,6 +1394,7 @@ Functions:
 - `getShiftRegistrations(shiftId)`
 - `createShift(pantryId, shiftData)`
 - `updateShift(shiftId, shiftData)`
+- `updateFullShift(shiftId, shiftData)`
 - `deleteShift(shiftId)`
 - `markAttendance(signupId, attendanceStatus)`
 - `getShiftRoles(shiftId)`
@@ -1415,8 +1516,8 @@ Navigation tabs:
 
 - Calendar (all users)
 - My Shifts (volunteers)
-- Manage Shifts (admin / leads)
-- Admin Panel (admin only)
+- Manage Shifts (admin-capable / leads)
+- Admin Panel (admin-capable only)
 
 Tabs are dynamically hidden or shown using JavaScript.
 
@@ -1464,9 +1565,15 @@ Tables for:
 
 Admin Panel
 
-- create pantry form
-- assign/remove pantry leads
-- table listing pantries and leads
+- Pantries subtab:
+  - create pantry form
+  - assign/remove pantry leads
+  - table listing pantries and leads
+- Users subtab:
+  - search + role filter
+  - user table
+  - user profile panel
+  - single-role selector for editable user roles
 
 
 Scripts loaded:

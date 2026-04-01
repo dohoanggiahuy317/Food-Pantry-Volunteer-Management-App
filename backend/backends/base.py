@@ -10,6 +10,18 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_user_by_email(self, email: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_user_by_auth_uid(self, auth_uid: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_role_by_id(self, role_id: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_user_roles(self, user_id: int) -> list[str]:
         raise NotImplementedError
 
@@ -26,10 +38,23 @@ class StoreBackend(ABC):
         self,
         full_name: str,
         email: str,
-        password_hash: str,
-        is_active: bool,
+        phone_number: str | None,
         roles: list[str],
+        auth_provider: str | None = None,
+        auth_uid: str | None = None,
     ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_user(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def replace_user_roles(self, user_id: int, role_ids: list[int]) -> list[str] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_user(self, user_id: int) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -54,6 +79,14 @@ class StoreBackend(ABC):
 
     @abstractmethod
     def create_pantry(self, name: str, location_address: str, lead_ids: list[int]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_pantry(self, pantry_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_pantry(self, pantry_id: int) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -98,6 +131,15 @@ class StoreBackend(ABC):
 
     @abstractmethod
     def update_shift(self, shift_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def replace_shift_and_roles(
+        self,
+        shift_id: int,
+        shift_payload: dict[str, Any],
+        roles_payload: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
         raise NotImplementedError
 
     @abstractmethod
