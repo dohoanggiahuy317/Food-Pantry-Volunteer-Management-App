@@ -279,6 +279,24 @@ class MemoryBackend(StoreBackend):
     def get_shift_by_id(self, shift_id: int) -> dict[str, Any] | None:
         return self._copy(next((s for s in self.store["shifts"] if s.get("shift_id") == shift_id), None))
 
+    def get_current_enroll_roles(self, user_id: int) -> list[dict[str, Any]]:
+        role_ids = {
+            s.get("shift_role_id")
+            for s in self.store["shift_signups"]
+            if s.get("user_id") == user_id
+        }
+ 
+        shift_ids = {
+            sr.get("shift_id")
+            for sr in self.store["shift_roles"]
+            if sr.get("shift_role_id") in role_ids
+        }
+ 
+        return [
+            self._copy(s)
+            for s in self.store["shifts"]
+            if s.get("shift_id") in shift_ids
+        ]
     def create_shift(
         self,
         pantry_id: int,

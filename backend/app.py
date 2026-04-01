@@ -907,6 +907,27 @@ def create_signup(shift_role_id: int) -> Any:
     shift = backend.get_shift_by_id(int(shift_role.get("shift_id")))
     if not shift:
         return jsonify({"error": "Shift not found"}), 404
+    
+    shift_current_on = backend.get_current_enroll_roles(int(user.get("user_id")))
+ 
+    current_start = parse_iso_datetime_to_utc(shift.get("start_time"))
+    current_end = parse_iso_datetime_to_utc(shift.get("end_time"))
+ 
+    has_conflict = False
+    for enrolled_shift in shift_current_on:
+        enrolled_start = parse_iso_datetime_to_utc(enrolled_shift.get("start_time"))
+        enrolled_end = parse_iso_datetime_to_utc(enrolled_shift.get("end_time"))
+ 
+        if not enrolled_start or not enrolled_end or not current_start or not current_end:
+            continue
+ 
+        # overlap: existing_start < current_end and current_start < existing_end
+        if enrolled_start < current_end and current_start < enrolled_end:
+            has_conflict = True
+            break
+ 
+    if has_conflict:
+        return jsonify({"error": "Can't register for overlapping shift"}), 400
 
     expire_pending_signups_if_started(int(shift.get("shift_id")))
 
