@@ -206,12 +206,12 @@ async function updatePantriesTable() {
     allPantries.forEach(pantry => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-                    <td>${pantry.name}</td>
-                    <td>${pantry.location_address || '—'}</td>
-                    <td>${pantry.leads && pantry.leads.length > 0
+                    <td data-label="Pantry Name">${pantry.name}</td>
+                    <td data-label="Location">${pantry.location_address || '—'}</td>
+                    <td data-label="Assigned Leads">${pantry.leads && pantry.leads.length > 0
                 ? pantry.leads.map(l => `<span style="background: #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 4px; margin-right: 0.5rem; display: inline-block; margin-bottom: 0.25rem;">${l.full_name}</span>`).join('')
                 : '<span style="color: #718096;">No leads assigned</span>'}</td>
-                    <td>
+                    <td data-label="Actions">
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <button class="btn btn-secondary btn-sm edit-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}" data-address="${pantry.location_address || ''}">Edit</button>
                             <button class="btn btn-danger btn-sm delete-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}">Delete</button>
@@ -302,6 +302,7 @@ async function loadCalendarShifts() {
 function displayAllShiftsGroupedByPantry(allShifts) {
     console.log('All shifts grouped by pantry:', allShifts);
     const container = document.getElementById('shifts-container');
+    container.classList.remove('loading');
 
     const pantryIds = Object.keys(allShifts);
     if (pantryIds.length === 0) {
@@ -350,6 +351,7 @@ function displayAllShiftsGroupedByPantry(allShifts) {
 // Display shifts as cards
 function displayShiftsCards(shifts) {
     const container = document.getElementById('shifts-container');
+    container.classList.remove('loading');
 
     if (!shifts || shifts.length === 0) {
         container.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">No shifts available yet</p>';
@@ -614,14 +616,14 @@ function renderAdminUserTable() {
         const isSelected = selectedAdminUserId === user.user_id;
         return `
             <tr class="admin-user-row ${isSelected ? 'selected' : ''}" data-admin-user-row="${user.user_id}">
-                <td>${escapeHtml(formatAccountValue(user.full_name))}</td>
-                <td>${escapeHtml(formatAccountValue(user.email))}</td>
-                <td>${escapeHtml(formatAccountValue(user.phone_number))}</td>
-                <td>${escapeHtml(rolesText)}</td>
-                <td>${escapeHtml(String(Number(user.attendance_score || 0)))}%</td>
-                <td>${escapeHtml(formatAuthProviderLabel(user.auth_provider))}</td>
-                <td>${escapeHtml(formatAccountTimestamp(user.created_at))}</td>
-                <td><button type="button" class="btn btn-secondary btn-sm" data-open-admin-user="${user.user_id}">View Profile</button></td>
+                <td data-label="Full Name">${escapeHtml(formatAccountValue(user.full_name))}</td>
+                <td data-label="Email">${escapeHtml(formatAccountValue(user.email))}</td>
+                <td data-label="Phone">${escapeHtml(formatAccountValue(user.phone_number))}</td>
+                <td data-label="Roles">${escapeHtml(rolesText)}</td>
+                <td data-label="Attendance">${escapeHtml(String(Number(user.attendance_score || 0)))}%</td>
+                <td data-label="Auth">${escapeHtml(formatAuthProviderLabel(user.auth_provider))}</td>
+                <td data-label="Created">${escapeHtml(formatAccountTimestamp(user.created_at))}</td>
+                <td data-label="Action"><button type="button" class="btn btn-secondary btn-sm" data-open-admin-user="${user.user_id}">View Profile</button></td>
             </tr>
         `;
     }).join('');
@@ -1084,6 +1086,7 @@ async function loadMyRegisteredShifts() {
     try {
         const signups = await getUserSignups(currentUser.user_id);
         const now = new Date();
+        container.classList.remove('loading');
 
         if (!signups || signups.length === 0) {
             container.innerHTML = `
@@ -1425,10 +1428,10 @@ function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
         const tr = document.createElement('tr');
         tr.dataset.shiftId = String(shift.shift_id);
         tr.innerHTML = `
-            <td><strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span></td>
-            <td>${escapeHtml(timeText)}</td>
-            <td>${rolesText}</td>
-            <td>
+            <td data-label="Shift Name"><strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span></td>
+            <td data-label="Date & Time">${escapeHtml(timeText)}</td>
+            <td data-label="Roles">${rolesText}</td>
+            <td data-label="Actions">
                 <div class="shift-actions">
                     ${registrationsButton}
                     ${editButton}
