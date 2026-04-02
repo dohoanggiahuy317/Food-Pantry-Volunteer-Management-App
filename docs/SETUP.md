@@ -41,9 +41,16 @@ cp backend/env.example backend/.env
 Your `backend/.env` should look like this:
 
 ```env
-AUTH_PROVIDER=memory
+AUTH_PROVIDER=firebase
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+FIREBASE_APP_ID=
+FIREBASE_ADMIN_CREDENTIALS=backend/firebase_private_key.json
+
+FLASK_SECRET_KEY=huybeo
+
 DATA_BACKEND=mysql
-FLASK_SECRET_KEY=change-me
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
 MYSQL_DATABASE=volunteer_managing
@@ -52,28 +59,24 @@ MYSQL_PASSWORD=volunteer_pass
 MYSQL_POOL_SIZE=5
 MYSQL_CONNECT_TIMEOUT=10
 SEED_MYSQL_FROM_JSON_ON_EMPTY=true
+
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=noreply@updates.example.com
-FIREBASE_API_KEY=
-FIREBASE_AUTH_DOMAIN=
-FIREBASE_PROJECT_ID=
-FIREBASE_APP_ID=
-FIREBASE_ADMIN_CREDENTIALS=
 ```
 
 **Variable reference:**
 
-| Variable | Purpose |
-|---|---|
-| `AUTH_PROVIDER` | `memory` for sample login/logout, or `firebase` for Google sign-in with Firebase |
-| `DATA_BACKEND` | Set to `mysql` for the real DB, or `memory` for an in-memory backend (no Docker needed — useful for quick testing) |
-| `FLASK_SECRET_KEY` | Secret used to sign Flask session cookies |
-| `MYSQL_HOST` / `MYSQL_PORT` | Where Flask looks for MySQL. Docker maps the container to `localhost:3306` |
-| `MYSQL_DATABASE` | The database name created by Docker on first start |
-| `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml` |
-| `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/db.json` if the tables are empty |
-| `RESEND_API_KEY` | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
-| `RESEND_FROM_EMAIL` | Verified sender address used for outgoing email (for example `noreply@updates.example.com`) |
+| Variable                        | Purpose                                                                                        |
+| :------------------------------ | :--------------------------------------------------------------------------------------------- |
+| `AUTH_PROVIDER`                 | `memory` for sample login/logout, or `firebase` for Google sign-in with Firebase               |
+| `DATA_BACKEND`                  | Set to `mysql` for the real DB, or `memory` for an in-memory backend                           |
+| `FLASK_SECRET_KEY`              | Secret used to sign Flask session cookies                                                      |
+| `MYSQL_HOST` / `MYSQL_PORT`     | Where Flask looks for MySQL. Docker maps the container to `localhost:3306`                     |
+| `MYSQL_DATABASE`                | The database name created by Docker on first start                                             |
+| `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml`                                                    |
+| `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/db.json` if the tables are empty   |
+| `RESEND_API_KEY`                | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
+| `RESEND_FROM_EMAIL`             | Verified sender address used for outgoing email (for example `noreply@updates.example.com`)    |
 
 ---
 
