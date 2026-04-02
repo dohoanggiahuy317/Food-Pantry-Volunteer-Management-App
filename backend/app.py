@@ -1698,20 +1698,12 @@ def create_signup(shift_role_id: int) -> Any:
         return jsonify({"error": "Shift role not found"}), 404
     except ValueError as exc:
         if str(exc) == "Already signed up":
-            existing = next(
-                (s for s in get_shift_signups(shift_role_id) if int(s.get("user_id")) == user_id),
-                None,
-            )
-            if existing:
-                existing["user"] = serialize_signup_user(find_user_by_id(user_id))
-                existing["already_signed_up"] = True
-                return jsonify(existing), 200
+            return jsonify({"error": "Already signed up", "code": "ALREADY_SIGNED_UP"}), 409
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
 
     recalculate_shift_role_capacity(shift_role_id)
-    signup["already_signed_up"] = False
     signup_user = find_user_by_id(user_id)
     signup["user"] = serialize_signup_user(signup_user)
     send_signup_confirmation_if_configured(signup, signup_user, shift, shift_role)

@@ -17,11 +17,10 @@ async function apiCall(path, options = {}) {
             errorBody = await response.text();
         }
 
-        const error = new Error(
-            typeof errorBody === 'string'
-                ? `API Error: ${response.status} - ${errorBody}`
-                : `API Error: ${response.status} - ${errorBody?.error || 'Unknown error'}`
-        );
+        const errorMessage = typeof errorBody === 'string'
+            ? errorBody
+            : errorBody?.error || errorBody?.message || 'Unknown error';
+        const error = new Error(errorMessage);
         error.status = response.status;
         error.body = errorBody;
         throw error;

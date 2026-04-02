@@ -442,15 +442,8 @@ async function signupForRole(roleId) {
         return;
     }
 
-    let message = 'Successfully signed up!';
-    let messageType = 'success';
-
     try {
-        const signupResult = await signupForShift(roleId, currentUser.user_id);
-        if (signupResult && signupResult.already_signed_up) {
-            message = 'You already signed up for this shift.';
-            messageType = 'error';
-        }
+        await signupForShift(roleId, currentUser.user_id);
     } catch (error) {
         showMessage('calendar', `Signup failed: ${error.message}`, 'error');
         await loadCalendarShifts(); 
@@ -464,7 +457,7 @@ async function signupForRole(roleId) {
         if (isVolunteer && myShiftsTab && myShiftsTab.classList.contains('active')) {
             await loadMyRegisteredShifts();
         }
-        showMessage('calendar', message, messageType);
+        showMessage('calendar', 'Successfully signed up!', 'success');
     } catch (error) {
         showMessage('calendar', `Signup completed, but refresh failed: ${error.message}`, 'error');
     }
