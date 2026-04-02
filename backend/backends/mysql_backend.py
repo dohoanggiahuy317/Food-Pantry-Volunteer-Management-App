@@ -544,20 +544,7 @@ class MySQLBackend(StoreBackend):
             cursor.execute("SELECT * FROM shifts WHERE shift_id = %s", (shift_id,))
             row = cursor.fetchone()
             return _serialize_shift(row) if row else None
-    
-    def get_current_enroll_roles(self,user_id : int) -> dict[str, Any] | None:
-        with get_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute("SELECT s.start_time, s.end_time " \
-            "FROM shifts as s  " \
-            "INNER JOIN  shift_roles as sr  " \
-            "ON s.shift_id = sr.shift_id" \
-            "INNER JOIN  shift_signups as sg  ON sr.shift_role_id = sg.shift_role_id " \
-            "WHERE  sg.user_id = %s" \
-            , (user_id))
-            row = cursor.fetchall()
-            return _serialize_shift(row) if row else None
-    
+
     def list_non_expired_shifts_by_pantry(
         self,
         pantry_id: int,

@@ -112,10 +112,6 @@ class StoreBackend(ABC):
     @abstractmethod
     def get_shift_by_id(self, shift_id: int) -> dict[str, Any] | None:
         raise NotImplementedError
-    
-    @abstractmethod
-    def get_current_enroll_roles(self,user_id : int) -> dict[str, Any] | None:
-        raise NotImplementedError
 
     @abstractmethod
     def create_shift(
