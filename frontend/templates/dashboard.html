@@ -101,7 +101,7 @@
         </div>
 
         <!-- Pantry Selector (hidden by default, shown for Manage Shifts/Admin) -->
-        <div class="pantry-selector" id="pantry-selector" style="display: none;">
+        <div class="pantry-selector app-hidden" id="pantry-selector">
             <div class="pantry-selector-container">
                 <label for="pantry-select">Select Pantry:</label>
                 <select id="pantry-select">
@@ -237,9 +237,9 @@
                             </div>
                         </div>
 
-                        <div class="card" style="background: #f7fafc; margin-bottom: 1rem;">
-                            <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
-                                <h3 style="font-size: 1rem; color: #4a5568;">Roles/Positions for this Shift</h3>
+                        <div class="card section-muted-card">
+                            <div class="card-header section-muted-header">
+                                <h3 class="section-muted-title">Roles/Positions for this Shift</h3>
                                 <button type="button" class="btn btn-secondary" id="add-role-btn">+ Add Role</button>
                             </div>
                             <div id="roles-container">
@@ -264,7 +264,7 @@
             </div>
 
             <div class="manage-shifts-subcontent" id="manage-shifts-subcontent-view">
-                <div class="card" id="edit-shift-card" style="display: none;">
+                <div class="card app-hidden" id="edit-shift-card">
                     <div class="card-header">
                         <h2 class="card-title">Edit Shift</h2>
                         <button type="button" class="btn btn-secondary" id="cancel-edit-shift-btn">Cancel Edit</button>
@@ -286,9 +286,9 @@
                             </div>
                         </div>
 
-                        <div class="card" style="background: #f7fafc; margin-bottom: 1rem;">
-                            <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
-                                <h3 style="font-size: 1rem; color: #4a5568;">Roles/Positions for this Shift</h3>
+                        <div class="card section-muted-card">
+                            <div class="card-header section-muted-header">
+                                <h3 class="section-muted-title">Roles/Positions for this Shift</h3>
                                 <button type="button" class="btn btn-secondary" id="add-edit-role-btn">+ Add Role</button>
                             </div>
                             <div id="edit-roles-container"></div>
@@ -315,7 +315,7 @@
                                 </thead>
                                 <tbody id="shifts-incoming-table-body">
                                     <tr>
-                                        <td colspan="4" style="text-align: center; color: #718096;">No incoming shifts.</td>
+                                        <td colspan="4" class="table-empty-cell">No incoming shifts.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -338,7 +338,7 @@
                                 </thead>
                                 <tbody id="shifts-ongoing-table-body">
                                     <tr>
-                                        <td colspan="4" style="text-align: center; color: #718096;">No ongoing shifts.</td>
+                                        <td colspan="4" class="table-empty-cell">No ongoing shifts.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -361,7 +361,7 @@
                                 </thead>
                                 <tbody id="shifts-past-table-body">
                                     <tr>
-                                        <td colspan="4" style="text-align: center; color: #718096;">No past shifts.</td>
+                                        <td colspan="4" class="table-empty-cell">No past shifts.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -384,7 +384,7 @@
                                 </thead>
                                 <tbody id="shifts-cancelled-table-body">
                                     <tr>
-                                        <td colspan="4" style="text-align: center; color: #718096;">No canceled shifts.</td>
+                                        <td colspan="4" class="table-empty-cell">No canceled shifts.</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -445,7 +445,7 @@
                             </select>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 1rem;">
+                    <div class="form-action-row">
                         <button class="btn btn-success" id="assign-lead-btn">✓ Assign Lead</button>
                         <button class="btn btn-danger" id="remove-lead-btn">✗ Remove Lead</button>
                     </div>
@@ -468,7 +468,7 @@
                             </thead>
                             <tbody id="pantries-table-body">
                                 <tr>
-                                    <td colspan="4" style="text-align: center; color: #718096;">Loading...</td>
+                                    <td colspan="4" class="table-empty-cell">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -502,23 +502,20 @@
                         <div class="card-header">
                             <h2 class="card-title">Users</h2>
                         </div>
-                        <div class="table-container">
+                        <div class="table-container admin-users-table-container">
                             <table class="responsive-table">
                                 <thead>
                                     <tr>
-                                        <th>Full Name</th>
-                                        <th>Email</th>
-                                        <th>Phone</th>
-                                        <th>Roles</th>
-                                        <th>Attendance</th>
-                                        <th>Auth</th>
-                                        <th>Created</th>
-                                        <th>Action</th>
+                                        <th>User</th>
+                                        <th>Contact</th>
+                                        <th>Access</th>
+                                        <th>Score</th>
+                                        <th>Open</th>
                                     </tr>
                                 </thead>
                                 <tbody id="admin-users-table-body">
                                     <tr>
-                                        <td colspan="8" style="text-align: center; color: #718096;">Loading users...</td>
+                                        <td colspan="5" class="table-empty-cell">Loading users...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -539,20 +536,20 @@
         </div>
 
         <!-- Edit Pantry Modal -->
-        <div id="edit-pantry-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-            <div style="background:#fff; border-radius:8px; padding:2rem; width:100%; max-width:480px; box-shadow:0 4px 24px rgba(0,0,0,0.15);">
-                <h2 style="margin:0 0 1.5rem 0; font-size:1.25rem;">Edit Pantry</h2>
+        <div id="edit-pantry-modal" class="modal-overlay app-hidden">
+            <div class="modal-panel modal-panel-sm">
+                <h2 class="modal-title">Edit Pantry</h2>
                 <div id="message-edit-pantry" class="message"></div>
                 <input type="hidden" id="edit-pantry-id">
-                <div class="form-group" style="margin-bottom:1rem;">
+                <div class="form-group modal-form-group">
                     <label for="edit-pantry-name">Pantry Name *</label>
                     <input type="text" id="edit-pantry-name" class="form-control" placeholder="Pantry name" required>
                 </div>
-                <div class="form-group" style="margin-bottom:1.5rem;">
+                <div class="form-group modal-form-group modal-form-group-spacious">
                     <label for="edit-pantry-address">Location Address *</label>
                     <input type="text" id="edit-pantry-address" class="form-control" placeholder="123 Main St, City" required>
                 </div>
-                <div style="display:flex; gap:1rem;">
+                <div class="modal-actions">
                     <button class="btn btn-primary" id="save-edit-pantry-btn">Save</button>
                     <button class="btn btn-secondary" id="cancel-edit-pantry-btn">Cancel</button>
                 </div>
@@ -561,11 +558,11 @@
     </div>
 
     <!-- Global Notification Modal -->
-    <div id="notification-modal" onclick="if(event.target===this)this.style.display='none';" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:2000; align-items:center; justify-content:center;">
-        <div id="notification-modal-box" style="background:#fff; border-radius:10px; padding:2rem 2rem 1.5rem 2rem; width:100%; max-width:420px; box-shadow:0 8px 32px rgba(0,0,0,0.18); position:relative;">
-            <button onclick="document.getElementById('notification-modal').style.display='none';" style="position:absolute; top:0.75rem; right:1rem; background:none; border:none; font-size:1.5rem; cursor:pointer; color:#718096; line-height:1; z-index:1;">&times;</button>
-            <div id="notification-modal-icon" style="font-size:2rem; margin-bottom:0.75rem; text-align:center;"></div>
-            <p id="notification-modal-text" style="margin:0; text-align:center; font-size:1rem; word-break:break-word;"></p>
+    <div id="notification-modal" class="modal-overlay modal-overlay-notification app-hidden">
+        <div id="notification-modal-box" class="modal-panel modal-panel-notification">
+            <button id="notification-modal-close-btn" class="modal-close-button">&times;</button>
+            <div id="notification-modal-icon" class="notification-modal-icon"></div>
+            <p id="notification-modal-text" class="notification-modal-text"></p>
         </div>
     </div>
 
