@@ -544,7 +544,7 @@ class MySQLBackend(StoreBackend):
             cursor.execute("SELECT * FROM shifts WHERE shift_id = %s", (shift_id,))
             row = cursor.fetchone()
             return _serialize_shift(row) if row else None
-    
+
     def list_non_expired_shifts_by_pantry(
         self,
         pantry_id: int,

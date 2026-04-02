@@ -317,6 +317,42 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def signup_row_blocks_overlap(signup_row: dict[str, Any], now_utc: datetime | None = None) -> bool:
+    now_utc = now_utc or datetime.now(timezone.utc)
+    signup_status = str(signup_row.get("signup_status", "")).upper()
+    if signup_status in {SIGNUP_STATUS_CANCELLED, SIGNUP_STATUS_WAITLISTED}:
+        return False
+
+    if str(signup_row.get("shift_status", "")).upper() == "CANCELLED":
+        return False
+    if str(signup_row.get("role_status", "")).upper() == "CANCELLED":
+        return False
+
+    if signup_status in ACTIVE_SIGNUP_STATUSES:
+        return True
+
+    if signup_status != SIGNUP_STATUS_PENDING_CONFIRMATION:
+        return False
+
+    reservation_expires_at = parse_iso_datetime_to_utc(signup_row.get("reservation_expires_at"))
+    return reservation_expires_at is not None and reservation_expires_at > now_utc
+
+
+def signup_row_overlaps_shift(signup_row: dict[str, Any], shift: dict[str, Any], target_shift_role_id: int) -> bool:
+    if int(signup_row.get("shift_role_id", 0)) == target_shift_role_id:
+        return False
+
+    existing_start = parse_iso_datetime_to_utc(signup_row.get("start_time"))
+    existing_end = parse_iso_datetime_to_utc(signup_row.get("end_time"))
+    current_start = parse_iso_datetime_to_utc(shift.get("start_time"))
+    current_end = parse_iso_datetime_to_utc(shift.get("end_time"))
+
+    if not existing_start or not existing_end or not current_start or not current_end:
+        return False
+
+    return existing_start < current_end and current_start < existing_end
+
+
 def is_upcoming_shift(shift: dict[str, Any]) -> bool:
     start_time = parse_iso_datetime_to_utc(shift.get("start_time"))
     if not start_time:
@@ -1624,6 +1660,15 @@ def create_signup(shift_role_id: int) -> Any:
     if not shift:
         return jsonify({"error": "Shift not found"}), 404
 
+    payload = request.get_json(silent=True) or {}
+    payload_user_id = payload.get("user_id")
+
+    # Users can only sign themselves up.
+    current_user_id = int(user.get("user_id"))
+    if payload_user_id and int(payload_user_id) != current_user_id:
+        return jsonify({"error": "Users can only sign themselves up"}), 403
+    user_id = int(payload_user_id or current_user_id)
+
     expire_pending_signups_if_started(int(shift.get("shift_id")))
 
     if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
@@ -1633,14 +1678,15 @@ def create_signup(shift_role_id: int) -> Any:
     if str(shift_role.get("status", "OPEN")).upper() == "CANCELLED":
         return jsonify({"error": "Shift role is cancelled"}), 400
 
-    payload = request.get_json(silent=True) or {}
-    payload_user_id = payload.get("user_id")
-
-    # Users can only sign themselves up.
-    current_user_id = int(user.get("user_id"))
-    if payload_user_id and int(payload_user_id) != current_user_id:
-        return jsonify({"error": "Users can only sign themselves up"}), 403
-    user_id = int(payload_user_id or current_user_id)
+    now_utc = datetime.now(timezone.utc)
+    signups_by_user = backend.list_signups_by_user(user_id)
+    has_conflict = any(
+        signup_row_blocks_overlap(signup_row, now_utc)
+        and signup_row_overlaps_shift(signup_row, shift, shift_role_id)
+        for signup_row in signups_by_user
+    )
+    if has_conflict:
+        return jsonify({"error": "Can't register for overlapping shift"}), 400
 
     try:
         signup = backend.create_signup(
@@ -1652,20 +1698,12 @@ def create_signup(shift_role_id: int) -> Any:
         return jsonify({"error": "Shift role not found"}), 404
     except ValueError as exc:
         if str(exc) == "Already signed up":
-            existing = next(
-                (s for s in get_shift_signups(shift_role_id) if int(s.get("user_id")) == user_id),
-                None,
-            )
-            if existing:
-                existing["user"] = serialize_signup_user(find_user_by_id(user_id))
-                existing["already_signed_up"] = True
-                return jsonify(existing), 200
+            return jsonify({"error": "Already signed up", "code": "ALREADY_SIGNED_UP"}), 409
         return jsonify({"error": str(exc)}), 400
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
 
     recalculate_shift_role_capacity(shift_role_id)
-    signup["already_signed_up"] = False
     signup_user = find_user_by_id(user_id)
     signup["user"] = serialize_signup_user(signup_user)
     send_signup_confirmation_if_configured(signup, signup_user, shift, shift_role)
