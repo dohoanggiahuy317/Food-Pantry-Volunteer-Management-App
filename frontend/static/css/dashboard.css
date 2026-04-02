@@ -1206,6 +1206,7 @@ table tr:hover {
 
 .account-note {
     margin-bottom: 1rem;
+    margin-top: 1rem;
     padding: 0.9rem 1rem;
     border-radius: 10px;
     background: #f8fafc;

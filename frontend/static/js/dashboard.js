@@ -25,6 +25,23 @@ function currentUserIsAdminCapable() {
     return currentUserHasRole('ADMIN') || currentUserHasRole('SUPER_ADMIN');
 }
 
+async function syncCurrentUserTimezoneIfNeeded() {
+    if (!currentUser || typeof updateCurrentUserProfile !== 'function') {
+        return;
+    }
+
+    const browserTimeZone = getBrowserTimeZone();
+    if (!browserTimeZone || currentUser.timezone === browserTimeZone) {
+        return;
+    }
+
+    try {
+        currentUser = await updateCurrentUserProfile({ timezone: browserTimeZone });
+    } catch (error) {
+        console.error('Failed to sync browser timezone:', error);
+    }
+}
+
 async function initializeDashboardApp() {
     if (dashboardBootPromise) {
         return dashboardBootPromise;
@@ -37,6 +54,7 @@ async function initializeDashboardApp() {
             }
 
             currentUser = await getCurrentUser();
+            await syncCurrentUserTimezoneIfNeeded();
             document.getElementById('user-email').textContent = currentUser.email;
             document.getElementById('user-role').textContent = currentUser.roles.join(', ');
 
@@ -424,7 +442,7 @@ function displayShiftCard(grid, shift) {
                 <div class="shift-header">
                     <div>
                         <div class="shift-title">${shift.shift_name}</div>
-                        <div class="shift-date">📅 ${startDate.toLocaleDateString()} | ${startDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div class="shift-date">📅 ${escapeHtml(formatLocalTimeRange(startDate, endDate))}</div>
                     </div>
                 </div>
                 <div class="shift-roles">
@@ -949,11 +967,7 @@ function handleAdminUsersViewportChange() {
 }
 
 function formatShiftRange(startTime, endTime) {
-    const start = safeDateValue(startTime);
-    const end = safeDateValue(endTime);
-    if (!start || !end) return 'Time unavailable';
-
-    return `${start.toLocaleDateString()} | ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    return formatLocalTimeRange(startTime, endTime);
 }
 
 function getAttendanceInfo(signupStatus) {
@@ -1023,8 +1037,7 @@ function formatAccountValue(value, fallback = '—') {
 }
 
 function formatAccountTimestamp(value) {
-    const parsed = safeDateValue(value);
-    return parsed ? parsed.toLocaleString() : '—';
+    return formatLocalDateTime(value) || '—';
 }
 
 function renderAccountSummaryItem(label, value) {
@@ -1095,11 +1108,17 @@ function renderMyAccountSummary() {
         ${renderAccountSummaryItem('Full Name', formatAccountValue(currentUser.full_name))}
         ${renderAccountSummaryItem('Email', formatAccountValue(currentUser.email))}
         ${renderAccountSummaryItem('Phone Number', formatAccountValue(currentUser.phone_number))}
+        ${renderAccountSummaryItem('Saved Timezone', formatTimeZoneDisplay(currentUser.timezone || DEFAULT_APP_TIMEZONE))}
         ${renderAccountSummaryItem('Roles', rolesText)}
         ${renderAccountSummaryItem('Attendance Score', `${Number(currentUser.attendance_score || 0)}%`)}
         ${renderAccountSummaryItem('Created At', formatAccountTimestamp(currentUser.created_at))}
         ${renderAccountSummaryItem('Updated At', formatAccountTimestamp(currentUser.updated_at))}
     `;
+
+    const timezoneNote = document.getElementById('my-account-timezone-note');
+    if (timezoneNote) {
+        timezoneNote.textContent = `Times on the web are shown in your browser timezone: ${formatTimeZoneDisplay()}.`;
+    }
 }
 
 function syncMyAccountForms() {
@@ -1539,7 +1558,7 @@ function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
         const startDate = safeDateValue(shift.start_time);
         const endDate = safeDateValue(shift.end_time);
         const timeText = startDate && endDate
-            ? `${startDate.toLocaleString()} - ${endDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            ? formatLocalTimeRange(startDate, endDate)
             : 'Time unavailable';
         const rolesText = shift.roles && shift.roles.length > 0
             ? shift.roles.map((role) => `${escapeHtml(role.role_title || 'Untitled Role')} (${role.filled_count || 0}/${role.required_count || 0})`).join(', ')
@@ -1637,6 +1656,7 @@ function buildEditRoleRow(role = null) {
                 <input type="number" class="edit-role-count" min="1" value="${roleCount}" required>
             </div>
             <div class="form-group role-input-actions">
+                <label>Action</label>
                 <button type="button" class="btn btn-danger remove-edit-role-btn">Remove</button>
             </div>
         </div>
@@ -1997,6 +2017,7 @@ function setupEventListeners() {
                             <input type="number" class="role-count" min="1" value="1" required>
                         </div>
                         <div class="form-group role-input-actions">
+                            <label>Action</label>
                             <button type="button" class="btn btn-danger" onclick="this.closest('.role-input-group').remove()">Remove</button>
                         </div>
                     </div>

@@ -16,7 +16,7 @@ volunteer_managing/
 │   ├── .env                        # Runtime config (DB credentials, backend type)
 │   ├── notifications/
 │   │   ├── __init__.py             # Notification package exports
-│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation + structured results
+│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation + timezone-aware shift windows
 │   │
 │   ├── backends/
 │   │   ├── base.py                 # Abstract interface: StoreBackend (ABC)
@@ -29,7 +29,7 @@ volunteer_managing/
 │   │   ├── init_schema.py          # Runs all SQL files in db/migrations idempotently on startup
 │   │   ├── seed.py                 # Seeds DB from backend/data/db.json if empty
 │   │   └── migrations/
-│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. signup reservations)
+│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. signup reservations and users.timezone)
 │   │
 │   └── data/
 │       └── db.json                 # Sample seed data (users, pantries, shifts)
@@ -42,6 +42,7 @@ volunteer_managing/
         │   └── dashboard.css
         └── js/
             ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiPut/apiDelete
+            ├── timezone-helpers.js # Browser timezone detection + shared local time formatting
             ├── user-functions.js   # getCurrentUser(), userHasRole(), createUser()
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
             ├── lead-functions.js   # getShifts(), createShift(), updateShift(), updateFullShift(), markAttendance()
@@ -62,6 +63,7 @@ role_id (PK)        user_id (PK)
 role_name           full_name
                     email
                     phone_number
+                    timezone
                     auth_provider
                     auth_uid
                     attendance_score
@@ -175,6 +177,7 @@ The notification module is intentionally separate from Flask route handlers:
 
 - Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
 - Normalizes shift/pantry/user data into an email payload
+- Resolves the recipient timezone from `users.timezone`, falling back to `America/New_York`
 - Sends the email through Resend for:
   - confirmed signups
   - shift updates that require reconfirmation
@@ -212,8 +215,12 @@ app.py: jsonify(shift)
 Browser: fetch() resolves → response.json()
   → JavaScript object: { shift_id: 1, start_time: "2025-06-01T09:00:00Z", roles: [...] }
 
+timezone-helpers.js:
+  getBrowserTimeZone()                        ← Intl.DateTimeFormat().resolvedOptions().timeZone
+  formatLocalDateTime(...) / formatLocalTimeRange(...)
+
 lead-functions.js / volunteer-functions.js:
-  formatDateTimeForDisplay(shift.start_time)  ← new Date(string) → locale string
+  formatDateTimeForDisplay(shift.start_time)  ← timezone-helpers.js → browser-local string
   classifyShiftBucket(shift)                  ← compares start/end to new Date()
   getCapacityStatus(role)                     ← filled_count vs required_count → 'full'|'almost-full'|'available'
 ```
@@ -269,11 +276,17 @@ window 'load' event fires
   │
   ├─ 1. getCurrentUser()          [user-functions.js]
   │       apiGet('/api/me')        [api-helpers.js → fetch]
-  │       ← { user_id, email, roles: ["ADMIN" | "SUPER_ADMIN" | ...] }
+  │       ← { user_id, email, roles: ["ADMIN" | "SUPER_ADMIN" | ...], timezone }
   │       sets module-level: currentUser
   │       writes email/roles to #user-email, #user-role in DOM
   │
-  ├─ 2. setupRoleBasedUI()        [dashboard.js:60]
+  ├─ 2. syncCurrentUserTimezoneIfNeeded() [dashboard.js]
+  │       getBrowserTimeZone()     [timezone-helpers.js]
+  │       compare browser timezone vs currentUser.timezone
+  │       if missing or changed → PATCH /api/me { timezone }
+  │       updates module-level currentUser
+  │
+  ├─ 3. setupRoleBasedUI()        [dashboard.js:60]
   │       reads currentUser.roles
   │       shows/hides nav tabs:
   │         VOLUNTEER  → shows "My Shifts" tab
@@ -281,7 +294,7 @@ window 'load' event fires
   │         ADMIN or SUPER_ADMIN → shows "Admin Panel" tab
   │       returns the default tab name to activate
   │
-  ├─ 3. loadPantries()            [dashboard.js:121]
+  ├─ 4. loadPantries()            [dashboard.js:121]
   │       getAllPantries()         [admin-functions.js]
   │         apiGet('/api/all_pantries')
   │         ← [ {pantry_id, name, ...}, ... ]
@@ -289,7 +302,7 @@ window 'load' event fires
   │       populates #pantry-select dropdown
   │       populates #assign-pantry dropdown (admin)
   │
-  ├─ 4. setupEventListeners()     [dashboard.js:1152]
+  ├─ 5. setupEventListeners()     [dashboard.js:1152]
   │       attaches click handlers to nav tabs → activateTab()
   │       attaches click handlers to Admin subtabs → setAdminSubtab() + loadAdminTab()
   │       attaches submit to #create-shift-form → createShift() + createShiftRole() loop
@@ -298,7 +311,7 @@ window 'load' event fires
   │       attaches Admin Users search/filter/profile/role-save handlers
   │       attaches change to #pantry-select → reloads shifts for selected pantry
   │
-  └─ 5. activateTab(defaultTab)   [dashboard.js:91]
+  └─ 6. activateTab(defaultTab)   [dashboard.js:91]
           shows the target tab's content div
           calls the appropriate loader:
             'calendar'   → loadCalendarShifts()
@@ -409,7 +422,38 @@ Protected route requests:
   route handlers use the local session-backed user
 ```
 
-`/api/me` now powers the `My Account` tab. It returns current profile fields, roles, attendance score, auth metadata, and timestamps.
+`/api/me` now powers the `My Account` tab. It returns current profile fields, roles, saved timezone, attendance score, auth metadata, and timestamps.
+
+Timezone persistence flow:
+
+```
+Browser loads dashboard
+  timezone-helpers.js
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  dashboard.js
+    getCurrentUser() → /api/me
+    compare browser timezone with currentUser.timezone
+    if different:
+      PATCH /api/me { timezone: "America/Chicago" }
+    My Account note shows:
+      browser timezone for web rendering
+      saved timezone for emails
+
+Google signup flow
+  auth.js
+    POST /api/auth/signup/google
+      {
+        id_token,
+        full_name,
+        phone_number,
+        timezone
+      }
+
+Email notifications
+  notifications.py
+    ZoneInfo(saved_user_timezone or "America/New_York")
+    localized email shift window
+```
 
 Sensitive account actions:
 

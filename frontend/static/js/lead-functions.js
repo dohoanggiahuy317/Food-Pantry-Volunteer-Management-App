@@ -176,25 +176,14 @@ async function deleteShiftRole(roleId) {
  * Format datetime for input field (YYYY-MM-DDTHH:MM)
  */
 function formatDateTimeForInput(dateString) {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toISOString().slice(0, 16);
+    return formatDateTimeForLocalInput(dateString);
 }
 
 /**
  * Format datetime for display
  */
 function formatDateTimeForDisplay(dateString) {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
+    return formatLocalDateTime(dateString);
 }
 
 /**
