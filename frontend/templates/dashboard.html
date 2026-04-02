@@ -154,6 +154,7 @@
                         <p>Loading account details...</p>
                     </div>
                 </div>
+                <div id="my-account-timezone-note" class="account-note"></div>
             </div>
 
             <div class="card">
@@ -236,6 +237,7 @@
                                 <input type="datetime-local" id="shift-end" name="end_time" required>
                             </div>
                         </div>
+                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC.</div>
 
                         <div class="card section-muted-card">
                             <div class="card-header section-muted-header">
@@ -285,6 +287,7 @@
                                 <input type="datetime-local" id="edit-shift-end" name="end_time" required>
                             </div>
                         </div>
+                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC.</div>
 
                         <div class="card section-muted-card">
                             <div class="card-header section-muted-header">
@@ -568,6 +571,7 @@
 
     <!-- Include JavaScript Modules -->
     <script src="{{ url_for('static', filename='js/api-helpers.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/timezone-helpers.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user-functions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin-functions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lead-functions.js') }}"></script>

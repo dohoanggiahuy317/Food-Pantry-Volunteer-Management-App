@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TypedDict
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 
@@ -19,6 +20,7 @@ DEFAULT_LOCATION = "Location unavailable"
 DEFAULT_SHIFT_NAME = "your volunteer shift"
 TIME_UNAVAILABLE_LABEL = "Time unavailable"
 DEFAULT_SHIFT_ACTION = "Please review the latest details in My Shifts."
+DEFAULT_TIMEZONE = "America/New_York"
 
 
 class NotificationResult(TypedDict):
@@ -68,14 +70,27 @@ def _normalized_role_titles(signups: list[dict[str, Any]]) -> str:
     return ", ".join(titles)
 
 
-def _format_shift_window(shift: dict[str, Any]) -> str:
+def _resolved_timezone_name(value: Any) -> str:
+    timezone_name = str(value or "").strip() or DEFAULT_TIMEZONE
+    try:
+        ZoneInfo(timezone_name)
+        return timezone_name
+    except ZoneInfoNotFoundError:
+        return DEFAULT_TIMEZONE
+
+
+def _format_shift_window(shift: dict[str, Any], timezone_name: str | None = None) -> str:
     start_time = _parse_iso_datetime_to_utc(shift.get("start_time"))
     end_time = _parse_iso_datetime_to_utc(shift.get("end_time"))
     if not start_time or not end_time:
         return TIME_UNAVAILABLE_LABEL
+    resolved_timezone = ZoneInfo(_resolved_timezone_name(timezone_name))
+    local_start = start_time.astimezone(resolved_timezone)
+    local_end = end_time.astimezone(resolved_timezone)
+    timezone_label = local_start.tzname() or _resolved_timezone_name(timezone_name)
     return (
-        f"{start_time.strftime('%A, %B %d, %Y at %I:%M %p UTC')} "
-        f"to {end_time.strftime('%I:%M %p UTC')}"
+        f"{local_start.strftime('%A, %B %d, %Y at %I:%M %p')} "
+        f"to {local_end.strftime('%I:%M %p')} GMT{timezone_label}"
     )
 
 
@@ -189,7 +204,7 @@ def send_signup_confirmation(
     role_title = _normalized_text(role.get("role_title"), DEFAULT_ROLE_TITLE)
     location = _normalized_text(pantry.get("location_address"), DEFAULT_LOCATION)
     shift_name = _normalized_text(shift.get("shift_name"), DEFAULT_SHIFT_NAME)
-    shift_window = _format_shift_window(shift)
+    shift_window = _format_shift_window(shift, recipient.get("timezone"))
     subject = f"Volunteer signup confirmed: {shift_name}"
 
     if not RESEND_FROM_EMAIL:
@@ -246,7 +261,7 @@ def send_shift_update_notification(
     role_titles = _normalized_role_titles(signups)
     location = _normalized_text(pantry.get("location_address"), DEFAULT_LOCATION)
     shift_name = _normalized_text(shift.get("shift_name"), DEFAULT_SHIFT_NAME)
-    shift_window = _format_shift_window(shift)
+    shift_window = _format_shift_window(shift, recipient.get("timezone"))
     subject = f"Shift updated: action needed for {shift_name}"
 
     if not RESEND_FROM_EMAIL:
@@ -303,7 +318,7 @@ def send_shift_cancellation_notification(
     role_titles = _normalized_role_titles(signups)
     location = _normalized_text(pantry.get("location_address"), DEFAULT_LOCATION)
     shift_name = _normalized_text(shift.get("shift_name"), DEFAULT_SHIFT_NAME)
-    shift_window = _format_shift_window(shift)
+    shift_window = _format_shift_window(shift, recipient.get("timezone"))
     subject = f"Shift cancelled: {shift_name}"
 
     if not RESEND_FROM_EMAIL:

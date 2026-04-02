@@ -115,7 +115,7 @@ python app.py
 ```
 
 > **First startup note:** Flask will automatically initialize the database schema (create all tables from `backend/db/migrations/001_initial.sql`) and seed sample data from `backend/data/db.json` if the database is empty.  
-> For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly.
+> For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly. The current baseline includes `users.timezone` for localized emails.
 
 ---
 
@@ -139,6 +139,14 @@ Flask serves the full application — both the frontend (HTML/CSS/JS) and the AP
 ## Step 5: Optional Resend Email Setup
 
 Volunteer notification emails are sent through `backend/notifications/notifications.py` for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
+
+Timezone behavior in the current app:
+
+- API timestamps remain stored and transported as UTC ISO strings.
+- The browser detects a user's timezone with `Intl.DateTimeFormat().resolvedOptions().timeZone`.
+- After login, the frontend syncs that timezone to the user profile through `PATCH /api/me` if it is missing or changed.
+- Google signup includes the browser timezone in the initial signup request.
+- Notification emails render shift times in the saved user timezone, with `America/New_York` as the fallback when none is stored or the value is invalid.
 
 **1. Make sure you control a sending domain**
 
@@ -173,6 +181,7 @@ Volunteer notification emails are sent through `backend/notifications/notificati
 
 - If `RESEND_API_KEY` or `RESEND_FROM_EMAIL` is missing, the notification helper returns a structured failure result and `app.py` logs a warning instead of crashing the signup or shift-management flow.
 - If Resend is configured correctly, volunteers receive emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
+- Those emails use the saved `users.timezone` value when formatting the shift time window.
 
 ---
 

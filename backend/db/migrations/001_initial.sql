@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   full_name VARCHAR(255) NOT NULL,
   email VARCHAR(255) NOT NULL UNIQUE,
   phone_number VARCHAR(32) NULL,
+  timezone VARCHAR(64) NULL,
   auth_provider VARCHAR(64) NULL,
   auth_uid VARCHAR(255) NULL,
   attendance_score INT NOT NULL DEFAULT 100,

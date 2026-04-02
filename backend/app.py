@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 from flask import Flask, g, jsonify, render_template, request, session
@@ -103,7 +104,35 @@ def current_user() -> dict[str, Any] | None:
     user_id = getattr(g, "current_user_id", None)
     if user_id is None:
         return None
-    return find_user_by_id(user_id)
+    user = find_user_by_id(user_id)
+    if not user:
+        return None
+    return sync_user_timezone_from_request(user)
+
+
+def normalized_timezone_name(value: Any) -> str | None:
+    timezone_name = str(value or "").strip()
+    if not timezone_name:
+        return None
+    try:
+        ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return None
+    return timezone_name
+
+
+def sync_user_timezone_from_request(user: dict[str, Any]) -> dict[str, Any]:
+    request_timezone = normalized_timezone_name(request.headers.get("X-Client-Timezone"))
+    if not request_timezone:
+        return user
+    if str(user.get("timezone") or "").strip() == request_timezone:
+        return user
+
+    try:
+        updated = backend.update_user(int(user.get("user_id")), {"timezone": request_timezone})
+    except ValueError:
+        return user
+    return updated or user
 
 
 def serialize_user_for_client(user: dict[str, Any] | None, include_roles: bool = False) -> dict[str, Any] | None:
@@ -116,6 +145,7 @@ def serialize_user_for_client(user: dict[str, Any] | None, include_roles: bool =
         "full_name": user.get("full_name"),
         "email": user.get("email"),
         "phone_number": user.get("phone_number"),
+        "timezone": user.get("timezone"),
         "auth_mode": auth_service.mode,
         "auth_provider": linked_auth_provider,
         "auth_uid": user.get("auth_uid"),
@@ -775,6 +805,7 @@ def signup_google() -> Any:
     payload = request.get_json(silent=True) or {}
     full_name = str(payload.get("full_name", "")).strip()
     phone_number = str(payload.get("phone_number", "")).strip()
+    timezone_name = str(payload.get("timezone", "")).strip() or None
     if not full_name or not phone_number:
         return jsonify({"error": "Missing: full_name, phone_number"}), 400
 
@@ -792,6 +823,7 @@ def signup_google() -> Any:
             email=identity.email,
             phone_number=phone_number,
             roles=["VOLUNTEER"],
+            timezone=timezone_name,
             auth_provider=identity.provider,
             auth_uid=identity.uid,
         )
@@ -835,6 +867,10 @@ def update_current_user_profile() -> Any:
     if "phone_number" in payload:
         phone_number = str(payload.get("phone_number", "")).strip()
         updates["phone_number"] = phone_number or None
+
+    if "timezone" in payload:
+        timezone_name = str(payload.get("timezone", "")).strip()
+        updates["timezone"] = timezone_name or None
 
     if not updates:
         return jsonify({"error": "No valid fields to update"}), 400
@@ -979,6 +1015,7 @@ def create_user() -> Any:
             email=payload["email"],
             phone_number=payload.get("phone_number"),
             roles=requested_roles,
+            timezone=(str(payload.get("timezone", "")).strip() or None),
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400

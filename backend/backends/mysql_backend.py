@@ -40,6 +40,7 @@ def _serialize_user(row: dict[str, Any]) -> dict[str, Any]:
         "full_name": row["full_name"],
         "email": row["email"],
         "phone_number": row.get("phone_number"),
+        "timezone": row.get("timezone"),
         "auth_provider": row.get("auth_provider"),
         "auth_uid": row.get("auth_uid"),
         "attendance_score": int(row.get("attendance_score", 100)),
@@ -236,12 +237,15 @@ class MySQLBackend(StoreBackend):
         email: str,
         phone_number: str | None,
         roles: list[str],
+        timezone: str | None = None,
         auth_provider: str | None = None,
         auth_uid: str | None = None,
     ) -> dict[str, Any]:
         normalized_email = str(email).strip().lower()
+        normalized_timezone = str(timezone).strip() if timezone is not None else ""
         normalized_auth_provider = str(auth_provider).strip() if auth_provider is not None else ""
         normalized_auth_uid = str(auth_uid).strip() if auth_uid is not None else ""
+        normalized_timezone = normalized_timezone or None
         normalized_auth_provider = normalized_auth_provider or None
         normalized_auth_uid = normalized_auth_uid or None
         timestamp = _now_utc_naive()
@@ -254,18 +258,20 @@ class MySQLBackend(StoreBackend):
                         full_name,
                         email,
                         phone_number,
+                        timezone,
                         auth_provider,
                         auth_uid,
                         attendance_score,
                         created_at,
                         updated_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         full_name,
                         normalized_email,
                         phone_number,
+                        normalized_timezone,
                         normalized_auth_provider,
                         normalized_auth_uid,
                         100,
@@ -300,6 +306,7 @@ class MySQLBackend(StoreBackend):
                 "full_name": full_name,
                 "email": normalized_email,
                 "phone_number": phone_number,
+                "timezone": normalized_timezone,
                 "auth_provider": normalized_auth_provider,
                 "auth_uid": normalized_auth_uid,
                 "attendance_score": 100,
@@ -325,6 +332,10 @@ class MySQLBackend(StoreBackend):
         if "phone_number" in payload:
             updates.append("phone_number = %s")
             values.append(payload["phone_number"])
+        if "timezone" in payload:
+            updates.append("timezone = %s")
+            normalized_timezone = str(payload["timezone"]).strip() if payload["timezone"] is not None else ""
+            values.append(normalized_timezone or None)
         if "auth_provider" in payload:
             updates.append("auth_provider = %s")
             normalized_auth_provider = str(payload["auth_provider"]).strip() if payload["auth_provider"] is not None else ""

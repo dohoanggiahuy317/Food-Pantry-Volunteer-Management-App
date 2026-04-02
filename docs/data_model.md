@@ -14,6 +14,7 @@ At backend startup:
    - If DB is empty and `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`, seed data is loaded from `backend/data/db.json`.
 4. API routes continue using the same request/response contract as before.
 5. `backend/app.py` can call `backend/notifications/notifications.py` to send Resend emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
+6. User timezone is detected in the browser, persisted on the `users` row, and reused by the backend when rendering email times.
 
 ## Configuration (`backend/.env`)
 - `DATA_BACKEND=mysql`
@@ -43,6 +44,7 @@ At backend startup:
   - confirmed signup
   - shift update / reconfirmation required
   - shift cancellation
+- Notification times are localized with Python `zoneinfo` from the saved `users.timezone` value, with `America/New_York` as the fallback.
 
 ## Resend domain note
 
@@ -73,13 +75,15 @@ Important constraints:
 - `shifts.created_by` is nullable and uses `ON DELETE SET NULL`, so deleting a user does not block on shifts they created.
 
 Current user/account fields:
-- `users` stores `full_name`, `email`, `phone_number`, `auth_provider`, `auth_uid`, `attendance_score`, `created_at`, and `updated_at`.
+- `users` stores `full_name`, `email`, `phone_number`, `timezone`, `auth_provider`, `auth_uid`, `attendance_score`, `created_at`, and `updated_at`.
 - There is no `is_active` flag in the runtime schema; accounts are either present or deleted.
 - The current admin-management flow treats each user as having one editable system role at a time (`VOLUNTEER`, `PANTRY_LEAD`, or `ADMIN`), while the protected seeded `SUPER_ADMIN` account is fixed and not editable through the app.
 
 Account lifecycle notes:
 - Firebase mode uses Google sign-in and links users by Firebase UID after the first successful login.
+- Firebase Google signup can store the detected browser timezone immediately.
 - Verified email changes are initiated client-side with a fresh Google reauthentication, then the backend syncs the new verified email by UID.
+- The frontend also syncs the detected browser timezone through `PATCH /api/me` after authenticated app boot when it is missing or changed.
 - Account deletion deletes the linked Firebase user first and then removes the local user row.
 - The protected seeded `SUPER_ADMIN` account (`user_id = 1`) cannot delete itself.
 

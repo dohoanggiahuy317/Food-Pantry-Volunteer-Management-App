@@ -12,7 +12,7 @@ A web application for managing volunteer shifts at food pantries. Pantry leads a
 | Frontend | Vanilla JS, HTML, CSS (served directly via Flask templates, no build tools required) |
 | Database | MySQL 8.4 (containerized via Docker) |
 | Auth | Configurable auth provider: in-memory demo auth or Firebase Authentication with Google sign-in. Flask uses session cookies after login. |
-| Email notifications | Resend API for signup confirmation, shift update, and shift cancellation emails |
+| Email notifications | Resend API for signup confirmation, shift update, and shift cancellation emails, localized with each user's saved timezone |
 
 ---
 
@@ -43,8 +43,17 @@ After a successful login or signup, Flask stores the authenticated local user in
   - signup confirmed
   - shift updated and reconfirmation required
   - shift cancelled
+- Shift times in emails are formatted from UTC into the saved `users.timezone` value when available, with `America/New_York` as the fallback.
 - The notification service returns a structured result payload with `ok`, `code`, `message`, `recipient_email`, `subject`, and `provider_response`.
 - `app.py` logs warning details when the email is skipped or fails, instead of mixing Flask `jsonify(...)` responses into the notification helper.
+
+### Timezone Handling
+
+- Shift timestamps are stored in UTC in the backend and API responses remain ISO-8601 UTC strings.
+- The web app detects the browser timezone with `Intl.DateTimeFormat().resolvedOptions().timeZone`.
+- After authenticated app boot, the frontend syncs that timezone into the current user profile through `PATCH /api/me` when it is missing or changed.
+- Google signup includes the browser timezone so new volunteer accounts start with a saved timezone immediately.
+- The UI renders shift times in the browser's local timezone, while notification emails use the saved timezone on the user record.
 
 ### Core API Routes
 
@@ -52,11 +61,11 @@ After a successful login or signup, Flask stores the authenticated local user in
 |---|---|---|
 | `GET` | `/api/auth/config` | Get active auth mode and safe browser config |
 | `POST` | `/api/auth/login/google` | Log in an existing local user with Google/Firebase |
-| `POST` | `/api/auth/signup/google` | Create a volunteer account after Google auth |
+| `POST` | `/api/auth/signup/google` | Create a volunteer account after Google auth, including optional browser timezone |
 | `POST` | `/api/auth/login/memory` | Log in with a sample in-memory account |
 | `POST` | `/api/auth/logout` | Clear the current session |
-| `GET` | `/api/me` | Get current user with roles |
-| `PATCH` | `/api/me` | Update the current user's basic profile fields |
+| `GET` | `/api/me` | Get current user with roles and saved timezone |
+| `PATCH` | `/api/me` | Update the current user's basic profile fields, including saved timezone |
 | `POST` | `/api/me/email-change/prepare` | Validate a pending Firebase-backed email change |
 | `DELETE` | `/api/me` | Delete the current user's local account and linked Firebase account |
 | `GET` | `/api/users` | List users for admin-capable actors, with optional `q` and `role` filters |
@@ -80,7 +89,7 @@ The app now shows an auth gate before the dashboard.
 1. In `memory` mode, the user chooses a sample account and Flask creates a session.
 2. In `firebase` mode, the browser authenticates with Google through Firebase and sends the Firebase ID token to Flask.
 3. Flask verifies the token with the Firebase Admin SDK, links the local user by Firebase UID, falls back to email only for one-time legacy linking, and stores the local `user_id` in a session cookie.
-4. The `My Account` tab lets users update `full_name` and `phone_number`, start a verified email change, and delete their account.
+4. The `My Account` tab lets users update `full_name`, `phone_number`, and saved timezone, start a verified email change, and delete their account.
 5. Email changes require a fresh Google reauthentication in the browser, then Firebase sends a verification link to the new address.
 6. Account deletion requires a fresh Google reauthentication, deletes the linked Firebase user, deletes the local user, and logs the user out.
 7. The protected seeded `SUPER_ADMIN` account (`user_id = 1`) cannot delete itself.
@@ -114,6 +123,7 @@ The app now shows an auth gate before the dashboard.
 - Can reconfirm after shift edits.
 - If they cancel during reconfirmation, the signup row is removed (same as normal cancel), so they can sign up again later if capacity is available.
 - Can manage their own profile from `My Account`, including verified Firebase email changes and full account deletion.
+- Sees shift times in the browser's local timezone and receives notification emails in the saved account timezone once it has been synced.
 - Receives email notifications when Resend is configured for:
   - confirmed signup
   - shift updates that require reconfirmation
@@ -130,7 +140,7 @@ For detailed local setup instructions, including Docker configuration and databa
 
 If you want real email delivery in development or production, configure Resend in `backend/.env` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Resend’s official docs say sending uses a domain you own and recommend a subdomain such as `updates.yourdomain.com`; if your team does not already own a domain, register one first, then follow the Resend domain setup docs and DNS provider guide before using that sender address. Useful references: [Managing Domains](https://resend.com/docs/dashboard/domains/introduction), [DNS Guides](https://resend.com/docs/knowledge-base/introduction), and [API Keys](https://resend.com/docs/dashboard/api-keys/introduction).
 
-For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes apply cleanly.
+For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes, including the `users.timezone` column, apply cleanly.
 
 ---
 

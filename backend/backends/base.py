@@ -40,6 +40,7 @@ class StoreBackend(ABC):
         email: str,
         phone_number: str | None,
         roles: list[str],
+        timezone: str | None = None,
         auth_provider: str | None = None,
         auth_uid: str | None = None,
     ) -> dict[str, Any]:

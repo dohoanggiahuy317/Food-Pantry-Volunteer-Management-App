@@ -207,7 +207,8 @@ async function completeGoogleSignup() {
         await apiPost('/api/auth/signup/google', {
             id_token: pendingGoogleIdToken,
             full_name: fullName,
-            phone_number: phoneNumber
+            phone_number: phoneNumber,
+            timezone: getBrowserTimeZone()
         });
         await firebaseAuthInstance?.signOut();
         window.location.reload();

@@ -26,6 +26,7 @@
     - api-helpers.js
     - dashboard.js
     - lead-functions.js
+    - timezone-helpers.js
     - user-functions.js
     - volunteer-functions.js
   - III. templates
@@ -62,11 +63,11 @@ Defines StoreBackend, the abstract interface every data backend (MySQL, in-memor
 - `get_user_by_auth_uid(auth_uid:str) -> dict|None`  
   Fetch a user by linked Firebase UID.
 
-- `create_user(full_name, email, phone_number, roles:list[str], auth_provider=None, auth_uid=None) -> dict`  
+- `create_user(full_name, email, phone_number, roles:list[str], timezone=None, auth_provider=None, auth_uid=None) -> dict`  
   Create user and assign given role names.
 
 - `update_user(user_id:int, payload:dict) -> dict|None`  
-  Update allowed user fields such as name, phone, email, and auth linkage.
+  Update allowed user fields such as name, phone, timezone, email, and auth linkage.
 
 - `delete_user(user_id:int) -> None`  
   Delete a local user. Signups and pantry-lead links cascade; shift ownership becomes nullable in SQL.
@@ -236,11 +237,11 @@ Dev/demo datastore kept in Python dicts, optionally seeded from `data/db.json`. 
 - `get_user_by_auth_uid(auth_uid) -> dict|None`  
   Finds a user by linked Firebase UID.
 
-- `create_user(full_name, email, phone_number, roles, auth_provider=None, auth_uid=None) -> dict`  
-  Raises `ValueError` if email or auth UID already exists; creates the user with timestamps and optional Firebase linkage; links any requested roles that already exist; returns the created user with the roles it actually assigned.
+- `create_user(full_name, email, phone_number, roles, timezone=None, auth_provider=None, auth_uid=None) -> dict`  
+  Raises `ValueError` if email or auth UID already exists; creates the user with timestamps, optional saved timezone, and optional Firebase linkage; links any requested roles that already exist; returns the created user with the roles it actually assigned.
 
 - `update_user(user_id, payload) -> dict|None`  
-  Updates allowed user fields and refreshes `updated_at`.
+  Updates allowed user fields, including `timezone`, and refreshes `updated_at`.
 
 - `delete_user(user_id) -> None`  
   Removes the user and related join/sign-up records; in memory mode any `created_by` shift references are set to `None`.
@@ -697,6 +698,7 @@ Send volunteer notification emails through Resend without coupling the notificat
 - Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
 - Uses a verified sender such as `noreply@updates.example.com`
 - Expects the team to own the sending domain or subdomain and verify the DNS records in Resend before enabling delivery
+- Uses Python `zoneinfo` to render shift times in the saved user timezone and falls back to `America/New_York`
 
 **Key structures**
 
@@ -713,7 +715,8 @@ Send volunteer notification emails through Resend without coupling the notificat
 
 - `_parse_iso_datetime_to_utc(value) -> datetime|None`
 - `_normalized_text(value, fallback) -> str`
-- `_format_shift_window(shift) -> str`
+- `_resolved_timezone_name(value) -> str`
+- `_format_shift_window(shift, timezone_name=None) -> str`
 - `_build_email_html(...) -> str`
 - `_notification_result(...) -> NotificationResult`
 - `_send_resend_email(params, recipient_email, subject, success_code, success_message) -> NotificationResult`
@@ -724,6 +727,7 @@ Send volunteer notification emails through Resend without coupling the notificat
 **Behavior**
 
 - Builds a shared HTML email layout for 3 scenarios: signup confirmed, shift updated/reconfirm required, and shift cancelled.
+- Converts UTC shift timestamps into the saved recipient timezone before rendering the email body.
 - Returns structured success/failure metadata instead of `jsonify(...)`.
 - Lets `app.py` decide how to log or ignore non-fatal email delivery problems.
 
@@ -771,6 +775,12 @@ Notification helpers:
 - `send_signup_confirmation_if_configured()`
 - `send_shift_notifications_if_configured()`
 
+Profile/timezone flows:
+
+- `serialize_user_for_client()` includes `timezone`
+- `PATCH /api/me` accepts `timezone`
+- `POST /api/auth/signup/google` accepts optional `timezone`
+
 Permission helpers:
 
 - `ensure_shift_manager_permission()`
@@ -793,6 +803,7 @@ Attendance helpers:
 **Users**
 
 - `GET /api/me`
+- `PATCH /api/me`
 - `GET /api/users`
 - `GET /api/users/<user_id>`
 - `POST /api/users`
@@ -1504,6 +1515,7 @@ Head section:
 - page title
 - viewport metadata
 - load `dashboard.css`
+- load `timezone-helpers.js` before the domain JS files that format times
 
 Header:
 

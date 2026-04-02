@@ -123,6 +123,7 @@ class MemoryBackend(StoreBackend):
         }
         for user in self.store["users"]:
             user.setdefault("updated_at", user.get("created_at"))
+            user.setdefault("timezone", None)
             user.setdefault("auth_provider", None)
             user.setdefault("auth_uid", None)
         if self.store["shifts"]:
@@ -194,6 +195,7 @@ class MemoryBackend(StoreBackend):
         email: str,
         phone_number: str | None,
         roles: list[str],
+        timezone: str | None = None,
         auth_provider: str | None = None,
         auth_uid: str | None = None,
     ) -> dict[str, Any]:
@@ -214,6 +216,7 @@ class MemoryBackend(StoreBackend):
             "full_name": full_name,
             "email": normalized_email,
             "phone_number": phone_number,
+            "timezone": str(timezone).strip() or None if timezone is not None else None,
             "attendance_score": 100,
             "created_at": timestamp,
             "updated_at": timestamp,
@@ -242,7 +245,7 @@ class MemoryBackend(StoreBackend):
         if not user:
             return None
 
-        allowed_keys = {"full_name", "email", "phone_number", "auth_provider", "auth_uid"}
+        allowed_keys = {"full_name", "email", "phone_number", "timezone", "auth_provider", "auth_uid"}
         updates = {key: value for key, value in payload.items() if key in allowed_keys}
         if not updates:
             return dict(user)
@@ -271,6 +274,10 @@ class MemoryBackend(StoreBackend):
         if "auth_provider" in updates:
             normalized_auth_provider = str(updates["auth_provider"]).strip() if updates["auth_provider"] is not None else ""
             updates["auth_provider"] = normalized_auth_provider or None
+
+        if "timezone" in updates:
+            normalized_timezone = str(updates["timezone"]).strip() if updates["timezone"] is not None else ""
+            updates["timezone"] = normalized_timezone or None
 
         for key, value in updates.items():
             user[key] = value

@@ -153,22 +153,14 @@ function getCapacityColor(status) {
  * Format shift time range for display
  */
 function formatShiftTime(shift) {
-    const start = new Date(shift.start_time);
-    const end = new Date(shift.end_time);
-    
-    const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
-    const startTime = start.toLocaleTimeString('en-US', timeOptions);
-    const endTime = end.toLocaleTimeString('en-US', timeOptions);
-    
-    return `${startTime} - ${endTime}`;
+    return formatLocalTimeRange(shift.start_time, shift.end_time, { includeDate: false });
 }
 
 /**
  * Format shift date for display
  */
 function formatShiftDate(shift) {
-    const start = new Date(shift.start_time);
-    return start.toLocaleDateString('en-US', {
+    return formatLocalDate(shift.start_time, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
