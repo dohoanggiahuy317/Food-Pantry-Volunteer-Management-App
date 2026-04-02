@@ -11,6 +11,9 @@ let activeAdminSubtab = 'pantries';
 let adminRoles = [];
 let adminUsers = [];
 let selectedAdminUserId = null;
+let selectedAdminUserProfile = null;
+let selectedAdminUserProfileError = '';
+let lastAdminUsersPhoneViewport = null;
 let dashboardBootPromise = null;
 let dashboardEventListenersBound = false;
 
@@ -53,9 +56,9 @@ async function initializeDashboardApp() {
             const shiftsContainer = document.getElementById('shifts-container');
             if (shiftsContainer) {
                 shiftsContainer.innerHTML = `
-                    <div style="background: #fed7d7; border: 2px solid #f56565; padding: 2rem; border-radius: 12px; text-align: center;">
-                        <h3 style="color: #742a2a; margin-bottom: 1rem;">Failed to Load</h3>
-                        <p style="color: #742a2a;"><strong>${escapeHtml(error.message || 'Unknown error')}</strong></p>
+                    <div class="error-state-card">
+                        <h3>Failed to Load</h3>
+                        <p><strong>${escapeHtml(error.message || 'Unknown error')}</strong></p>
                     </div>
                 `;
             }
@@ -109,7 +112,8 @@ async function activateTab(targetTab) {
     // Show/hide pantry selector based on tab
     const pantrySelector = document.getElementById('pantry-selector');
     if (pantrySelector) {
-        pantrySelector.style.display = (targetTab === 'calendar' || targetTab === 'my-shifts' || targetTab === 'my-account' || targetTab === 'admin') ? 'none' : 'block';
+        const shouldHideSelector = targetTab === 'calendar' || targetTab === 'my-shifts' || targetTab === 'my-account' || targetTab === 'admin';
+        pantrySelector.classList.toggle('app-hidden', shouldHideSelector);
     }
 
     // Load tab-specific data
@@ -199,20 +203,20 @@ async function updatePantriesTable() {
     tbody.innerHTML = '';
 
     if (allPantries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #718096;">No pantries yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="table-empty-cell">No pantries yet</td></tr>';
         return;
     }
 
     allPantries.forEach(pantry => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-                    <td>${pantry.name}</td>
-                    <td>${pantry.location_address || '—'}</td>
-                    <td>${pantry.leads && pantry.leads.length > 0
-                ? pantry.leads.map(l => `<span style="background: #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 4px; margin-right: 0.5rem; display: inline-block; margin-bottom: 0.25rem;">${l.full_name}</span>`).join('')
-                : '<span style="color: #718096;">No leads assigned</span>'}</td>
-                    <td>
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                    <td data-label="Pantry Name">${pantry.name}</td>
+                    <td data-label="Location">${pantry.location_address || '—'}</td>
+                    <td data-label="Assigned Leads">${pantry.leads && pantry.leads.length > 0
+                ? pantry.leads.map(l => `<span class="lead-pill">${l.full_name}</span>`).join('')
+                : '<span class="muted-text">No leads assigned</span>'}</td>
+                    <td data-label="Actions">
+                        <div class="action-group">
                             <button class="btn btn-secondary btn-sm edit-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}" data-address="${pantry.location_address || ''}">Edit</button>
                             <button class="btn btn-danger btn-sm delete-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}">Delete</button>
                         </div>
@@ -226,7 +230,7 @@ async function updatePantriesTable() {
             document.getElementById('edit-pantry-id').value = btn.dataset.id;
             document.getElementById('edit-pantry-name').value = btn.dataset.name;
             document.getElementById('edit-pantry-address').value = btn.dataset.address;
-            document.getElementById('edit-pantry-modal').style.display = 'flex';
+            document.getElementById('edit-pantry-modal').classList.remove('app-hidden');
         });
     });
 
@@ -268,7 +272,7 @@ async function loadCalendarShifts() {
         const allShifts = {};
 
         if (!allPublicPantries || allPublicPantries.length === 0) {
-            document.getElementById('shifts-container').innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">No pantries available</p>';
+            document.getElementById('shifts-container').innerHTML = '<p class="empty-state">No pantries available</p>';
             return;
         }
 
@@ -294,7 +298,7 @@ async function loadCalendarShifts() {
         displayAllShiftsGroupedByPantry(allShifts);
     } catch (error) {
         console.error('Failed to load shifts:', error);
-        document.getElementById('shifts-container').innerHTML = `<p style="text-align: center; color: #f56565;">Error: ${error.message}</p>`;
+        document.getElementById('shifts-container').innerHTML = `<p class="my-shift-load-error empty-state-compact">Error: ${escapeHtml(error.message)}</p>`;
     }
 }
 
@@ -302,10 +306,11 @@ async function loadCalendarShifts() {
 function displayAllShiftsGroupedByPantry(allShifts) {
     console.log('All shifts grouped by pantry:', allShifts);
     const container = document.getElementById('shifts-container');
+    container.classList.remove('loading');
 
     const pantryIds = Object.keys(allShifts);
     if (pantryIds.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">No pantries available</p>';
+        container.innerHTML = '<p class="empty-state">No pantries available</p>';
         return;
     }
 
@@ -317,13 +322,13 @@ function displayAllShiftsGroupedByPantry(allShifts) {
 
         // Pantry section header
         const section = document.createElement('div');
-        section.style.marginBottom = '2rem';
+        section.className = 'pantry-section';
 
         const header = document.createElement('div');
-        header.style.cssText = 'background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;';
+        header.className = 'pantry-section-header';
         header.innerHTML = `
-                    <h3 style="margin: 0; font-size: 1.25rem;">${pantryData.name}</h3>
-                    <p style="margin: 0.25rem 0 0 0; opacity: 0.9; font-size: 0.875rem;">${pantryData.location || 'No location listed'}</p>
+                    <h3 class="pantry-section-title">${pantryData.name}</h3>
+                    <p class="pantry-section-subtitle">${pantryData.location || 'No location listed'}</p>
                 `;
         section.appendChild(header);
 
@@ -337,7 +342,7 @@ function displayAllShiftsGroupedByPantry(allShifts) {
             });
         } else {
             const noShifts = document.createElement('p');
-            noShifts.style.cssText = 'text-align: center; color: #718096; padding: 2rem;';
+            noShifts.className = 'empty-state';
             noShifts.textContent = 'No shifts scheduled yet';
             grid.appendChild(noShifts);
         }
@@ -350,9 +355,10 @@ function displayAllShiftsGroupedByPantry(allShifts) {
 // Display shifts as cards
 function displayShiftsCards(shifts) {
     const container = document.getElementById('shifts-container');
+    container.classList.remove('loading');
 
     if (!shifts || shifts.length === 0) {
-        container.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">No shifts available yet</p>';
+        container.innerHTML = '<p class="empty-state">No shifts available yet</p>';
         return;
     }
 
@@ -392,14 +398,14 @@ function displayShiftCard(grid, shift) {
 
             return `
                         <div class="role-item">
-                            <div>
+                            <div class="role-item-main">
                                 <div class="role-name">${role.role_title}</div>
                                 <div class="role-capacity ${capacityClass}">${filled}/${required} filled</div>
                                 <div class="progress-bar">
                                     <div class="progress-fill" style="width: ${percentage}%"></div>
                                 </div>
                             </div>
-                            <div>
+                            <div class="role-item-action">
                                 ${isUnavailable
                     ? '<button class="btn btn-secondary" disabled>Unavailable</button>'
                     : isFull
@@ -411,7 +417,7 @@ function displayShiftCard(grid, shift) {
                     `;
         }).join('');
     } else {
-        rolesHTML = '<p style="color: #718096; font-style: italic;">No positions available</p>';
+        rolesHTML = '<p class="empty-state empty-state-compact">No positions available</p>';
     }
 
     card.innerHTML = `
@@ -598,6 +604,57 @@ async function loadAdminTab() {
     await updatePantriesTable();
 }
 
+function isPhoneViewport() {
+    return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function renderAdminUserRoleChips(roles) {
+    if (!Array.isArray(roles) || !roles.length) {
+        return '<div class="table-user-secondary compact">No roles</div>';
+    }
+
+    return `
+        <div class="admin-user-chip-list">
+            ${roles.map((role) => `<span class="admin-user-chip">${escapeHtml(role)}</span>`).join('')}
+        </div>
+    `;
+}
+
+function renderAdminInlineProfile(userId) {
+    if (selectedAdminUserProfileError) {
+        return `
+            <tr class="admin-user-inline-row">
+                <td colspan="5" class="admin-user-inline-cell">
+                    <p class="my-shift-load-error">Failed to load user profile: ${escapeHtml(selectedAdminUserProfileError)}</p>
+                </td>
+            </tr>
+        `;
+    }
+
+    if (!selectedAdminUserProfile || selectedAdminUserProfile.user_id !== userId) {
+        return `
+            <tr class="admin-user-inline-row">
+                <td colspan="5" class="admin-user-inline-cell">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading user profile...</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    return `
+        <tr class="admin-user-inline-row">
+            <td colspan="5" class="admin-user-inline-cell">
+                <div data-admin-inline-profile="${userId}">
+                    ${buildAdminUserProfileMarkup(selectedAdminUserProfile, { inline: true })}
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
 function renderAdminUserTable() {
     const tbody = document.getElementById('admin-users-table-body');
     if (!tbody) {
@@ -605,42 +662,70 @@ function renderAdminUserTable() {
     }
 
     if (!adminUsers.length) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #718096;">No users found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="table-empty-cell">No users found.</td></tr>';
         return;
     }
 
+    const phoneView = isPhoneViewport();
     tbody.innerHTML = adminUsers.map((user) => {
-        const rolesText = Array.isArray(user.roles) && user.roles.length ? user.roles.join(', ') : 'No roles';
         const isSelected = selectedAdminUserId === user.user_id;
+        const phoneText = formatAccountValue(user.phone_number, 'No phone');
+        const authText = formatAuthProviderLabel(user.auth_provider);
+        const viewLabel = phoneView && isSelected ? 'Hide' : 'View';
         return `
             <tr class="admin-user-row ${isSelected ? 'selected' : ''}" data-admin-user-row="${user.user_id}">
-                <td>${escapeHtml(formatAccountValue(user.full_name))}</td>
-                <td>${escapeHtml(formatAccountValue(user.email))}</td>
-                <td>${escapeHtml(formatAccountValue(user.phone_number))}</td>
-                <td>${escapeHtml(rolesText)}</td>
-                <td>${escapeHtml(String(Number(user.attendance_score || 0)))}%</td>
-                <td>${escapeHtml(formatAuthProviderLabel(user.auth_provider))}</td>
-                <td>${escapeHtml(formatAccountTimestamp(user.created_at))}</td>
-                <td><button type="button" class="btn btn-secondary btn-sm" data-open-admin-user="${user.user_id}">View Profile</button></td>
+                <td data-label="User">
+                    <div class="table-user-primary">${escapeHtml(formatAccountValue(user.full_name))}</div>
+                    <div class="table-user-secondary">Joined ${escapeHtml(formatAccountTimestamp(user.created_at))}</div>
+                </td>
+                <td data-label="Contact">
+                    <div class="table-user-primary">${escapeHtml(formatAccountValue(user.email))}</div>
+                    <div class="table-user-secondary">${escapeHtml(phoneText)}</div>
+                </td>
+                <td data-label="Access">
+                    ${renderAdminUserRoleChips(user.roles)}
+                    <div class="table-user-secondary">${escapeHtml(authText)}</div>
+                </td>
+                <td data-label="Score">${escapeHtml(String(Number(user.attendance_score || 0)))}%</td>
+                <td data-label="Open"><button type="button" class="btn btn-secondary btn-sm" data-open-admin-user="${user.user_id}">${viewLabel}</button></td>
             </tr>
+            ${phoneView && isSelected ? renderAdminInlineProfile(user.user_id) : ''}
         `;
     }).join('');
+
+    if (!phoneView) {
+        tbody.querySelectorAll('[data-admin-user-row]').forEach((row) => {
+            row.addEventListener('click', async (event) => {
+                if (event.target.closest('[data-open-admin-user]')) {
+                    return;
+                }
+                await openAdminUserProfile(Number(row.dataset.adminUserRow));
+            });
+        });
+    }
 
     tbody.querySelectorAll('[data-open-admin-user]').forEach((button) => {
         button.addEventListener('click', async () => {
             await openAdminUserProfile(Number(button.dataset.openAdminUser));
         });
     });
+
+    if (phoneView && selectedAdminUserProfile && selectedAdminUserProfile.user_id === selectedAdminUserId) {
+        const inlineContainer = tbody.querySelector(`[data-admin-inline-profile="${selectedAdminUserProfile.user_id}"]`);
+        if (inlineContainer) {
+            bindAdminUserProfileInteractions(inlineContainer, selectedAdminUserProfile);
+        }
+    }
 }
 
-function renderAdminRoleOptions(userProfile) {
+function renderAdminRoleOptions(userProfile, inputName = 'admin-user-role') {
     const editableRoles = adminRoles.filter((role) => role.role_name !== 'SUPER_ADMIN');
     const selectedRole = Array.isArray(userProfile.roles) && userProfile.roles.length ? userProfile.roles[0] : '';
     return editableRoles.map((role) => `
         <label class="admin-role-option ${selectedRole === role.role_name ? 'selected' : ''}">
             <input
                 type="radio"
-                name="admin-user-role"
+                name="${inputName}"
                 value="${role.role_id}"
                 ${selectedRole === role.role_name ? 'checked' : ''}
             >
@@ -649,21 +734,18 @@ function renderAdminRoleOptions(userProfile) {
     `).join('');
 }
 
-function renderAdminUserProfile(userProfile) {
-    const panel = document.getElementById('admin-user-profile-panel');
-    if (!panel) {
-        return;
-    }
-
+function buildAdminUserProfileMarkup(userProfile, options = {}) {
+    const inline = Boolean(options.inline);
     const rolesText = Array.isArray(userProfile.roles) && userProfile.roles.length ? userProfile.roles.join(', ') : 'No roles';
     const isProtectedSuperAdmin = userProfile.user_id === 1 || (Array.isArray(userProfile.roles) && userProfile.roles.includes('SUPER_ADMIN'));
     const canEditRoles = !isProtectedSuperAdmin;
+    const inputName = `admin-user-role-${userProfile.user_id}`;
     const roleNote = isProtectedSuperAdmin
         ? '<div class="account-note memory-note">This protected super admin account is read-only. Its roles cannot be changed or removed.</div>'
         : '<div class="account-note">Update the selected user roles below. SUPER_ADMIN is intentionally excluded from editable controls.</div>';
 
-    panel.innerHTML = `
-        <div class="admin-user-profile">
+    return `
+        <div class="admin-user-profile ${inline ? 'admin-user-profile-inline' : ''}">
             <div class="account-summary-grid admin-user-summary-grid">
                 ${renderAccountSummaryItem('Full Name', formatAccountValue(userProfile.full_name))}
                 ${renderAccountSummaryItem('Email', formatAccountValue(userProfile.email))}
@@ -678,9 +760,9 @@ function renderAdminUserProfile(userProfile) {
             <div class="admin-user-role-editor">
                 <h3 class="admin-user-role-title">Roles</h3>
                 ${roleNote}
-                <form id="admin-user-role-form">
+                <form data-admin-user-role-form="${userProfile.user_id}">
                     <div class="admin-role-options">
-                        ${renderAdminRoleOptions(userProfile)}
+                        ${renderAdminRoleOptions(userProfile, inputName)}
                     </div>
                     <div class="admin-user-role-actions">
                         <button type="submit" class="btn btn-primary" ${canEditRoles ? '' : 'disabled'}>Save Roles</button>
@@ -689,9 +771,15 @@ function renderAdminUserProfile(userProfile) {
             </div>
         </div>
     `;
+}
 
-    const roleForm = document.getElementById('admin-user-role-form');
-    roleForm?.querySelectorAll('input[name="admin-user-role"]').forEach((input) => {
+function bindAdminUserProfileInteractions(container, userProfile) {
+    const isProtectedSuperAdmin = userProfile.user_id === 1 || (Array.isArray(userProfile.roles) && userProfile.roles.includes('SUPER_ADMIN'));
+    const canEditRoles = !isProtectedSuperAdmin;
+    const inputName = `admin-user-role-${userProfile.user_id}`;
+    const roleForm = container.querySelector(`[data-admin-user-role-form="${userProfile.user_id}"]`);
+
+    roleForm?.querySelectorAll(`input[name="${inputName}"]`).forEach((input) => {
         input.addEventListener('change', () => {
             roleForm.querySelectorAll('.admin-role-option').forEach((option) => {
                 option.classList.toggle('selected', option.contains(input) && input.checked);
@@ -706,7 +794,7 @@ function renderAdminUserProfile(userProfile) {
             return;
         }
 
-        const selectedRoleInput = roleForm.querySelector('input[name="admin-user-role"]:checked');
+        const selectedRoleInput = roleForm.querySelector(`input[name="${inputName}"]:checked`);
         if (!selectedRoleInput) {
             showMessage('admin-users', 'Select one role before saving.', 'error');
             return;
@@ -733,20 +821,55 @@ function renderAdminUserProfile(userProfile) {
     });
 }
 
-async function openAdminUserProfile(userId) {
+function renderAdminUserProfile(userProfile) {
+    const panel = document.getElementById('admin-user-profile-panel');
+    if (!panel) {
+        return;
+    }
+
+    panel.innerHTML = buildAdminUserProfileMarkup(userProfile);
+    bindAdminUserProfileInteractions(panel, userProfile);
+}
+
+async function openAdminUserProfile(userId, options = {}) {
+    const force = Boolean(options.force);
+    if (isPhoneViewport() && !force && selectedAdminUserId === userId) {
+        selectedAdminUserId = null;
+        selectedAdminUserProfile = null;
+        selectedAdminUserProfileError = '';
+        renderAdminUserTable();
+        return;
+    }
+
     selectedAdminUserId = userId;
+    selectedAdminUserProfile = null;
+    selectedAdminUserProfileError = '';
     renderAdminUserTable();
 
     const panel = document.getElementById('admin-user-profile-panel');
-    if (panel) {
+    if (!isPhoneViewport() && panel) {
         panel.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading user profile...</p></div>';
     }
 
     try {
         const profile = await getUserProfile(userId);
+        if (selectedAdminUserId !== userId) {
+            return;
+        }
+        selectedAdminUserProfile = profile;
+        if (isPhoneViewport()) {
+            renderAdminUserTable();
+            return;
+        }
         renderAdminUserProfile(profile);
     } catch (error) {
-        if (panel) {
+        if (selectedAdminUserId !== userId) {
+            return;
+        }
+        selectedAdminUserProfileError = error.message;
+        if (isPhoneViewport()) {
+            renderAdminUserTable();
+        } else if (panel) {
             panel.innerHTML = `<p class="my-shift-load-error">Failed to load user profile: ${escapeHtml(error.message)}</p>`;
         }
         showMessage('admin-users', `Failed to load user profile: ${error.message}`, 'error');
@@ -780,18 +903,22 @@ async function loadAdminUsers(options = {}) {
 
         if (!preserveSelection) {
             selectedAdminUserId = null;
+            selectedAdminUserProfile = null;
+            selectedAdminUserProfileError = '';
         }
 
         if (preferredUserId) {
             selectedAdminUserId = preferredUserId;
         } else if (selectedAdminUserId && !adminUsers.some((user) => user.user_id === selectedAdminUserId)) {
             selectedAdminUserId = null;
+            selectedAdminUserProfile = null;
+            selectedAdminUserProfileError = '';
         }
 
         renderAdminUserTable();
 
         if (selectedAdminUserId) {
-            await openAdminUserProfile(selectedAdminUserId);
+            await openAdminUserProfile(selectedAdminUserId, { force: true });
         } else if (panel) {
             panel.innerHTML = '<p class="auth-empty">Select a user to view the full profile and manage roles.</p>';
         }
@@ -801,6 +928,31 @@ async function loadAdminUsers(options = {}) {
         }
         showMessage('admin-users', `Failed to load users: ${error.message}`, 'error');
     }
+}
+
+function handleAdminUsersViewportChange() {
+    const phoneView = isPhoneViewport();
+    if (lastAdminUsersPhoneViewport === phoneView) {
+        return;
+    }
+
+    lastAdminUsersPhoneViewport = phoneView;
+    renderAdminUserTable();
+
+    if (!selectedAdminUserId) {
+        return;
+    }
+
+    if (phoneView) {
+        return;
+    }
+
+    if (selectedAdminUserProfile) {
+        renderAdminUserProfile(selectedAdminUserProfile);
+        return;
+    }
+
+    openAdminUserProfile(selectedAdminUserId, { force: true });
 }
 
 function formatShiftRange(startTime, endTime) {
@@ -1015,16 +1167,16 @@ function renderMyShiftCard(signup, now) {
         actionsHtml = `
             <div class="my-shift-actions">
                 ${reconfirmAvailable
-                ? `<button class="btn btn-success" onclick="reconfirmMySignup(${signup.signup_id}, 'CONFIRM')" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Confirm</button>`
+                ? `<button class="btn btn-success btn-compact" onclick="reconfirmMySignup(${signup.signup_id}, 'CONFIRM')">Confirm</button>`
                 : `<span class="reconfirm-note">Role is full or unavailable for reconfirmation.</span>`
             }
-                <button class="btn btn-danger" onclick="reconfirmMySignup(${signup.signup_id}, 'CANCEL')" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Cancel</button>
+                <button class="btn btn-danger btn-compact" onclick="reconfirmMySignup(${signup.signup_id}, 'CANCEL')">Cancel</button>
             </div>
         `;
     } else if (showCancel) {
         actionsHtml = `
             <div class="my-shift-actions">
-                <button class="btn btn-danger" onclick="cancelMySignup(${signup.signup_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Cancel Signup</button>
+                <button class="btn btn-danger btn-compact" onclick="cancelMySignup(${signup.signup_id})">Cancel Signup</button>
             </div>
         `;
     }
@@ -1084,6 +1236,7 @@ async function loadMyRegisteredShifts() {
     try {
         const signups = await getUserSignups(currentUser.user_id);
         const now = new Date();
+        container.classList.remove('loading');
 
         if (!signups || signups.length === 0) {
             container.innerHTML = `
@@ -1221,20 +1374,18 @@ function renderRegistrationsRowContent(shiftRegistrations) {
                     ? `
                         <div class="registrant-actions">
                             <button
-                                class="btn btn-secondary btn-attendance btn-attendance-showup"
+                                class="btn btn-secondary btn-compact btn-attendance btn-attendance-showup"
                                 onclick="markSignupAttendance(${signup.signup_id}, 'SHOW_UP', ${shiftRegistrations.shift_id})"
                                 ${disabledAttr}
                                 title="${disabledReason}"
-                                style="padding: 0.25rem 0.6rem; font-size: 0.75rem;"
                             >
                                 Mark Show Up
                             </button>
                             <button
-                                class="btn btn-secondary btn-attendance btn-attendance-noshow"
+                                class="btn btn-secondary btn-compact btn-attendance btn-attendance-noshow"
                                 onclick="markSignupAttendance(${signup.signup_id}, 'NO_SHOW', ${shiftRegistrations.shift_id})"
                                 ${disabledAttr}
                                 title="${disabledReason}"
-                                style="padding: 0.25rem 0.6rem; font-size: 0.75rem;"
                             >
                                 Mark No Show
                             </button>
@@ -1378,7 +1529,7 @@ function collapseExpandedRegistrations() {
 
 function setShiftBucketEmptyState(tbody, text) {
     if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #718096;">${escapeHtml(text)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" class="table-empty-cell">${escapeHtml(text)}</td></tr>`;
 }
 
 function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
@@ -1403,32 +1554,31 @@ function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
         const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
         const lockHint = 'Past shifts are locked';
         const registrationsButton = `<button
-                        class="btn btn-secondary"
+                        class="btn btn-secondary btn-sm"
                         data-registrations-btn="${shift.shift_id}"
                         onclick="toggleShiftRegistrations(${shift.shift_id}, this)"
-                        style="padding: 0.5rem 1rem; font-size: 0.875rem;"
                     >
                         View Registrations
                     </button>`;
         const editButton = isPastBucket
-            ? `<button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;" disabled title="${lockHint}">Edit</button>`
-            : `<button class="btn btn-primary" onclick="openEditShift(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Edit</button>`;
+            ? `<button class="btn btn-primary btn-sm" disabled title="${lockHint}">Edit</button>`
+            : `<button class="btn btn-primary btn-sm" onclick="openEditShift(${shift.shift_id})">Edit</button>`;
         let actionButton = '';
         if (isPastBucket) {
-            actionButton = `<button class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;" disabled title="${lockHint}">Locked</button>`;
+            actionButton = `<button class="btn btn-secondary btn-sm" disabled title="${lockHint}">Locked</button>`;
         } else if (shiftStatus === 'CANCELLED') {
-            actionButton = `<button class="btn btn-success" onclick="revokeShiftConfirm(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Revoke</button>`;
+            actionButton = `<button class="btn btn-success btn-sm" onclick="revokeShiftConfirm(${shift.shift_id})">Revoke</button>`;
         } else {
-            actionButton = `<button class="btn btn-danger" onclick="cancelShiftConfirm(${shift.shift_id})" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Cancel Shift</button>`;
+            actionButton = `<button class="btn btn-danger btn-sm" onclick="cancelShiftConfirm(${shift.shift_id})">Cancel Shift</button>`;
         }
 
         const tr = document.createElement('tr');
         tr.dataset.shiftId = String(shift.shift_id);
         tr.innerHTML = `
-            <td><strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span></td>
-            <td>${escapeHtml(timeText)}</td>
-            <td>${rolesText}</td>
-            <td>
+            <td data-label="Shift Name"><strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span></td>
+            <td data-label="Date & Time">${escapeHtml(timeText)}</td>
+            <td data-label="Roles">${rolesText}</td>
+            <td data-label="Actions">
                 <div class="shift-actions">
                     ${registrationsButton}
                     ${editButton}
@@ -1482,7 +1632,6 @@ function buildEditRoleRow(role = null) {
 
     const roleGroup = document.createElement('div');
     roleGroup.className = 'role-input-group';
-    roleGroup.style.marginTop = '1rem';
     roleGroup.dataset.roleId = roleId;
     roleGroup.innerHTML = `
         <div class="form-grid">
@@ -1494,8 +1643,8 @@ function buildEditRoleRow(role = null) {
                 <label>Required Count *</label>
                 <input type="number" class="edit-role-count" min="1" value="${roleCount}" required>
             </div>
-            <div class="form-group" style="display: flex; align-items: flex-end;">
-                <button type="button" class="btn btn-danger remove-edit-role-btn" style="width: 100%;">Remove</button>
+            <div class="form-group role-input-actions">
+                <button type="button" class="btn btn-danger remove-edit-role-btn">Remove</button>
             </div>
         </div>
     `;
@@ -1512,7 +1661,7 @@ function resetEditShiftForm() {
     document.getElementById('edit-shift-start').value = '';
     document.getElementById('edit-shift-end').value = '';
     document.getElementById('edit-roles-container').innerHTML = '';
-    document.getElementById('edit-shift-card').style.display = 'none';
+    document.getElementById('edit-shift-card').classList.add('app-hidden');
 }
 
 async function openEditShift(shiftId) {
@@ -1537,7 +1686,7 @@ async function openEditShift(shiftId) {
             });
         }
 
-        document.getElementById('edit-shift-card').style.display = 'block';
+        document.getElementById('edit-shift-card').classList.remove('app-hidden');
         document.getElementById('edit-shift-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
         showMessage('shifts', `Failed to load shift for editing: ${error.message}`, 'error');
@@ -1608,6 +1757,8 @@ async function revokeShiftConfirm(shiftId) {
 function setupEventListeners() {
     setManageShiftsSubtab(activeManageShiftsSubtab);
     setAdminSubtab(activeAdminSubtab);
+    lastAdminUsersPhoneViewport = isPhoneViewport();
+    window.addEventListener('resize', handleAdminUsersViewportChange);
 
     document.querySelectorAll('.manage-shifts-subtab').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -1728,7 +1879,23 @@ function setupEventListeners() {
 
     // Edit pantry modal - cancel
     document.getElementById('cancel-edit-pantry-btn').addEventListener('click', () => {
-        document.getElementById('edit-pantry-modal').style.display = 'none';
+        document.getElementById('edit-pantry-modal').classList.add('app-hidden');
+    });
+
+    document.getElementById('edit-pantry-modal').addEventListener('click', (event) => {
+        if (event.target === event.currentTarget) {
+            event.currentTarget.classList.add('app-hidden');
+        }
+    });
+
+    document.getElementById('notification-modal-close-btn').addEventListener('click', () => {
+        document.getElementById('notification-modal').classList.add('app-hidden');
+    });
+
+    document.getElementById('notification-modal').addEventListener('click', (event) => {
+        if (event.target === event.currentTarget) {
+            event.currentTarget.classList.add('app-hidden');
+        }
     });
 
     // Edit pantry modal - save
@@ -1744,7 +1911,7 @@ function setupEventListeners() {
 
         try {
             await updatePantry(pantryId, { name, location_address });
-            document.getElementById('edit-pantry-modal').style.display = 'none';
+            document.getElementById('edit-pantry-modal').classList.add('app-hidden');
             showMessage('pantry', 'Pantry updated successfully!', 'success');
             await loadPantries();
         } catch (error) {
@@ -1826,7 +1993,6 @@ function setupEventListeners() {
         const container = document.getElementById('roles-container');
         const roleGroup = document.createElement('div');
         roleGroup.className = 'role-input-group';
-        roleGroup.style.marginTop = '1rem';
         roleGroup.innerHTML = `
                     <div class="form-grid">
                         <div class="form-group">
@@ -1837,8 +2003,8 @@ function setupEventListeners() {
                             <label>Required Count *</label>
                             <input type="number" class="role-count" min="1" value="1" required>
                         </div>
-                        <div class="form-group" style="display: flex; align-items: flex-end;">
-                            <button type="button" class="btn btn-danger" onclick="this.closest('.role-input-group').remove()" style="width: 100%;">Remove</button>
+                        <div class="form-group role-input-actions">
+                            <button type="button" class="btn btn-danger" onclick="this.closest('.role-input-group').remove()">Remove</button>
                         </div>
                     </div>
                 `;
@@ -2022,7 +2188,7 @@ function showMessage(target, text, type = 'info') {
     textEl.innerHTML = text;
     textEl.style.color = s.color;
 
-    modal.style.display = 'flex';
+    modal.classList.remove('app-hidden');
 }
 
 // Make functions globally available
