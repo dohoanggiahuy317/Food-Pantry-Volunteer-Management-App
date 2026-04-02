@@ -57,63 +57,91 @@ volunteer_managing/
 All tables are created from SQL files in [backend/db/migrations/](backend/db/migrations/) via `init_schema()` on every Flask startup (idempotent — uses `CREATE TABLE IF NOT EXISTS` for the schema baseline).
 
 ```
-roles               users
-─────               ─────
-role_id (PK)        user_id (PK)
-role_name           full_name
-                    email
-                    phone_number
-                    timezone
-                    auth_provider
-                    auth_uid
-                    attendance_score
-                    created_at / updated_at
-         │
-    user_roles (join table)
-    ─────────────────────────
-    user_id (FK → users)
-    role_id (FK → roles)
-         │
-         │         pantries
-         │         ────────
-         │         pantry_id (PK)
-         │         name
-         │         location_address
-         │
-    pantry_leads (join table)
-    ─────────────────────────
-    pantry_id (FK → pantries)
-    user_id   (FK → users)
-         │
-       shifts
-       ──────
-       shift_id (PK)
-       pantry_id  (FK → pantries, CASCADE DELETE)
-       shift_name
-       start_time / end_time
-       status          ← OPEN | FULL | CANCELLED
-       created_by (nullable FK → users)
-         │
-    shift_roles
-    ───────────
-    shift_role_id (PK)
-    shift_id    (FK → shifts, CASCADE DELETE)
-    role_title
-    required_count
-    filled_count    ← kept in sync by recalculate_shift_role_capacity()
-    status          ← OPEN | FULL | CANCELLED
-         │
-    shift_signups
-    ─────────────
-    signup_id (PK)
-    shift_role_id (FK → shift_roles, CASCADE DELETE)
-    user_id       (FK → users, CASCADE DELETE)
-    signup_status ← CONFIRMED | PENDING_CONFIRMATION | WAITLISTED | CANCELLED | SHOW_UP | NO_SHOW
-    reservation_expires_at ← nullable UTC datetime used for 48h reserved spots after shift edits
-    UNIQUE (shift_role_id, user_id)  ← prevents double signup
+roles
+─────
+role_id (PK, INT)
+role_name (UNIQUE)
+
+users
+─────
+user_id (PK, AUTO_INCREMENT)
+full_name
+email (UNIQUE)
+phone_number (nullable)
+timezone (nullable)
+auth_provider (nullable)
+auth_uid (nullable, UNIQUE)
+attendance_score (default 100)
+created_at
+updated_at
+
+user_roles
+──────────
+PRIMARY KEY (user_id, role_id)
+user_id (FK → users.user_id, ON DELETE CASCADE)
+role_id (FK → roles.role_id, ON DELETE RESTRICT)
+INDEX idx_user_roles_user_id (user_id)
+
+pantries
+────────
+pantry_id (PK, AUTO_INCREMENT)
+name
+location_address
+created_at
+updated_at
+
+pantry_leads
+────────────
+PRIMARY KEY (pantry_id, user_id)
+pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+user_id (FK → users.user_id, ON DELETE CASCADE)
+INDEX idx_pantry_leads_user_id (user_id)
+
+shifts
+──────
+shift_id (PK, AUTO_INCREMENT)
+pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+shift_name
+start_time
+end_time
+status (default OPEN)
+created_by (nullable FK → users.user_id, ON DELETE SET NULL)
+created_at
+updated_at
+INDEX idx_shifts_pantry_id (pantry_id)
+
+shift_roles
+───────────
+shift_role_id (PK, AUTO_INCREMENT)
+shift_id (FK → shifts.shift_id, ON DELETE CASCADE)
+role_title
+required_count
+filled_count (default 0)
+status (default OPEN)
+INDEX idx_shift_roles_shift_id (shift_id)
+
+shift_signups
+─────────────
+signup_id (PK, AUTO_INCREMENT)
+shift_role_id (FK → shift_roles.shift_role_id, ON DELETE CASCADE)
+user_id (FK → users.user_id, ON DELETE CASCADE)
+signup_status (default CONFIRMED)
+reservation_expires_at (nullable)
+created_at
+UNIQUE KEY uq_shift_signups_role_user (shift_role_id, user_id)
+INDEX idx_shift_signups_shift_role_id (shift_role_id)
+INDEX idx_shift_signups_user_id (user_id)
+INDEX idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at)
 ```
 
-**Cascade rules:** Deleting a pantry cascades to shifts → shift_roles → shift_signups. Deleting a user cascades out of signups and pantry leads, and any `shifts.created_by` references are set to `NULL`.
+Relationship summary:
+
+- Deleting a pantry cascades to its shifts, then to shift roles, then to shift signups.
+- Deleting a user cascades out of `user_roles`, `pantry_leads`, and `shift_signups`.
+- Deleting a user does not block on shifts they created because `shifts.created_by` uses `ON DELETE SET NULL`.
+- Role rows in `roles` cannot be deleted while referenced from `user_roles` because that foreign key uses `ON DELETE RESTRICT`.
+- Duplicate signup to the same role is blocked by `uq_shift_signups_role_user (shift_role_id, user_id)`.
+- Reservation-aware capacity checks are supported by `idx_shift_signups_role_status_reservation`.
 
 ---
 
