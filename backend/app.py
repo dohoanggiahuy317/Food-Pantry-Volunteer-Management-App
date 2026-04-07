@@ -1254,6 +1254,38 @@ def get_active_shifts(pantry_id: int) -> Any:
     return jsonify(shifts)
 
 
+@app.get("/api/calendar/shifts")
+def get_calendar_shifts() -> Any:
+    start_param = request.args.get("start")
+    end_param = request.args.get("end")
+    start_time = parse_iso_datetime_to_utc(start_param)
+    end_time = parse_iso_datetime_to_utc(end_param)
+    if not start_time or not end_time:
+        return jsonify({"error": "start and end query params are required ISO datetimes"}), 400
+    if end_time < start_time:
+        return jsonify({"error": "end must be greater than or equal to start"}), 400
+
+    shifts = backend.list_non_expired_shifts_in_range(
+        start_time=start_time.isoformat().replace("+00:00", "Z"),
+        end_time=end_time.isoformat().replace("+00:00", "Z"),
+        include_cancelled=False,
+    )
+    serialized: list[dict[str, Any]] = []
+    for shift in shifts:
+        shift_id = int(shift.get("shift_id"))
+        expire_pending_signups_if_started(shift_id)
+        pantry = find_pantry_by_id(int(shift.get("pantry_id")))
+        shift["roles"] = get_shift_roles(shift_id, include_cancelled=False)
+        shift["pantry"] = {
+            "pantry_id": pantry.get("pantry_id") if pantry else shift.get("pantry_id"),
+            "name": pantry.get("name") if pantry else "Unknown Pantry",
+            "location_address": pantry.get("location_address") if pantry else "",
+        }
+        serialized.append(shift)
+
+    return jsonify(serialized)
+
+
 @app.post("/api/pantries/<int:pantry_id>/shifts")
 def create_shift(pantry_id: int) -> Any:
     """Create a new shift (PANTRY_LEAD or admin-capable actor)."""

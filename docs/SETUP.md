@@ -74,7 +74,7 @@ RESEND_FROM_EMAIL=noreply@updates.example.com
 | `MYSQL_HOST` / `MYSQL_PORT`     | Where Flask looks for MySQL. Docker maps the container to `localhost:3306`                     |
 | `MYSQL_DATABASE`                | The database name created by Docker on first start                                             |
 | `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml`                                                    |
-| `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/db.json` if the tables are empty   |
+| `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/mysql.json` if the tables are empty |
 | `RESEND_API_KEY`                | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
 | `RESEND_FROM_EMAIL`             | Verified sender address used for outgoing email (for example `noreply@updates.example.com`)    |
 
@@ -117,8 +117,9 @@ pip install -r requirements.txt
 python app.py
 ```
 
-> **First startup note:** Flask will automatically initialize the database schema (create all tables from `backend/db/migrations/001_initial.sql`) and seed sample data from `backend/data/db.json` if the database is empty.  
+> **First startup note:** Flask will automatically initialize the database schema (create all tables from `backend/db/migrations/001_initial.sql`) and seed sample data from `backend/data/mysql.json` if the database is empty.  
 > For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly. The current baseline includes `users.timezone` for localized emails.
+> The current MySQL seed includes a larger future shift dataset so the calendar and signup flows have much denser mock data out of the box.
 
 ---
 

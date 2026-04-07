@@ -27,12 +27,13 @@ volunteer_managing/
 │   ├── db/
 │   │   ├── mysql.py                # Connection pool management (get_connection)
 │   │   ├── init_schema.py          # Runs all SQL files in db/migrations idempotently on startup
-│   │   ├── seed.py                 # Seeds DB from backend/data/db.json if empty
+│   │   ├── seed.py                 # Seeds MySQL from backend/data/mysql.json if empty
 │   │   └── migrations/
 │   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. signup reservations and users.timezone)
 │   │
 │   └── data/
-│       └── db.json                 # Sample seed data (users, pantries, shifts)
+│       ├── mysql.json              # MySQL seed data, including a larger future mock shift set
+│       └── in_memory.json          # In-memory backend seed data
 │
 └── frontend/
     ├── templates/
@@ -160,7 +161,7 @@ app.py
     │      apply_sql(*.sql in migrations/)   ← CREATE TABLE IF NOT EXISTS baseline schema
     │    MySQLBackend()  [mysql_backend.py]
     │    backend.is_empty()?
-    │      YES → seed_mysql_from_json("data/db.json")
+    │      YES → seed_mysql_from_json("data/mysql.json")
     │    return MySQLBackend instance
     └─ NO  → return MemoryBackend instance
   backend = <chosen instance>            ← module-level singleton used by all routes

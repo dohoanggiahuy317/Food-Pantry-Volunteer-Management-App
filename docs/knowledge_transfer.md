@@ -9,7 +9,8 @@
     - memory_backend.py
     - mysql_backend.py
   - II. Data
-    - db.json
+    - mysql.json
+    - in_memory.json
   - III. Database
     - 001_initial.sql
     - init_schema.py
@@ -180,14 +181,15 @@ If value is `"mysql"`:
 
 If env `SEED_MYSQL_FROM_JSON_ON_EMPTY` is `"true"` (default) and the DB reports empty via `backend.is_empty()`:
 
-- Loads seed data from `data/db.json` using `db.seed.seed_mysql_from_json`
+- Loads seed data from `data/mysql.json` using `db.seed.seed_mysql_from_json`
+- The current MySQL seed includes a much larger set of future `OPEN` shifts so calendar and signup UI flows have denser mock coverage in dev
 
 Returns the MySQL backend instance.
 
 For any other `DATA_BACKEND` value:
 
 - Returns `MemoryBackend()`  
-  (which will self-seed from `data/db.json` if that file exists)
+  (which will self-seed from `data/in_memory.json` if that file exists)
 
 
 ---
@@ -195,7 +197,7 @@ For any other `DATA_BACKEND` value:
 ### 3. memory_backend.py
 
 **Purpose:**  
-Dev/demo datastore kept in Python dicts, optionally seeded from `data/db.json`. Tracks incremental IDs and keeps role capacities in sync.
+Dev/demo datastore kept in Python dicts, optionally seeded from `data/in_memory.json`. Tracks incremental IDs and keeps role capacities in sync.
 
 **Internal helpers & setup**
 
@@ -209,10 +211,10 @@ Dev/demo datastore kept in Python dicts, optionally seeded from `data/db.json`. 
   Counts occupied slots for a role (active statuses plus unexpired `PENDING_CONFIRMATION` reservations), updates `filled_count`, and sets role status to FULL when filled ≥ required, else OPEN (skips status change if role is CANCELLED).
 
 - `_load_seed_data() -> None`  
-  If `data/db.json` exists, loads tables from it and sets `next_*` ID counters to max existing + 1.
+  If `data/in_memory.json` exists, loads tables from it and sets `next_*` ID counters to max existing + 1.
 
 - `__init__(data_path=None)`  
-  Initializes empty tables and ID counters (start at 1); sets seed path (default `data/db.json`); then seeds via `_load_seed_data()`.
+  Initializes empty tables and ID counters (start at 1); sets seed path (default `data/in_memory.json`); then seeds via `_load_seed_data()`.
 
 
 ---
@@ -422,10 +424,15 @@ Pending reconfirmation is also transactional:
 
 ## II. Data
 
-### 1. db.json
+### 1. mysql.json and in_memory.json
 
 **Purpose:**  
-Seed dataset for development and demos. It pre-populates every table the backends expect so the app has realistic data without manual entry.
+Seed datasets for development and demos. They pre-populate every table the backends expect so the app has realistic data without manual entry.
+
+Current split:
+
+- `backend/data/mysql.json` seeds the MySQL backend and now includes a much larger future mock shift schedule for calendar and signup testing.
+- `backend/data/in_memory.json` seeds the in-memory backend.
 
 Contains:
 
@@ -656,7 +663,7 @@ Default values:
 ### 4. seed.py
 
 **Purpose:**  
-Populate MySQL tables using the dataset in `data/db.json`.
+Populate MySQL tables using the dataset in `data/mysql.json`.
 
 Functions:
 
