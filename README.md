@@ -115,11 +115,14 @@ The app now shows an auth gate before the dashboard.
 ### Admin
 - Full access to all pantries and shifts across the system.
 - Can use the Admin page `Users` tab to search, monitor, and manage users.
+- Can assign and remove pantry leads through search-based pantry and lead pickers in the Admin `Pantries` tab.
 - Can assign `ADMIN` or `PANTRY_LEAD` to another user, but cannot remove `ADMIN` from another admin unless they are the super admin.
 - Can change their own role and lose Admin access immediately if they demote themselves.
 
 ### Pantry Lead
 - Can create, edit, and cancel shifts for pantries they are assigned to.
+- Can use the search-based pantry picker in `Manage Shifts` and search shifts by name in `Shifts View`.
+- Can filter the shared `Shifts View` table by `Incoming`, `Ongoing`, `Past`, and `Canceled`.
 - Can view volunteer registrations and mark attendance.
 
 ### Volunteer

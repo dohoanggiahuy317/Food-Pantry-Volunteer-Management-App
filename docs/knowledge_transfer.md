@@ -988,12 +988,13 @@ Responsive rules (≤768px):
 ### 1. admin-functions.js
 
 Purpose:  
-Front-end helper functions for admins and leads to manage pantries, leads, and roles, plus utility functions to populate select dropdowns.
+Front-end helper functions for admins and leads to manage pantries, leads, and roles.
 
 Note:
 
 - user search/profile/role editing now lives in `dashboard.js` + `user-functions.js`
-- `admin-functions.js` still mainly covers pantry and pantry-lead management
+- search-backed picker rendering and filtered-table UI state now live in `dashboard.js`
+- `admin-functions.js` still mainly covers pantry and pantry-lead API calls
 
 Functions:
 
@@ -1036,7 +1037,7 @@ Functions:
 - Remove pantry lead
 
 
-Dropdown helper functions:
+Legacy helper functions still present:
 
 `populateUserSelect(selectElement, users, options)`
 
@@ -1156,7 +1157,9 @@ Pantry management:
 
 - loads accessible pantries
 - loads public pantries
-- sets default pantry selection
+- sets the default pantry selection
+- syncs the shared Manage Shifts pantry search picker
+- syncs the Admin pantry assignment search picker
 
 `loadPantryLeads()`
 
@@ -1304,6 +1307,8 @@ Event listeners handle:
 - assign/remove lead actions
 - create shift form
 - edit shift form
+- search-backed pantry/lead picker interactions
+- Manage Shifts search + status filter interactions
 
 
 Attendance window helpers:
@@ -1543,7 +1548,7 @@ Tabs are dynamically hidden or shown using JavaScript.
 
 Pantry selector:
 
-Used in management views to choose pantry.
+Used in management views to choose pantry through a search-backed selector at the top of the page.
 
 
 Main content sections:
@@ -1574,19 +1579,19 @@ Create shift form:
 
 Edit/view shifts section:
 
-Tables for:
+Contains:
 
-- incoming shifts
-- ongoing shifts
-- past shifts
-- cancelled shifts
+- one shared searchable table
+- status filter buttons for `Incoming`, `Ongoing`, `Past`, and `Canceled`
+- search by shift name
+- existing actions for registrations, editing, cancelling, revoking, and past-shift locking
 
 
 Admin Panel
 
 - Pantries subtab:
   - create pantry form
-  - assign/remove pantry leads
+  - assign/remove pantry leads through pantry and lead search pickers
   - table listing pantries and leads
 - Users subtab:
   - search + role filter
