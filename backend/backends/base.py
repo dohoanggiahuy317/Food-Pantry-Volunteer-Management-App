@@ -124,6 +124,22 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_shifts_by_series(self, shift_series_id: int) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_shift_series_by_id(self, shift_series_id: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_shift_series(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_shift_series(self, shift_series_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
     def create_shift(
         self,
         pantry_id: int,
@@ -132,6 +148,8 @@ class StoreBackend(ABC):
         end_time: str,
         status: str,
         created_by: int,
+        shift_series_id: int | None = None,
+        series_position: int | None = None,
     ) -> dict[str, Any]:
         raise NotImplementedError
 

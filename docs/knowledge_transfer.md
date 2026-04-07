@@ -103,8 +103,20 @@ Defines StoreBackend, the abstract interface every data backend (MySQL, in-memor
 - `get_shift_by_id(shift_id:int) -> dict|None`  
   Get a shift.
 
-- `create_shift(pantry_id:int, shift_name:str, start_time:str, end_time:str, status:str, created_by:int) -> dict`  
-  Create shift record.
+- `list_shifts_by_series(shift_series_id:int) -> list[dict]`  
+  List concrete shift rows belonging to one recurring series.
+
+- `get_shift_series_by_id(shift_series_id:int) -> dict|None`  
+  Fetch one recurring series record.
+
+- `create_shift_series(payload:dict) -> dict`  
+  Create the recurring-series metadata row used by recurring weekly shifts.
+
+- `update_shift_series(shift_series_id:int, payload:dict) -> dict|None`  
+  Update recurring-series metadata.
+
+- `create_shift(pantry_id:int, shift_name:str, start_time:str, end_time:str, status:str, created_by:int, shift_series_id=None, series_position=None) -> dict`  
+  Create shift record, optionally linked to a recurring series.
 
 - `update_shift(shift_id:int, payload:dict) -> dict|None`  
   Update allowed fields of a shift.
@@ -831,10 +843,12 @@ Attendance helpers:
 
 - `GET /api/pantries/<pantry_id>/shifts`
 - `POST /api/pantries/<pantry_id>/shifts`
+- `POST /api/pantries/<pantry_id>/shifts/full-create`
 - `GET /api/shifts/<shift_id>`
 - `PATCH /api/shifts/<shift_id>`
 - `PUT /api/shifts/<shift_id>/full-update`
 - `DELETE /api/shifts/<shift_id>`
+- `POST /api/shifts/<shift_id>/cancel`
 
 **Shift roles**
 
@@ -1353,7 +1367,11 @@ API helpers:
 
 `createShift(pantryId, shiftData)`
 
-- create shift
+- legacy one-off create helper
+
+`createFullShift(pantryId, shiftData)`
+
+- create one-off or recurring shift series with roles in one request
 
 `updateShift(shiftId, shiftData)`
 
@@ -1365,7 +1383,11 @@ API helpers:
 
 `deleteShift(shiftId)`
 
-- cancel shift
+- legacy single-shift cancel helper
+
+`cancelShiftWithScope(shiftId, applyScope)`
+
+- cancel one occurrence or a recurring future slice
 
 `markAttendance(signupId, attendanceStatus)`
 
@@ -1416,9 +1438,11 @@ Functions:
 - `getShift(shiftId)`
 - `getShiftRegistrations(shiftId)`
 - `createShift(pantryId, shiftData)`
+- `createFullShift(pantryId, shiftData)`
 - `updateShift(shiftId, shiftData)`
 - `updateFullShift(shiftId, shiftData)`
 - `deleteShift(shiftId)`
+- `cancelShiftWithScope(shiftId, applyScope)`
 - `markAttendance(signupId, attendanceStatus)`
 - `getShiftRoles(shiftId)`
 - `createShiftRole(shiftId, roleData)`
@@ -1574,6 +1598,11 @@ Subtabs:
 Create shift form:
 
 - shift details
+- optional recurring weekly settings:
+  - repeat toggle
+  - weekly interval
+  - weekday chips
+  - finite end by occurrence count or end date
 - dynamic role inputs
 
 
@@ -1584,7 +1613,11 @@ Contains:
 - one shared searchable table
 - status filter buttons for `Incoming`, `Ongoing`, `Past`, and `Canceled`
 - search by shift name
+- recurring badge in manager rows for recurring occurrences
 - existing actions for registrations, editing, cancelling, revoking, and past-shift locking
+- recurring edit/cancel scope modal:
+  - `This event only`
+  - `This and following events`
 
 
 Admin Panel

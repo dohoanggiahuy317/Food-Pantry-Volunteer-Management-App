@@ -80,10 +80,12 @@ After a successful login or signup, Flask stores the authenticated local user in
 | `GET`    | `/api/pantries`                      | List pantries accessible to current user                                          |
 | `GET`    | `/api/pantries/<id>/shifts`          | List all shifts for a pantry (admin/lead view)                                    |
 | `GET`    | `/api/pantries/<id>/active-shifts`   | List non-expired shifts (public/volunteer view)                                   |
-| `POST`   | `/api/pantries/<id>/shifts`          | Create a new shift                                                                |
+| `POST`   | `/api/pantries/<id>/shifts`          | Create a basic one-off shift                                                      |
+| `POST`   | `/api/pantries/<id>/shifts/full-create` | Create a one-off or recurring shift series with roles in one request           |
 | `PATCH`  | `/api/shifts/<id>`                   | Update simple shift details or reopen a cancelled shift                           |
-| `PUT`    | `/api/shifts/<id>/full-update`       | Update a shift and all of its roles in one request for the edit form              |
+| `PUT`    | `/api/shifts/<id>/full-update`       | Update one shift or a recurring future slice, including all roles, in one request |
 | `DELETE` | `/api/shifts/<id>`                   | Cancel a shift                                                                    |
+| `POST`   | `/api/shifts/<id>/cancel`            | Cancel one event or this-and-following recurring events                           |
 | `POST`   | `/api/shift-roles/<id>/signup`       | Volunteer signs up for a shift role                                               |
 | `PATCH`  | `/api/signups/<id>/reconfirm`        | Volunteer confirms/cancels after shift edits                                      |
 | `PATCH`  | `/api/signups/<id>/attendance`       | Mark attendance (SHOW_UP / NO_SHOW)                                               |
@@ -121,6 +123,8 @@ The app now shows an auth gate before the dashboard.
 
 ### Pantry Lead
 - Can create, edit, and cancel shifts for pantries they are assigned to.
+- Can create recurring weekly shift series with custom weekdays, weekly interval, and finite end rules.
+- Can edit or cancel recurring shifts as either `This event only` or `This and following events`.
 - Can use the search-based pantry picker in `Manage Shifts` and search shifts by name in `Shifts View`.
 - Can filter the shared `Shifts View` table by `Incoming`, `Ongoing`, `Past`, and `Canceled`.
 - Can view volunteer registrations and mark attendance.
@@ -148,7 +152,7 @@ Set up Firebase Authentication and Resend email for the full experience, or use 
 
 If you want real email delivery in development or production, configure Resend in `backend/.env` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Resend’s official docs say sending uses a domain you own and recommend a subdomain such as `updates.yourdomain.com`; if your team does not already own a domain, register one first, then follow the Resend domain setup docs and DNS provider guide before using that sender address.
 
-For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes, including the `users.timezone` column, apply cleanly.
+For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes, including `users.timezone` and recurring-shift tables/columns such as `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`, apply cleanly.
 
 ---
 

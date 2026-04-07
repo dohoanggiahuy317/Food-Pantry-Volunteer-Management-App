@@ -87,6 +87,21 @@ function formatLocalDate(value, options = {}) {
     return formatter.format(date);
 }
 
+function getLocalDateKeyForTimeZone(value, timeZone = null) {
+    const date = getDateInstance(value);
+    if (!date) {
+        return '';
+    }
+
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: getDisplayTimeZone(timeZone),
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    return formatter.format(date);
+}
+
 function formatLocalTimeRange(startValue, endValue, options = {}) {
     const start = getDateInstance(startValue);
     const end = getDateInstance(endValue);
@@ -105,12 +120,30 @@ function formatLocalTimeRange(startValue, endValue, options = {}) {
         minute: '2-digit',
         hour12: true
     });
+    const sameLocalDay = getLocalDateKeyForTimeZone(start, resolvedTimeZone) === getLocalDateKeyForTimeZone(end, resolvedTimeZone);
     const startTime = timeFormatter.format(start);
     const endTime = timeFormatter.format(end);
-    const timeZoneLabel = options.includeTimeZone === false ? '' : ` ${getTimeZoneShortLabel(start, resolvedTimeZone)}`;
+    const startTimeZoneLabel = getTimeZoneShortLabel(start, resolvedTimeZone);
+    const endTimeZoneLabel = getTimeZoneShortLabel(end, resolvedTimeZone);
+    let timeZoneLabel = '';
+    if (options.includeTimeZone !== false) {
+        if (startTimeZoneLabel && endTimeZoneLabel && startTimeZoneLabel !== endTimeZoneLabel) {
+            timeZoneLabel = ` ${startTimeZoneLabel} / ${endTimeZoneLabel}`;
+        } else {
+            timeZoneLabel = ` ${startTimeZoneLabel || endTimeZoneLabel}`;
+        }
+    }
 
-    if (options.includeDate === false) {
+    if (sameLocalDay && options.includeDate === false) {
         return `${startTime} - ${endTime}${timeZoneLabel}`.trim();
+    }
+
+    if (!sameLocalDay) {
+        const endDateLabel = formatLocalDate(end, {
+            timeZone: resolvedTimeZone,
+            weekday: options.includeWeekday ? 'short' : undefined
+        });
+        return `${dateLabel}, ${startTime} - ${endDateLabel}, ${endTime}${timeZoneLabel}`.trim();
     }
 
     return `${dateLabel} | ${startTime} - ${endTime}${timeZoneLabel}`.trim();

@@ -51,9 +51,33 @@ CREATE TABLE IF NOT EXISTS pantry_leads (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS shift_series (
+  shift_series_id INT AUTO_INCREMENT PRIMARY KEY,
+  pantry_id INT NOT NULL,
+  created_by INT NULL,
+  timezone VARCHAR(64) NOT NULL,
+  frequency VARCHAR(32) NOT NULL DEFAULT 'WEEKLY',
+  interval_weeks INT NOT NULL DEFAULT 1,
+  weekdays_csv VARCHAR(64) NOT NULL,
+  end_mode VARCHAR(16) NOT NULL,
+  occurrence_count INT NULL,
+  until_date DATE NULL,
+  created_at DATETIME(6) NOT NULL,
+  updated_at DATETIME(6) NOT NULL,
+  INDEX idx_shift_series_pantry_id (pantry_id),
+  CONSTRAINT fk_shift_series_pantry
+    FOREIGN KEY (pantry_id) REFERENCES pantries(pantry_id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_shift_series_created_by
+    FOREIGN KEY (created_by) REFERENCES users(user_id)
+    ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS shifts (
   shift_id INT AUTO_INCREMENT PRIMARY KEY,
   pantry_id INT NOT NULL,
+  shift_series_id INT NULL,
+  series_position INT NULL,
   shift_name VARCHAR(255) NOT NULL,
   start_time DATETIME(6) NOT NULL,
   end_time DATETIME(6) NOT NULL,
@@ -62,9 +86,13 @@ CREATE TABLE IF NOT EXISTS shifts (
   created_at DATETIME(6) NOT NULL,
   updated_at DATETIME(6) NOT NULL,
   INDEX idx_shifts_pantry_id (pantry_id),
+  INDEX idx_shifts_shift_series_id (shift_series_id),
   CONSTRAINT fk_shifts_pantry
     FOREIGN KEY (pantry_id) REFERENCES pantries(pantry_id)
     ON DELETE CASCADE,
+  CONSTRAINT fk_shifts_shift_series
+    FOREIGN KEY (shift_series_id) REFERENCES shift_series(shift_series_id)
+    ON DELETE SET NULL,
   CONSTRAINT fk_shifts_created_by
     FOREIGN KEY (created_by) REFERENCES users(user_id)
     ON DELETE SET NULL

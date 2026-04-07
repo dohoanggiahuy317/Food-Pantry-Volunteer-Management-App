@@ -63,11 +63,30 @@ def _serialize_shift(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "shift_id": row["shift_id"],
         "pantry_id": row["pantry_id"],
+        "shift_series_id": row.get("shift_series_id"),
+        "series_position": int(row["series_position"]) if row.get("series_position") is not None else None,
         "shift_name": row["shift_name"],
         "start_time": _to_iso_z(row["start_time"]),
         "end_time": _to_iso_z(row["end_time"]),
         "status": row["status"],
         "created_by": row["created_by"],
+        "created_at": _to_iso_z(row["created_at"]),
+        "updated_at": _to_iso_z(row["updated_at"]),
+    }
+
+
+def _serialize_shift_series(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "shift_series_id": row["shift_series_id"],
+        "pantry_id": row["pantry_id"],
+        "created_by": row.get("created_by"),
+        "timezone": row["timezone"],
+        "frequency": row["frequency"],
+        "interval_weeks": int(row["interval_weeks"]),
+        "weekdays_csv": row["weekdays_csv"],
+        "end_mode": row["end_mode"],
+        "occurrence_count": int(row["occurrence_count"]) if row.get("occurrence_count") is not None else None,
+        "until_date": row["until_date"].isoformat() if row.get("until_date") else None,
         "created_at": _to_iso_z(row["created_at"]),
         "updated_at": _to_iso_z(row["updated_at"]),
     }
@@ -556,6 +575,100 @@ class MySQLBackend(StoreBackend):
             row = cursor.fetchone()
             return _serialize_shift(row) if row else None
 
+    def list_shifts_by_series(self, shift_series_id: int) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT * FROM shifts WHERE shift_series_id = %s ORDER BY start_time, shift_id",
+                (shift_series_id,),
+            )
+            return [_serialize_shift(row) for row in cursor.fetchall()]
+
+    def get_shift_series_by_id(self, shift_series_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM shift_series WHERE shift_series_id = %s", (shift_series_id,))
+            row = cursor.fetchone()
+            return _serialize_shift_series(row) if row else None
+
+    def create_shift_series(self, payload: dict[str, Any]) -> dict[str, Any]:
+        timestamp = _now_utc_naive()
+        until_date = payload.get("until_date")
+        until_dt = datetime.fromisoformat(until_date).date() if until_date else None
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO shift_series (
+                    pantry_id,
+                    created_by,
+                    timezone,
+                    frequency,
+                    interval_weeks,
+                    weekdays_csv,
+                    end_mode,
+                    occurrence_count,
+                    until_date,
+                    created_at,
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    int(payload["pantry_id"]),
+                    payload.get("created_by"),
+                    payload["timezone"],
+                    payload.get("frequency", "WEEKLY"),
+                    int(payload.get("interval_weeks", 1)),
+                    payload["weekdays_csv"],
+                    payload["end_mode"],
+                    payload.get("occurrence_count"),
+                    until_dt,
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            shift_series_id = int(cursor.lastrowid)
+            conn.commit()
+        created = self.get_shift_series_by_id(shift_series_id)
+        if not created:
+            raise RuntimeError("Failed to create shift series")
+        return created
+
+    def update_shift_series(self, shift_series_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        existing = self.get_shift_series_by_id(shift_series_id)
+        if not existing:
+            return None
+
+        updates: list[str] = []
+        values: list[Any] = []
+        for key in ["timezone", "frequency", "weekdays_csv", "end_mode"]:
+            if key in payload:
+                updates.append(f"{key} = %s")
+                values.append(payload[key])
+        if "interval_weeks" in payload:
+            updates.append("interval_weeks = %s")
+            values.append(int(payload["interval_weeks"]))
+        if "occurrence_count" in payload:
+            updates.append("occurrence_count = %s")
+            values.append(payload["occurrence_count"])
+        if "until_date" in payload:
+            updates.append("until_date = %s")
+            values.append(datetime.fromisoformat(payload["until_date"]).date() if payload["until_date"] else None)
+        if not updates:
+            return existing
+        updates.append("updated_at = %s")
+        values.append(_now_utc_naive())
+        values.append(shift_series_id)
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE shift_series SET {', '.join(updates)} WHERE shift_series_id = %s",
+                tuple(values),
+            )
+            conn.commit()
+        return self.get_shift_series_by_id(shift_series_id)
+
     def list_non_expired_shifts_by_pantry(
         self,
         pantry_id: int,
@@ -601,6 +714,8 @@ class MySQLBackend(StoreBackend):
         end_time: str,
         status: str,
         created_by: int,
+        shift_series_id: int | None = None,
+        series_position: int | None = None,
     ) -> dict[str, Any]:
         timestamp = _now_utc_naive()
         start_dt = _parse_iso_to_dt(start_time)
@@ -612,6 +727,8 @@ class MySQLBackend(StoreBackend):
                 """
                 INSERT INTO shifts (
                     pantry_id,
+                    shift_series_id,
+                    series_position,
                     shift_name,
                     start_time,
                     end_time,
@@ -620,9 +737,20 @@ class MySQLBackend(StoreBackend):
                     created_at,
                     updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (pantry_id, shift_name, start_dt, end_dt, status, created_by, timestamp, timestamp),
+                (
+                    pantry_id,
+                    shift_series_id,
+                    series_position,
+                    shift_name,
+                    start_dt,
+                    end_dt,
+                    status,
+                    created_by,
+                    timestamp,
+                    timestamp,
+                ),
             )
             shift_id = int(cursor.lastrowid)
             conn.commit()
@@ -642,6 +770,12 @@ class MySQLBackend(StoreBackend):
         if "shift_name" in payload:
             updates.append("shift_name = %s")
             values.append(payload["shift_name"])
+        if "shift_series_id" in payload:
+            updates.append("shift_series_id = %s")
+            values.append(payload["shift_series_id"])
+        if "series_position" in payload:
+            updates.append("series_position = %s")
+            values.append(payload["series_position"])
         if "start_time" in payload:
             updates.append("start_time = %s")
             values.append(_parse_iso_to_dt(payload["start_time"]))
@@ -726,6 +860,12 @@ class MySQLBackend(StoreBackend):
             if "shift_name" in shift_payload:
                 updates.append("shift_name = %s")
                 values.append(shift_payload["shift_name"])
+            if "shift_series_id" in shift_payload:
+                updates.append("shift_series_id = %s")
+                values.append(shift_payload["shift_series_id"])
+            if "series_position" in shift_payload:
+                updates.append("series_position = %s")
+                values.append(shift_payload["series_position"])
             if "start_time" in shift_payload:
                 updates.append("start_time = %s")
                 values.append(_parse_iso_to_dt(shift_payload["start_time"]))

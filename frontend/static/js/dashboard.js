@@ -22,6 +22,18 @@ let selectedAdminUserProfileError = '';
 let lastAdminUsersPhoneViewport = null;
 let dashboardBootPromise = null;
 let dashboardEventListenersBound = false;
+let recurringScopeResolver = null;
+
+const RECURRING_WEEKDAY_ORDER = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+const RECURRING_WEEKDAY_LABELS = {
+    MO: 'Mon',
+    TU: 'Tue',
+    WE: 'Wed',
+    TH: 'Thu',
+    FR: 'Fri',
+    SA: 'Sat',
+    SU: 'Sun'
+};
 
 function currentUserHasRole(roleName) {
     return Boolean(currentUser && Array.isArray(currentUser.roles) && currentUser.roles.includes(roleName));
@@ -29,6 +41,223 @@ function currentUserHasRole(roleName) {
 
 function currentUserIsAdminCapable() {
     return currentUserHasRole('ADMIN') || currentUserHasRole('SUPER_ADMIN');
+}
+
+function getWeekdayCodeFromDateInput(value) {
+    if (!value) {
+        return null;
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return null;
+    }
+
+    const weekdayOrder = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+    return weekdayOrder[date.getDay()] || null;
+}
+
+function setWeekdayChipSelection(containerId, weekdays = []) {
+    const normalized = new Set(Array.isArray(weekdays) ? weekdays : []);
+    document.querySelectorAll(`#${containerId} [data-weekday]`).forEach((button) => {
+        button.classList.toggle('active', normalized.has(button.dataset.weekday));
+    });
+}
+
+function getSelectedWeekdays(containerId) {
+    return Array.from(document.querySelectorAll(`#${containerId} [data-weekday].active`))
+        .map((button) => button.dataset.weekday)
+        .filter(Boolean);
+}
+
+function setRecurrenceEndMode(prefix, mode = 'COUNT') {
+    const normalized = mode === 'UNTIL' ? 'UNTIL' : 'COUNT';
+    document.querySelectorAll(`input[name="${prefix}-repeat-end-mode"]`).forEach((input) => {
+        input.checked = input.value === normalized;
+    });
+
+    const countInput = document.getElementById(`${prefix}-repeat-count`);
+    const untilInput = document.getElementById(`${prefix}-repeat-until`);
+    if (countInput) {
+        countInput.disabled = normalized !== 'COUNT';
+    }
+    if (untilInput) {
+        untilInput.disabled = normalized !== 'UNTIL';
+    }
+}
+
+function describeRecurrenceRule(recurrence, shift = null) {
+    if (!recurrence) {
+        return 'One-time shift';
+    }
+
+    const weekdays = Array.isArray(recurrence.weekdays)
+        ? recurrence.weekdays.map((code) => RECURRING_WEEKDAY_LABELS[code] || code).join(', ')
+        : '';
+    const everyText = Number(recurrence.interval_weeks || 1) === 1
+        ? 'every week'
+        : `every ${Number(recurrence.interval_weeks || 1)} weeks`;
+    const endText = recurrence.end_mode === 'UNTIL'
+        ? `until ${recurrence.until_date || 'a set date'}`
+        : `for ${Number(recurrence.occurrence_count || 1)} occurrence(s)`;
+    const summaryParts = [`${everyText} on ${weekdays}; ${endText}.`];
+
+    if (shift) {
+        const startValue = shift.start_time || shift.startDate || null;
+        const endValue = shift.end_time || shift.endDate || null;
+        const startDateKey = getLocalDateKeyForTimeZone(startValue);
+        const endDateKey = getLocalDateKeyForTimeZone(endValue);
+        if (startDateKey && endDateKey && startDateKey !== endDateKey) {
+            summaryParts.push(`Time window: ${formatLocalTimeRange(startValue, endValue, { includeDate: false })}.`);
+        }
+    }
+
+    return summaryParts.join(' ');
+}
+
+function resetCreateRecurrenceForm() {
+    const toggle = document.getElementById('shift-repeat-toggle');
+    const fields = document.getElementById('shift-recurrence-fields');
+    if (toggle) {
+        toggle.checked = false;
+    }
+    if (fields) {
+        fields.classList.add('app-hidden');
+    }
+    const intervalInput = document.getElementById('shift-repeat-interval');
+    const countInput = document.getElementById('shift-repeat-count');
+    const untilInput = document.getElementById('shift-repeat-until');
+    if (intervalInput) intervalInput.value = '1';
+    if (countInput) countInput.value = '4';
+    if (untilInput) untilInput.value = '';
+    setRecurrenceEndMode('shift', 'COUNT');
+    setWeekdayChipSelection('shift-repeat-weekdays', []);
+}
+
+function resetEditRecurrenceForm() {
+    const card = document.getElementById('edit-shift-recurrence-card');
+    const summary = document.getElementById('edit-shift-recurrence-summary');
+    if (card) {
+        card.classList.add('app-hidden');
+    }
+    if (summary) {
+        summary.textContent = '';
+    }
+    const intervalInput = document.getElementById('edit-shift-repeat-interval');
+    const countInput = document.getElementById('edit-shift-repeat-count');
+    const untilInput = document.getElementById('edit-shift-repeat-until');
+    if (intervalInput) intervalInput.value = '1';
+    if (countInput) countInput.value = '1';
+    if (untilInput) untilInput.value = '';
+    setRecurrenceEndMode('edit-shift', 'COUNT');
+    setWeekdayChipSelection('edit-shift-repeat-weekdays', []);
+}
+
+function toggleCreateRecurrenceFields() {
+    const toggle = document.getElementById('shift-repeat-toggle');
+    const fields = document.getElementById('shift-recurrence-fields');
+    if (!toggle || !fields) {
+        return;
+    }
+    fields.classList.toggle('app-hidden', !toggle.checked);
+
+    if (toggle.checked) {
+        const currentWeekday = getWeekdayCodeFromDateInput(document.getElementById('shift-start')?.value);
+        if (currentWeekday) {
+            const selected = new Set(getSelectedWeekdays('shift-repeat-weekdays'));
+            selected.add(currentWeekday);
+            setWeekdayChipSelection('shift-repeat-weekdays', Array.from(selected));
+        }
+    }
+}
+
+function populateEditRecurrenceForm(shift) {
+    const recurrence = shift && shift.recurrence ? shift.recurrence : null;
+    const card = document.getElementById('edit-shift-recurrence-card');
+    const summary = document.getElementById('edit-shift-recurrence-summary');
+    if (!card || !summary) {
+        return;
+    }
+
+    if (!shift || !shift.is_recurring || !recurrence) {
+        resetEditRecurrenceForm();
+        return;
+    }
+
+    card.classList.remove('app-hidden');
+    summary.textContent = describeRecurrenceRule(recurrence, shift);
+    document.getElementById('edit-shift-repeat-interval').value = String(Number(recurrence.interval_weeks || 1));
+    document.getElementById('edit-shift-repeat-count').value = String(Number(recurrence.occurrence_count || 1));
+    document.getElementById('edit-shift-repeat-until').value = recurrence.until_date || '';
+    setWeekdayChipSelection('edit-shift-repeat-weekdays', recurrence.weekdays || []);
+    setRecurrenceEndMode('edit-shift', recurrence.end_mode || 'COUNT');
+}
+
+function buildRecurrencePayloadFromForm(prefix, startInputId) {
+    if (prefix === 'shift') {
+        const enabled = document.getElementById('shift-repeat-toggle')?.checked;
+        if (!enabled) {
+            return null;
+        }
+    } else if (!editingShiftSnapshot?.is_recurring) {
+        return null;
+    }
+
+    const startValue = document.getElementById(startInputId)?.value;
+    const startWeekday = getWeekdayCodeFromDateInput(startValue);
+    const weekdays = getSelectedWeekdays(`${prefix}-repeat-weekdays`);
+    if (startWeekday && !weekdays.includes(startWeekday)) {
+        weekdays.push(startWeekday);
+    }
+    weekdays.sort((a, b) => RECURRING_WEEKDAY_ORDER.indexOf(a) - RECURRING_WEEKDAY_ORDER.indexOf(b));
+
+    const interval = parseInt(document.getElementById(`${prefix}-repeat-interval`)?.value || '1', 10);
+    const endMode = document.querySelector(`input[name="${prefix}-repeat-end-mode"]:checked`)?.value || 'COUNT';
+    const payload = {
+        timezone: getBrowserTimeZone(),
+        frequency: 'WEEKLY',
+        interval_weeks: interval,
+        weekdays,
+        end_mode: endMode
+    };
+
+    if (endMode === 'UNTIL') {
+        payload.until_date = document.getElementById(`${prefix}-repeat-until`)?.value || '';
+    } else {
+        payload.occurrence_count = parseInt(document.getElementById(`${prefix}-repeat-count`)?.value || '0', 10);
+    }
+    return payload;
+}
+
+function promptRecurringScope(mode = 'edit') {
+    const modal = document.getElementById('recurring-scope-modal');
+    const title = document.getElementById('recurring-scope-modal-title');
+    const copy = document.getElementById('recurring-scope-modal-copy');
+    if (!modal || !title || !copy) {
+        return Promise.resolve('single');
+    }
+
+    title.textContent = mode === 'cancel' ? 'Cancel recurring shift' : 'Save recurring shift changes';
+    copy.textContent = mode === 'cancel'
+        ? 'Cancel only this event, or cancel this and all following events in the series.'
+        : 'Apply these changes to only this event, or to this and all following events in the recurring series.';
+    modal.classList.remove('app-hidden');
+
+    return new Promise((resolve) => {
+        recurringScopeResolver = resolve;
+    });
+}
+
+function closeRecurringScopeModal(choice = null) {
+    const modal = document.getElementById('recurring-scope-modal');
+    if (modal) {
+        modal.classList.add('app-hidden');
+    }
+    if (recurringScopeResolver) {
+        const resolver = recurringScopeResolver;
+        recurringScopeResolver = null;
+        resolver(choice);
+    }
 }
 
 async function syncCurrentUserTimezoneIfNeeded() {
@@ -1832,6 +2061,9 @@ function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
             ? shift.roles.map((role) => `${escapeHtml(role.role_title || 'Untitled Role')} (${role.filled_count || 0}/${role.required_count || 0})`).join(', ')
             : 'No roles';
         const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
+        const recurringBadge = shift.is_recurring
+            ? '<span class="status-badge recurrence-badge">Recurring</span>'
+            : '';
         const lockHint = 'Past shifts are locked';
         const registrationsButton = `<button
                         class="btn btn-secondary btn-sm"
@@ -1855,7 +2087,7 @@ function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
         const tr = document.createElement('tr');
         tr.dataset.shiftId = String(shift.shift_id);
         tr.innerHTML = `
-            <td data-label="Shift Name"><strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span></td>
+            <td data-label="Shift Name"><strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span> ${recurringBadge}</td>
             <td data-label="Date & Time">${escapeHtml(timeText)}</td>
             <td data-label="Roles">${rolesText}</td>
             <td data-label="Actions">
@@ -1933,6 +2165,7 @@ function resetEditShiftForm() {
     document.getElementById('edit-shift-end').value = '';
     document.getElementById('edit-roles-container').innerHTML = '';
     document.getElementById('edit-shift-card').classList.add('app-hidden');
+    resetEditRecurrenceForm();
 }
 
 async function openEditShift(shiftId) {
@@ -1957,6 +2190,7 @@ async function openEditShift(shiftId) {
             });
         }
 
+        populateEditRecurrenceForm(shift);
         document.getElementById('edit-shift-card').classList.remove('app-hidden');
         document.getElementById('edit-shift-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
@@ -1986,12 +2220,26 @@ function collectAffectedContacts(responses) {
 
 // Cancel shift with confirmation
 async function cancelShiftConfirm(shiftId) {
-    if (!confirm('Cancel this shift? Volunteers will need to reconfirm and no new signups will be accepted.')) return;
+    const shift = managedShifts.find((candidate) => Number(candidate.shift_id) === Number(shiftId)) || editingShiftSnapshot;
+    let applyScope = 'single';
+    if (shift && shift.is_recurring) {
+        const choice = await promptRecurringScope('cancel');
+        if (!choice || choice === 'cancel') {
+            return;
+        }
+        applyScope = choice;
+    } else if (!confirm('Cancel this shift? Volunteers will need to reconfirm and no new signups will be accepted.')) {
+        return;
+    }
 
     try {
-        const response = await deleteShift(shiftId);
+        const response = await cancelShiftWithScope(shiftId, applyScope);
         const affected = response.affected_signup_count || 0;
-        showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation and volunteers were notified.`, 'success');
+        const cancelledOccurrences = Number(response.cancelled_occurrence_count || 0);
+        const recurringText = applyScope === 'future' && cancelledOccurrences > 0
+            ? ` ${cancelledOccurrences} occurrence(s) were cancelled.`
+            : '';
+        showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation and volunteers were notified.${recurringText}`, 'success');
         await loadShiftsTable();
         await loadCalendarShifts(); // Update calendar view too
         const myShiftsTab = document.getElementById('content-my-shifts');
@@ -2254,6 +2502,23 @@ function setupEventListeners() {
         }
     });
 
+    document.getElementById('recurring-scope-modal-close')?.addEventListener('click', () => {
+        closeRecurringScopeModal(null);
+    });
+
+    document.getElementById('recurring-scope-modal')?.addEventListener('click', (event) => {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target === event.currentTarget) {
+            closeRecurringScopeModal(null);
+            return;
+        }
+        const scopeButton = target?.closest('[data-recurring-scope-choice]');
+        if (!(scopeButton instanceof HTMLElement)) {
+            return;
+        }
+        closeRecurringScopeModal(scopeButton.dataset.recurringScopeChoice || null);
+    });
+
     // Edit pantry modal - save
     document.getElementById('save-edit-pantry-btn').addEventListener('click', async () => {
         const pantryId = parseInt(document.getElementById('edit-pantry-id').value);
@@ -2372,6 +2637,31 @@ function setupEventListeners() {
         container.appendChild(roleGroup);
     });
 
+    document.getElementById('shift-repeat-toggle')?.addEventListener('change', toggleCreateRecurrenceFields);
+    document.getElementById('shift-start')?.addEventListener('change', () => {
+        if (document.getElementById('shift-repeat-toggle')?.checked) {
+            toggleCreateRecurrenceFields();
+        }
+    });
+
+    document.querySelectorAll('#shift-repeat-weekdays [data-weekday], #edit-shift-repeat-weekdays [data-weekday]').forEach((button) => {
+        button.addEventListener('click', () => {
+            button.classList.toggle('active');
+        });
+    });
+
+    document.querySelectorAll('input[name="shift-repeat-end-mode"]').forEach((input) => {
+        input.addEventListener('change', () => {
+            setRecurrenceEndMode('shift', input.value);
+        });
+    });
+
+    document.querySelectorAll('input[name="edit-shift-repeat-end-mode"]').forEach((input) => {
+        input.addEventListener('change', () => {
+            setRecurrenceEndMode('edit-shift', input.value);
+        });
+    });
+
     document.getElementById('cancel-edit-shift-btn').addEventListener('click', () => {
         resetEditShiftForm();
     });
@@ -2429,9 +2719,24 @@ function setupEventListeners() {
             return;
         }
 
+        let applyScope = 'single';
+        let recurrencePayload = null;
+        if (editingShiftSnapshot.is_recurring) {
+            const choice = await promptRecurringScope('edit');
+            if (!choice || choice === 'cancel') {
+                return;
+            }
+            applyScope = choice;
+            if (applyScope === 'future') {
+                recurrencePayload = buildRecurrencePayloadFromForm('edit-shift', 'edit-shift-start');
+            }
+        }
+
         try {
             const response = await updateFullShift(shiftId, {
                 ...updatedShiftPayload,
+                apply_scope: applyScope,
+                ...(recurrencePayload ? { recurrence: recurrencePayload } : {}),
                 roles: roleInputs.map(role => ({
                     ...(role.shift_role_id ? { shift_role_id: role.shift_role_id } : {}),
                     role_title: role.role_title,
@@ -2440,10 +2745,13 @@ function setupEventListeners() {
             });
 
             const impacted = collectAffectedContacts([response]);
+            const recurringSummary = response.apply_scope === 'future'
+                ? ` Updated ${Number(response.updated_occurrence_count || 0)} occurrence(s), created ${Number(response.created_occurrence_count || 0)}, cancelled ${Number(response.cancelled_occurrence_count || 0)}.`
+                : '';
             const impactedMsg = impacted.uniqueVolunteers > 0
                 ? ` ${impacted.uniqueVolunteers} volunteer(s) need reconfirmation.`
                 : '';
-            showMessage('shifts', `Shift updated successfully.${impactedMsg}`, 'success');
+            showMessage('shifts', `Shift updated successfully.${recurringSummary}${impactedMsg}`, 'success');
 
             resetEditShiftForm();
             await loadShiftsTable();
@@ -2491,17 +2799,22 @@ function setupEventListeners() {
             return;
         }
 
+        const recurrence = buildRecurrencePayloadFromForm('shift', 'shift-start');
+
         try {
-            // Create shift
-            const shift = await createShift(currentPantryId, shiftData);
+            const response = await createFullShift(currentPantryId, {
+                ...shiftData,
+                roles,
+                ...(recurrence ? { recurrence } : {})
+            });
 
-            // Create roles
-            for (const role of roles) {
-                await createShiftRole(shift.shift_id, role);
-            }
-
-            showMessage('shifts', 'Shift created successfully with all roles!', 'success');
+            const createdCount = Number(response.created_shift_count || 1);
+            const recurringText = response.shift_series_id
+                ? ` Created ${createdCount} recurring shift occurrence(s).`
+                : '';
+            showMessage('shifts', `Shift created successfully with all roles!${recurringText}`, 'success');
             e.target.reset();
+            resetCreateRecurrenceForm();
 
             // Reset roles container to single role
             document.getElementById('roles-container').innerHTML = `
