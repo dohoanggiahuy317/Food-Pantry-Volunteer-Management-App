@@ -452,6 +452,34 @@ class MemoryBackend(StoreBackend):
             shifts = [s for s in shifts if str(s.get("status", "")).upper() != "CANCELLED"]
         return shifts
 
+    def list_non_expired_shifts_in_range(
+        self,
+        start_time: str,
+        end_time: str,
+        include_cancelled: bool = True,
+    ) -> list[dict[str, Any]]:
+        range_start = _parse_iso_to_utc(start_time)
+        range_end = _parse_iso_to_utc(end_time)
+        if not range_start or not range_end:
+            return []
+
+        now_utc = datetime.now(timezone.utc)
+        shifts: list[dict[str, Any]] = []
+        for shift in self.store["shifts"]:
+            shift_start = _parse_iso_to_utc(shift.get("start_time"))
+            shift_end = _parse_iso_to_utc(shift.get("end_time"))
+            if not shift_start or not shift_end:
+                continue
+            if shift_end < now_utc:
+                continue
+            if shift_end < range_start or shift_start > range_end:
+                continue
+            if not include_cancelled and str(shift.get("status", "")).upper() == "CANCELLED":
+                continue
+            shifts.append(dict(shift))
+
+        return sorted(shifts, key=lambda item: (str(item.get("start_time") or ""), int(item.get("shift_id") or 0)))
+
     def get_shift_by_id(self, shift_id: int) -> dict[str, Any] | None:
         return self._copy(next((s for s in self.store["shifts"] if s.get("shift_id") == shift_id), None))
 

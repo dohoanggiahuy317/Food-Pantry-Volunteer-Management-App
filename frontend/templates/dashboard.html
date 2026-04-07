@@ -114,14 +114,91 @@
         <div class="main-content">
         <!-- Calendar Tab (All Users) -->
         <div class="tab-content active" id="content-calendar">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Available Shifts</h2>
+            <div class="card calendar-shell-card">
+                <div class="card-header calendar-shell-top">
+                    <div>
+                        <h2 class="card-title">Available Shifts Calendar</h2>
+                        <p class="calendar-shell-copy">Browse open volunteer shifts across all pantries with calendar views and quick filters.</p>
+                    </div>
                 </div>
                 <div id="message-calendar" class="message"></div>
-                <div id="shifts-container" class="loading">
-                    <div class="spinner"></div>
-                    <p>Loading shifts...</p>
+                <div class="calendar-app" id="calendar-app">
+                    <div id="calendar-sidebar-backdrop" class="calendar-sidebar-backdrop app-hidden"></div>
+                    <aside class="calendar-sidebar" id="calendar-sidebar">
+                        <div class="calendar-sidebar-header">
+                            <div>
+                                <h3 class="calendar-sidebar-title">Schedule</h3>
+                                <p class="calendar-sidebar-copy">Pick a date, week, and filters.</p>
+                            </div>
+                            <button type="button" class="calendar-sidebar-close" id="calendar-sidebar-close" aria-label="Close calendar filters">&times;</button>
+                        </div>
+
+                        <div class="calendar-mini-picker">
+                            <div class="calendar-mini-toolbar">
+                                <button type="button" class="calendar-nav-button" id="calendar-mini-prev" aria-label="Previous mini month">‹</button>
+                                <div id="calendar-mini-label" class="calendar-mini-label"></div>
+                                <button type="button" class="calendar-nav-button" id="calendar-mini-next" aria-label="Next mini month">›</button>
+                            </div>
+                            <div class="calendar-mini-weekdays" id="calendar-mini-weekdays"></div>
+                            <div class="calendar-mini-grid" id="calendar-mini-grid"></div>
+                        </div>
+
+                        <div class="calendar-filter-panel">
+                            <div class="calendar-filter-group">
+                                <label for="calendar-search-input">Search</label>
+                                <input type="search" id="calendar-search-input" placeholder="Search shifts, pantry, roles">
+                            </div>
+                            <div class="calendar-filter-group">
+                                <label for="calendar-pantry-filter">Pantry</label>
+                                <select id="calendar-pantry-filter">
+                                    <option value="all">All pantries</option>
+                                </select>
+                            </div>
+                            <div class="calendar-filter-group">
+                                <label for="calendar-time-filter">Time Bucket</label>
+                                <select id="calendar-time-filter">
+                                    <option value="all">All day</option>
+                                    <option value="morning">Morning</option>
+                                    <option value="afternoon">Afternoon</option>
+                                    <option value="evening">Evening</option>
+                                </select>
+                            </div>
+                            <div class="calendar-filter-actions">
+                                <button type="button" class="btn btn-secondary btn-sm" id="calendar-clear-filters-btn">Clear Filters</button>
+                            </div>
+                        </div>
+
+                        <div class="calendar-legend-panel">
+                            <h4 class="calendar-legend-title">Pantry Colors</h4>
+                            <div id="calendar-pantry-legend" class="calendar-pantry-legend"></div>
+                        </div>
+                    </aside>
+
+                    <div class="calendar-main">
+                        <div class="calendar-toolbar">
+                            <div class="calendar-toolbar-left">
+                                <button type="button" class="btn btn-secondary btn-sm calendar-sidebar-toggle" id="calendar-sidebar-toggle">Filters</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="calendar-today-btn">Today</button>
+                                <div class="calendar-nav-group">
+                                    <button type="button" class="calendar-nav-button" id="calendar-prev-btn" aria-label="Previous range">‹</button>
+                                    <button type="button" class="calendar-nav-button" id="calendar-next-btn" aria-label="Next range">›</button>
+                                </div>
+                                <div id="calendar-range-label" class="calendar-range-label">Loading…</div>
+                            </div>
+                            <div class="calendar-view-switch" role="tablist" aria-label="Calendar view switch">
+                                <button type="button" class="calendar-view-button active" data-calendar-view="month">Month</button>
+                                <button type="button" class="calendar-view-button" data-calendar-view="week">Week</button>
+                                <button type="button" class="calendar-view-button" data-calendar-view="day">Day</button>
+                            </div>
+                        </div>
+
+                        <div id="calendar-active-filter-summary" class="calendar-active-filter-summary"></div>
+
+                        <div id="shifts-container" class="calendar-view-container loading">
+                            <div class="spinner"></div>
+                            <p>Loading shifts...</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -558,6 +635,13 @@
                 </div>
             </div>
         </div>
+
+        <div id="calendar-shift-modal" class="modal-overlay app-hidden">
+            <div class="modal-panel modal-panel-calendar">
+                <button type="button" id="calendar-shift-modal-close" class="modal-close-button" aria-label="Close shift details">&times;</button>
+                <div id="calendar-shift-modal-body"></div>
+            </div>
+        </div>
     </div>
 
     <!-- Global Notification Modal -->
@@ -577,6 +661,7 @@
     <script src="{{ url_for('static', filename='js/lead-functions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/volunteer-functions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/calendar-functions.js') }}"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>

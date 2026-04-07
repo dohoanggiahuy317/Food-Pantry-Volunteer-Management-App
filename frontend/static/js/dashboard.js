@@ -165,6 +165,9 @@ async function loadPantries() {
         if (allPantries.length === 0) {
             currentPantryId = null;
             select.innerHTML = '<option value="">No pantries available</option>';
+            if (typeof syncCalendarPantryOptions === 'function') {
+                syncCalendarPantryOptions();
+            }
             if (currentUserIsAdminCapable()) {
                 await updatePantriesTable();
             }
@@ -183,6 +186,9 @@ async function loadPantries() {
 
         currentPantryId = selectedPantryStillExists ? currentPantryId : allPantries[0].pantry_id;
         select.value = currentPantryId;
+        if (typeof syncCalendarPantryOptions === 'function') {
+            syncCalendarPantryOptions();
+        }
 
         // Load pantry leads for admin
         if (currentUserIsAdminCapable()) {
@@ -457,7 +463,7 @@ function displayShiftCard(grid, shift) {
 async function signupForRole(roleId) {
     if (!currentUser || !currentUser.user_id) {
         showMessage('calendar', 'Signup failed: Missing current user context', 'error');
-        return;
+        return false;
     }
 
     try {
@@ -465,7 +471,7 @@ async function signupForRole(roleId) {
     } catch (error) {
         showMessage('calendar', `Signup failed: ${error.message}`, 'error');
         await loadCalendarShifts(); 
-        return;
+        return false;
     }
 
     try {
@@ -481,6 +487,7 @@ async function signupForRole(roleId) {
     }
 
     await loadCalendarShifts(); // Reload to show updated counts no matter the error or success
+    return true;
 }
 
 function escapeHtml(value) {
@@ -1772,6 +1779,9 @@ function setupEventListeners() {
     setAdminSubtab(activeAdminSubtab);
     lastAdminUsersPhoneViewport = isPhoneViewport();
     window.addEventListener('resize', handleAdminUsersViewportChange);
+    if (typeof initializeCalendarUi === 'function') {
+        initializeCalendarUi();
+    }
 
     document.querySelectorAll('.manage-shifts-subtab').forEach((button) => {
         button.addEventListener('click', async () => {

@@ -11,7 +11,7 @@ At backend startup:
 3. For MySQL mode:
    - `backend/db/init_schema.py` applies all SQL files in `backend/db/migrations/` in filename order (idempotent `CREATE TABLE IF NOT EXISTS` schema baseline).
    - `backend/backends/mysql_backend.py` is initialized.
-   - If DB is empty and `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`, seed data is loaded from `backend/data/db.json`.
+   - If DB is empty and `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`, seed data is loaded from `backend/data/mysql.json`.
 4. API routes continue using the same request/response contract as before.
 5. `backend/app.py` can call `backend/notifications/notifications.py` to send Resend emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
 6. User timezone is detected in the browser, persisted on the `users` row, and reused by the backend when rendering email times.
@@ -105,8 +105,9 @@ Account lifecycle notes:
 - `backend/db/mysql.py`: MySQL connection pool.
 - `backend/db/init_schema.py`: schema application at startup.
 - `backend/db/migrations/001_initial.sql`: table/index/FK definitions.
-- `backend/db/seed.py`: seed import helper (`db.json` -> MySQL).
-- `backend/data/db.json`: initial seed dataset.
+- `backend/db/seed.py`: seed import helper (`mysql.json` -> MySQL).
+- `backend/data/mysql.json`: MySQL seed dataset, including the expanded future mock shift schedule.
+- `backend/data/in_memory.json`: in-memory backend seed dataset.
 
 Dev note:
 - This branch keeps account-schema changes in `001_initial.sql`. Recreate older dev databases if they were initialized before the current auth/account model.
