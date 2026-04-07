@@ -328,8 +328,10 @@ window 'load' event fires
   │         apiGet('/api/all_pantries')
   │         ← [ {pantry_id, name, ...}, ... ]
   │       sets module-level: allPublicPantries
-  │       populates #pantry-select dropdown
-  │       populates #assign-pantry dropdown (admin)
+  │       syncs the shared Manage Shifts pantry search picker
+  │         #pantry-select-search + hidden #pantry-select
+  │       syncs the Admin pantry assignment search picker
+  │         #assign-pantry-search + hidden #assign-pantry
   │
   ├─ 5. setupEventListeners()     [dashboard.js:1152]
   │       attaches click handlers to nav tabs → activateTab()
@@ -337,8 +339,12 @@ window 'load' event fires
   │       attaches submit to #create-shift-form → createShift() + createShiftRole() loop
   │       attaches submit to #create-pantry-form → createPantry()
   │       attaches click to #assign-lead-btn → addPantryLead()
+  │       attaches search/result handlers for:
+  │         #pantry-select-search
+  │         #assign-pantry-search
+  │         #assign-lead-search
+  │       attaches Manage Shifts search + status filter handlers
   │       attaches Admin Users search/filter/profile/role-save handlers
-  │       attaches change to #pantry-select → reloads shifts for selected pantry
   │
   └─ 6. activateTab(defaultTab)   [dashboard.js:91]
           shows the target tab's content div

@@ -8,6 +8,12 @@ let registrationsCache = {};
 let editingShiftSnapshot = null;
 let activeManageShiftsSubtab = 'create';
 let activeAdminSubtab = 'pantries';
+let managedShifts = [];
+let manageShiftsSearchQuery = '';
+let manageShiftsStatusFilter = 'incoming';
+let selectedAssignPantryId = null;
+let pantryLeadUsers = [];
+let selectedPantryLeadId = null;
 let adminRoles = [];
 let adminUsers = [];
 let selectedAdminUserId = null;
@@ -156,15 +162,14 @@ async function loadPantries() {
         allPantries = await getPantries();
         allPublicPantries = await getAllPantries();
         const select = document.getElementById('pantry-select');
-        const assignSelect = document.getElementById('assign-pantry');
         const selectedPantryStillExists = allPantries.some(pantry => pantry.pantry_id === currentPantryId);
 
         select.innerHTML = '';
-        assignSelect.innerHTML = '<option value="">-- Select Pantry --</option>';
 
         if (allPantries.length === 0) {
             currentPantryId = null;
             select.innerHTML = '<option value="">No pantries available</option>';
+            clearSelectedAssignPantry(false);
             if (typeof syncCalendarPantryOptions === 'function') {
                 syncCalendarPantryOptions();
             }
@@ -179,13 +184,12 @@ async function loadPantries() {
             opt.value = pantry.pantry_id;
             opt.textContent = pantry.name;
             select.appendChild(opt);
-
-            const assignOpt = opt.cloneNode(true);
-            assignSelect.appendChild(assignOpt);
         });
 
         currentPantryId = selectedPantryStillExists ? currentPantryId : allPantries[0].pantry_id;
         select.value = currentPantryId;
+        clearSelectedAssignPantry(false);
+        renderAssignPantrySearchResults();
         if (typeof syncCalendarPantryOptions === 'function') {
             syncCalendarPantryOptions();
         }
@@ -203,21 +207,210 @@ async function loadPantries() {
 // Load pantry leads (admin)
 async function loadPantryLeads() {
     try {
-        const leads = await getAllUsers('PANTRY_LEAD');
-        const leadSelect = document.getElementById('assign-lead');
-        leadSelect.innerHTML = '<option value="">-- Select Lead --</option>';
-
-        leads.forEach(lead => {
-            const opt = document.createElement('option');
-            opt.value = lead.user_id;
-            opt.textContent = `${lead.full_name} (${lead.email})`;
-            leadSelect.appendChild(opt);
-        });
+        pantryLeadUsers = await getAllUsers('PANTRY_LEAD');
+        clearSelectedPantryLead(false);
+        renderPantryLeadSearchResults();
 
         // Update pantries table
         await updatePantriesTable();
     } catch (error) {
         console.error('Failed to load leads:', error);
+    }
+}
+
+function getAssignPantrySearchMatches(query) {
+    const normalizedQuery = String(query || '').trim().toLowerCase();
+    if (!normalizedQuery) {
+        return allPantries.slice(0, 8);
+    }
+
+    return allPantries
+        .filter((pantry) => {
+            const name = String(pantry.name || '').toLowerCase();
+            const address = String(pantry.location_address || '').toLowerCase();
+            return name.includes(normalizedQuery) || address.includes(normalizedQuery);
+        })
+        .slice(0, 8);
+}
+
+function renderAssignPantrySearchResults() {
+    const resultsEl = document.getElementById('assign-pantry-results');
+    const searchInput = document.getElementById('assign-pantry-search');
+    if (!resultsEl || !searchInput) {
+        return;
+    }
+
+    if (selectedAssignPantryId) {
+        resultsEl.innerHTML = '';
+        resultsEl.classList.add('app-hidden');
+        return;
+    }
+
+    const matches = getAssignPantrySearchMatches(searchInput.value);
+    if (matches.length === 0) {
+        resultsEl.innerHTML = '<div class="pantry-search-empty">No pantries match that search.</div>';
+        resultsEl.classList.remove('app-hidden');
+        return;
+    }
+
+    resultsEl.innerHTML = matches.map((pantry) => `
+        <button type="button" class="pantry-search-result" data-pantry-option-id="${pantry.pantry_id}">
+            <span class="pantry-search-result-name">${escapeHtml(pantry.name || 'Unnamed Pantry')}</span>
+            <span class="pantry-search-result-address">${escapeHtml(pantry.location_address || 'No address')}</span>
+        </button>
+    `).join('');
+    resultsEl.classList.remove('app-hidden');
+}
+
+function selectAssignPantry(pantryId) {
+    const pantry = allPantries.find((item) => intValue(item.pantry_id) === intValue(pantryId));
+    const hiddenInput = document.getElementById('assign-pantry');
+    const selectedEl = document.getElementById('assign-pantry-selected');
+    const searchInput = document.getElementById('assign-pantry-search');
+    const resultsEl = document.getElementById('assign-pantry-results');
+    if (!pantry || !hiddenInput || !selectedEl || !searchInput || !resultsEl) {
+        return;
+    }
+
+    selectedAssignPantryId = intValue(pantry.pantry_id);
+    hiddenInput.value = String(selectedAssignPantryId);
+    searchInput.value = '';
+    selectedEl.innerHTML = `
+        <div>
+            <div class="pantry-search-selected-name">${escapeHtml(pantry.name || 'Unnamed Pantry')}</div>
+            <div class="pantry-search-selected-address">${escapeHtml(pantry.location_address || 'No address')}</div>
+        </div>
+        <button type="button" class="pantry-search-clear" id="assign-pantry-clear-btn" aria-label="Clear selected pantry">&times;</button>
+    `;
+    selectedEl.classList.remove('app-hidden');
+    resultsEl.innerHTML = '';
+    resultsEl.classList.add('app-hidden');
+
+    document.getElementById('assign-pantry-clear-btn')?.addEventListener('click', () => {
+        clearSelectedAssignPantry(true);
+    });
+}
+
+function clearSelectedAssignPantry(shouldRefocus = false) {
+    selectedAssignPantryId = null;
+    const hiddenInput = document.getElementById('assign-pantry');
+    const selectedEl = document.getElementById('assign-pantry-selected');
+    const searchInput = document.getElementById('assign-pantry-search');
+    const resultsEl = document.getElementById('assign-pantry-results');
+    if (hiddenInput) {
+        hiddenInput.value = '';
+    }
+    if (selectedEl) {
+        selectedEl.innerHTML = '';
+        selectedEl.classList.add('app-hidden');
+    }
+    if (resultsEl) {
+        resultsEl.innerHTML = '';
+        resultsEl.classList.add('app-hidden');
+    }
+    if (searchInput) {
+        if (shouldRefocus) {
+            searchInput.focus();
+        }
+        renderAssignPantrySearchResults();
+    }
+}
+
+function getPantryLeadSearchMatches(query) {
+    const normalizedQuery = String(query || '').trim().toLowerCase();
+    if (!normalizedQuery) {
+        return pantryLeadUsers.slice(0, 8);
+    }
+
+    return pantryLeadUsers
+        .filter((lead) => {
+            const fullName = String(lead.full_name || '').toLowerCase();
+            const email = String(lead.email || '').toLowerCase();
+            return fullName.includes(normalizedQuery) || email.includes(normalizedQuery);
+        })
+        .slice(0, 8);
+}
+
+function renderPantryLeadSearchResults() {
+    const resultsEl = document.getElementById('assign-lead-results');
+    const searchInput = document.getElementById('assign-lead-search');
+    if (!resultsEl || !searchInput) {
+        return;
+    }
+
+    if (selectedPantryLeadId) {
+        resultsEl.innerHTML = '';
+        resultsEl.classList.add('app-hidden');
+        return;
+    }
+
+    const matches = getPantryLeadSearchMatches(searchInput.value);
+    if (matches.length === 0) {
+        resultsEl.innerHTML = '<div class="lead-search-empty">No pantry leads match that search.</div>';
+        resultsEl.classList.remove('app-hidden');
+        return;
+    }
+
+    resultsEl.innerHTML = matches.map((lead) => `
+        <button type="button" class="lead-search-result" data-lead-option-id="${lead.user_id}">
+            <span class="lead-search-result-name">${escapeHtml(lead.full_name || 'Unnamed User')}</span>
+            <span class="lead-search-result-email">${escapeHtml(lead.email || 'No email')}</span>
+        </button>
+    `).join('');
+    resultsEl.classList.remove('app-hidden');
+}
+
+function selectPantryLead(leadId) {
+    const lead = pantryLeadUsers.find((item) => intValue(item.user_id) === intValue(leadId));
+    const hiddenInput = document.getElementById('assign-lead');
+    const selectedEl = document.getElementById('assign-lead-selected');
+    const searchInput = document.getElementById('assign-lead-search');
+    const resultsEl = document.getElementById('assign-lead-results');
+    if (!lead || !hiddenInput || !selectedEl || !searchInput || !resultsEl) {
+        return;
+    }
+
+    selectedPantryLeadId = intValue(lead.user_id);
+    hiddenInput.value = String(selectedPantryLeadId);
+    searchInput.value = '';
+    selectedEl.innerHTML = `
+        <div>
+            <div class="lead-search-selected-name">${escapeHtml(lead.full_name || 'Unnamed User')}</div>
+            <div class="lead-search-selected-email">${escapeHtml(lead.email || 'No email')}</div>
+        </div>
+        <button type="button" class="lead-search-clear" id="assign-lead-clear-btn" aria-label="Clear selected pantry lead">&times;</button>
+    `;
+    selectedEl.classList.remove('app-hidden');
+    resultsEl.innerHTML = '';
+    resultsEl.classList.add('app-hidden');
+
+    document.getElementById('assign-lead-clear-btn')?.addEventListener('click', () => {
+        clearSelectedPantryLead(true);
+    });
+}
+
+function clearSelectedPantryLead(shouldRefocus = false) {
+    selectedPantryLeadId = null;
+    const hiddenInput = document.getElementById('assign-lead');
+    const selectedEl = document.getElementById('assign-lead-selected');
+    const searchInput = document.getElementById('assign-lead-search');
+    const resultsEl = document.getElementById('assign-lead-results');
+    if (hiddenInput) {
+        hiddenInput.value = '';
+    }
+    if (selectedEl) {
+        selectedEl.innerHTML = '';
+        selectedEl.classList.add('app-hidden');
+    }
+    if (resultsEl) {
+        resultsEl.innerHTML = '';
+        resultsEl.classList.add('app-hidden');
+    }
+    if (searchInput) {
+        if (shouldRefocus) {
+            searchInput.focus();
+        }
+        renderPantryLeadSearchResults();
     }
 }
 
@@ -1551,6 +1744,74 @@ function setShiftBucketEmptyState(tbody, text) {
     tbody.innerHTML = `<tr><td colspan="4" class="table-empty-cell">${escapeHtml(text)}</td></tr>`;
 }
 
+function getManageShiftsStatusLabel(statusKey) {
+    const labels = {
+        incoming: 'incoming',
+        ongoing: 'ongoing',
+        past: 'past',
+        cancelled: 'canceled',
+    };
+    return labels[statusKey] || 'incoming';
+}
+
+function updateManageShiftsFilterUi() {
+    document.querySelectorAll('[data-shift-status-filter]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.shiftStatusFilter === manageShiftsStatusFilter);
+    });
+
+    const searchInput = document.getElementById('manage-shifts-search-input');
+    if (searchInput && searchInput.value !== manageShiftsSearchQuery) {
+        searchInput.value = manageShiftsSearchQuery;
+    }
+
+    const summary = document.getElementById('manage-shifts-filter-summary');
+    if (!summary) {
+        return;
+    }
+
+    const baseLabel = `Showing ${getManageShiftsStatusLabel(manageShiftsStatusFilter)} shifts`;
+    summary.textContent = manageShiftsSearchQuery
+        ? `${baseLabel} matching "${manageShiftsSearchQuery}".`
+        : `${baseLabel}.`;
+}
+
+function getFilteredManagedShifts(shifts, now = new Date()) {
+    return (Array.isArray(shifts) ? shifts : []).filter((shift) => {
+        const bucket = classifyManagedShiftBucket(shift, now);
+        if (bucket !== manageShiftsStatusFilter) {
+            return false;
+        }
+
+        if (!manageShiftsSearchQuery) {
+            return true;
+        }
+
+        const shiftName = String(shift.shift_name || '').toLowerCase();
+        return shiftName.includes(manageShiftsSearchQuery.toLowerCase());
+    });
+}
+
+function renderManageShiftsTable() {
+    const tbody = document.getElementById('shifts-filtered-table-body');
+    if (!tbody) {
+        return;
+    }
+
+    collapseExpandedRegistrations();
+    updateManageShiftsFilterUi();
+
+    if (!currentPantryId) {
+        setShiftBucketEmptyState(tbody, 'Please select a pantry first.');
+        return;
+    }
+
+    const filteredShifts = getFilteredManagedShifts(managedShifts, new Date());
+    const emptyText = manageShiftsSearchQuery
+        ? `No ${getManageShiftsStatusLabel(manageShiftsStatusFilter)} shifts match "${manageShiftsSearchQuery}".`
+        : `No ${getManageShiftsStatusLabel(manageShiftsStatusFilter)} shifts.`;
+    renderShiftBucketRows(tbody, filteredShifts, emptyText, manageShiftsStatusFilter);
+}
+
 function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
     if (!tbody) return;
     tbody.innerHTML = '';
@@ -1611,35 +1872,25 @@ function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
 
 // Load shifts table (admin)
 async function loadShiftsTable() {
-    const incomingTbody = document.getElementById('shifts-incoming-table-body');
-    const ongoingTbody = document.getElementById('shifts-ongoing-table-body');
-    const pastTbody = document.getElementById('shifts-past-table-body');
-    const cancelledTbody = document.getElementById('shifts-cancelled-table-body');
+    const tbody = document.getElementById('shifts-filtered-table-body');
 
     try {
-        collapseExpandedRegistrations();
         registrationsCache = {};
 
         if (!currentPantryId) {
-            setShiftBucketEmptyState(incomingTbody, 'Please select a pantry first.');
-            setShiftBucketEmptyState(ongoingTbody, 'Please select a pantry first.');
-            setShiftBucketEmptyState(pastTbody, 'Please select a pantry first.');
-            setShiftBucketEmptyState(cancelledTbody, 'Please select a pantry first.');
+            managedShifts = [];
+            renderManageShiftsTable();
             return;
         }
 
-        const shifts = await getShifts(currentPantryId);
-        const buckets = getManagedShiftBuckets(shifts, new Date());
-        renderShiftBucketRows(incomingTbody, buckets.incoming, 'No incoming shifts.', 'incoming');
-        renderShiftBucketRows(ongoingTbody, buckets.ongoing, 'No ongoing shifts.', 'ongoing');
-        renderShiftBucketRows(pastTbody, buckets.past, 'No past shifts.', 'past');
-        renderShiftBucketRows(cancelledTbody, buckets.cancelled, 'No canceled shifts.', 'cancelled');
+        managedShifts = await getShifts(currentPantryId);
+        renderManageShiftsTable();
     } catch (error) {
         console.error('Failed to load shifts table:', error);
-        setShiftBucketEmptyState(incomingTbody, `Failed to load shifts: ${error.message}`);
-        setShiftBucketEmptyState(ongoingTbody, `Failed to load shifts: ${error.message}`);
-        setShiftBucketEmptyState(pastTbody, `Failed to load shifts: ${error.message}`);
-        setShiftBucketEmptyState(cancelledTbody, `Failed to load shifts: ${error.message}`);
+        managedShifts = [];
+        if (tbody) {
+            setShiftBucketEmptyState(tbody, `Failed to load shifts: ${error.message}`);
+        }
         showMessage('shifts', `Failed to load shifts: ${error.message}`, 'error');
     }
 }
@@ -1793,12 +2044,94 @@ function setupEventListeners() {
         });
     });
 
+    document.getElementById('manage-shifts-search-input')?.addEventListener('input', () => {
+        manageShiftsSearchQuery = document.getElementById('manage-shifts-search-input')?.value.trim() || '';
+        renderManageShiftsTable();
+    });
+
+    document.querySelectorAll('[data-shift-status-filter]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextFilter = button.dataset.shiftStatusFilter || 'incoming';
+            if (!['incoming', 'ongoing', 'past', 'cancelled'].includes(nextFilter)) {
+                return;
+            }
+            manageShiftsStatusFilter = nextFilter;
+            renderManageShiftsTable();
+        });
+    });
+
     document.querySelectorAll('.admin-subtab').forEach((button) => {
         button.addEventListener('click', async () => {
             const targetSubtab = button.dataset.adminSubtab === 'users' ? 'users' : 'pantries';
             setAdminSubtab(targetSubtab);
             await loadAdminTab();
         });
+    });
+
+    document.getElementById('assign-pantry-search')?.addEventListener('input', () => {
+        selectedAssignPantryId = null;
+        const hiddenInput = document.getElementById('assign-pantry');
+        const selectedEl = document.getElementById('assign-pantry-selected');
+        if (hiddenInput) {
+            hiddenInput.value = '';
+        }
+        if (selectedEl) {
+            selectedEl.innerHTML = '';
+            selectedEl.classList.add('app-hidden');
+        }
+        renderAssignPantrySearchResults();
+    });
+
+    document.getElementById('assign-pantry-search')?.addEventListener('focus', () => {
+        renderAssignPantrySearchResults();
+    });
+
+    document.getElementById('assign-pantry-results')?.addEventListener('click', (event) => {
+        const target = event.target instanceof HTMLElement ? event.target.closest('[data-pantry-option-id]') : null;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        selectAssignPantry(parseInt(target.dataset.pantryOptionId || '0', 10));
+    });
+
+    document.getElementById('assign-lead-search')?.addEventListener('input', () => {
+        selectedPantryLeadId = null;
+        const hiddenInput = document.getElementById('assign-lead');
+        const selectedEl = document.getElementById('assign-lead-selected');
+        if (hiddenInput) {
+            hiddenInput.value = '';
+        }
+        if (selectedEl) {
+            selectedEl.innerHTML = '';
+            selectedEl.classList.add('app-hidden');
+        }
+        renderPantryLeadSearchResults();
+    });
+
+    document.getElementById('assign-lead-search')?.addEventListener('focus', () => {
+        renderPantryLeadSearchResults();
+    });
+
+    document.getElementById('assign-lead-results')?.addEventListener('click', (event) => {
+        const target = event.target instanceof HTMLElement ? event.target.closest('[data-lead-option-id]') : null;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        selectPantryLead(parseInt(target.dataset.leadOptionId || '0', 10));
+    });
+
+    document.addEventListener('click', (event) => {
+        const leadShell = document.querySelector('.lead-search-shell');
+        const leadResultsEl = document.getElementById('assign-lead-results');
+        if (leadShell && leadResultsEl && !leadShell.contains(event.target)) {
+            leadResultsEl.classList.add('app-hidden');
+        }
+
+        const pantryShell = document.querySelector('.pantry-search-shell');
+        const pantryResultsEl = document.getElementById('assign-pantry-results');
+        if (pantryShell && pantryResultsEl && !pantryShell.contains(event.target)) {
+            pantryResultsEl.classList.add('app-hidden');
+        }
     });
 
     // Tab navigation
@@ -1984,6 +2317,8 @@ function setupEventListeners() {
         try {
             await addPantryLead(pantryId, leadId);
             showMessage('assign', 'Lead assigned successfully!', 'success');
+            clearSelectedAssignPantry(false);
+            clearSelectedPantryLead(false);
             await loadPantries();
         } catch (error) {
             showMessage('assign', `Error: ${error.message}`, 'error');
@@ -2005,6 +2340,8 @@ function setupEventListeners() {
         try {
             await removePantryLead(pantryId, leadId);
             showMessage('assign', 'Lead removed successfully!', 'success');
+            clearSelectedAssignPantry(false);
+            clearSelectedPantryLead(false);
             await loadPantries();
         } catch (error) {
             showMessage('assign', `Error: ${error.message}`, 'error');
