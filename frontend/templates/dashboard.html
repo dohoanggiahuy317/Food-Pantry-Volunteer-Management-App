@@ -94,9 +94,9 @@
             <div class="nav-tabs-container">
                 <button class="nav-tab" data-tab="calendar">📅 Calendar</button>
                 <button class="nav-tab hidden" data-tab="my-shifts" id="tab-my-shifts">🧾 My Shifts</button>
-                <button class="nav-tab" data-tab="my-account" id="tab-my-account">👤 My Account</button>
                 <button class="nav-tab hidden" data-tab="shifts" id="tab-shifts">🔧 Manage Shifts</button>
                 <button class="nav-tab hidden" data-tab="admin" id="tab-admin">👥 Admin Panel</button>
+                <button class="nav-tab" data-tab="my-account" id="tab-my-account">👤 My Account</button>
             </div>
         </div>
 
@@ -378,97 +378,46 @@
                     </form>
                 </div>
 
-                <div class="shift-view-sections">
-                    <div class="card shift-view-section">
-                        <div class="card-header">
-                            <h2 class="card-title">Incoming Shifts</h2>
-                        </div>
-                        <div class="table-container">
-                            <table class="responsive-table">
-                                <thead>
-                                    <tr>
-                                        <th>Shift Name</th>
-                                        <th>Date & Time</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shifts-incoming-table-body">
-                                    <tr>
-                                        <td colspan="4" class="table-empty-cell">No incoming shifts.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                <div class="card shift-view-filter-card">
+                    <div class="card-header shift-view-header">
+                        <div>
+                            <h2 class="card-title">Shifts View</h2>
+                            <p class="shift-view-copy">Search by shift name and filter the pantry schedule by status.</p>
                         </div>
                     </div>
 
-                    <div class="card shift-view-section">
-                        <div class="card-header">
-                            <h2 class="card-title">Ongoing Shifts</h2>
+                    <div class="shift-view-toolbar">
+                        <div class="shift-view-search-group">
+                            <label for="manage-shifts-search-input">Search Shift Name</label>
+                            <input type="search" id="manage-shifts-search-input" placeholder="Search shifts by name">
                         </div>
-                        <div class="table-container">
-                            <table class="responsive-table">
-                                <thead>
-                                    <tr>
-                                        <th>Shift Name</th>
-                                        <th>Date & Time</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shifts-ongoing-table-body">
-                                    <tr>
-                                        <td colspan="4" class="table-empty-cell">No ongoing shifts.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+
+                        <div class="shift-view-filter-group" role="tablist" aria-label="Shift status filter">
+                            <button type="button" class="shift-status-filter active" data-shift-status-filter="incoming">Incoming</button>
+                            <button type="button" class="shift-status-filter" data-shift-status-filter="ongoing">Ongoing</button>
+                            <button type="button" class="shift-status-filter" data-shift-status-filter="past">Past</button>
+                            <button type="button" class="shift-status-filter" data-shift-status-filter="cancelled">Canceled</button>
                         </div>
                     </div>
 
-                    <div class="card shift-view-section">
-                        <div class="card-header">
-                            <h2 class="card-title">Past Shifts</h2>
-                        </div>
-                        <div class="table-container">
-                            <table class="responsive-table">
-                                <thead>
-                                    <tr>
-                                        <th>Shift Name</th>
-                                        <th>Date & Time</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shifts-past-table-body">
-                                    <tr>
-                                        <td colspan="4" class="table-empty-cell">No past shifts.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <div id="manage-shifts-filter-summary" class="shift-view-summary">Showing incoming shifts.</div>
 
-                    <div class="card shift-view-section">
-                        <div class="card-header">
-                            <h2 class="card-title">Canceled Shifts</h2>
-                        </div>
-                        <div class="table-container">
-                            <table class="responsive-table">
-                                <thead>
-                                    <tr>
-                                        <th>Shift Name</th>
-                                        <th>Date & Time</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shifts-cancelled-table-body">
-                                    <tr>
-                                        <td colspan="4" class="table-empty-cell">No canceled shifts.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="table-container">
+                        <table class="responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>Shift Name</th>
+                                    <th>Date & Time</th>
+                                    <th>Roles</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shifts-filtered-table-body">
+                                <tr>
+                                    <td colspan="4" class="table-empty-cell">No incoming shifts.</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -513,16 +462,22 @@
                     <div id="message-assign" class="message"></div>
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="assign-pantry">Select Pantry *</label>
-                            <select id="assign-pantry">
-                                <option value="">-- Select Pantry --</option>
-                            </select>
+                            <label for="assign-pantry-search">Search Pantry *</label>
+                            <div class="pantry-search-shell">
+                                <input type="search" id="assign-pantry-search" placeholder="Search by pantry name or address" autocomplete="off">
+                                <input type="hidden" id="assign-pantry">
+                                <div id="assign-pantry-selected" class="pantry-search-selected app-hidden"></div>
+                                <div id="assign-pantry-results" class="pantry-search-results app-hidden"></div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label for="assign-lead">Select Pantry Lead *</label>
-                            <select id="assign-lead">
-                                <option value="">-- Select Lead --</option>
-                            </select>
+                            <label for="assign-lead-search">Search Pantry Lead *</label>
+                            <div class="lead-search-shell">
+                                <input type="search" id="assign-lead-search" placeholder="Search by full name or email" autocomplete="off">
+                                <input type="hidden" id="assign-lead">
+                                <div id="assign-lead-selected" class="lead-search-selected app-hidden"></div>
+                                <div id="assign-lead-results" class="lead-search-results app-hidden"></div>
+                            </div>
                         </div>
                     </div>
                     <div class="form-action-row">
