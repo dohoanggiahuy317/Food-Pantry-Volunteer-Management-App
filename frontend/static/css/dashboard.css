@@ -2064,7 +2064,8 @@ table tr:hover {
 }
 
 .calendar-month-event-time,
-.calendar-month-event-title {
+.calendar-month-event-title,
+.calendar-month-event-span {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2078,6 +2079,13 @@ table tr:hover {
 
 .calendar-month-event-title {
     font-size: 0.82rem;
+}
+
+.calendar-month-event-span {
+    margin-top: 0.18rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    opacity: 0.82;
 }
 
 .calendar-more-link {
@@ -2175,7 +2183,8 @@ table tr:hover {
 }
 
 .calendar-week-event-title,
-.calendar-week-event-meta {
+.calendar-week-event-meta,
+.calendar-week-event-span {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2190,6 +2199,15 @@ table tr:hover {
 .calendar-week-event-meta {
     margin-top: 0.2rem;
     font-size: 0.74rem;
+}
+
+.calendar-week-event-span {
+    margin-top: 0.2rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    opacity: 0.8;
 }
 
 .calendar-day-header {
@@ -2235,6 +2253,15 @@ table tr:hover {
     font-size: 1rem;
     font-weight: 700;
     color: #1f2937;
+}
+
+.calendar-day-card-span {
+    margin-top: 0.3rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #7c3aed;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .calendar-day-card-meta {
@@ -2318,7 +2345,8 @@ table tr:hover {
 
 .calendar-phone-event-time,
 .calendar-phone-event-title,
-.calendar-phone-event-meta {
+.calendar-phone-event-meta,
+.calendar-phone-event-span {
     display: block;
 }
 
@@ -2331,6 +2359,15 @@ table tr:hover {
     margin-top: 0.2rem;
     font-size: 0.96rem;
     font-weight: 700;
+}
+
+.calendar-phone-event-span {
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.84;
 }
 
 .calendar-phone-event-meta {
@@ -2362,9 +2399,18 @@ table tr:hover {
 }
 
 .calendar-modal-time,
-.calendar-modal-location {
+.calendar-modal-location,
+.calendar-modal-span {
     margin-top: 0.35rem;
     color: #4b5563;
+}
+
+.calendar-modal-span {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #7c3aed;
 }
 
 .calendar-modal-section {
@@ -2453,6 +2499,162 @@ table tr:hover {
 
 .role-input-actions .btn {
     width: 100%;
+}
+
+.recurrence-card {
+    margin-top: 1rem;
+    padding: 1.35rem 1.4rem;
+    border: 1px solid var(--border-soft);
+    box-shadow: none;
+}
+
+.recurrence-card-header {
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.recurrence-copy {
+    margin: 0.25rem 0 0;
+    color: #64748b;
+    line-height: 1.45;
+}
+
+.recurrence-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: #1f2937;
+    padding: 0.55rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid #dbe4f0;
+    background: #fff;
+    white-space: nowrap;
+}
+
+.recurrence-toggle input {
+    accent-color: #667eea;
+}
+
+.recurrence-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+}
+
+.recurrence-meta-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.55rem;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid #dbe4f0;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.recurrence-fields {
+    display: grid;
+    gap: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.recurrence-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 0;
+}
+
+.recurrence-inline-input {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.recurrence-inline-input input {
+    width: min(140px, 100%);
+}
+
+.recurrence-helper,
+.recurrence-note {
+    margin-top: 0.45rem;
+    font-size: 0.82rem;
+    color: #64748b;
+    line-height: 1.45;
+}
+
+.recurrence-weekday-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin-top: 0.25rem;
+}
+
+.recurrence-weekday-chip {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 999px;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.recurrence-weekday-chip.active {
+    background: #edf2ff;
+    border-color: #667eea;
+    color: #3c56c7;
+}
+
+.recurrence-end-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: center;
+}
+
+.recurrence-end-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.recurrence-end-date-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: nowrap;
+}
+
+.recurrence-end-date-group input[type="date"] {
+    min-width: 170px;
+}
+
+.recurrence-badge {
+    background: #edf2ff;
+    color: #3c56c7;
+}
+
+.recurring-scope-copy {
+    margin: 0 0 1rem;
+    color: #475569;
+    line-height: 1.6;
+}
+
+.recurring-scope-actions {
+    display: grid;
+    gap: 0.75rem;
 }
 
 .modal-overlay {
@@ -2621,6 +2823,10 @@ table tr:hover {
     .form-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 1rem;
+    }
+
+    .recurrence-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .shifts-grid {
@@ -2803,6 +3009,10 @@ table tr:hover {
         grid-template-columns: 1fr;
     }
 
+    .recurrence-grid {
+        grid-template-columns: 1fr;
+    }
+
     .form-action-row,
     .modal-actions {
         flex-direction: column;
@@ -2878,6 +3088,35 @@ table tr:hover {
     .shift-view-search-group {
         flex: 1 1 auto;
         width: 100%;
+    }
+
+    .recurrence-card-header {
+        align-items: flex-start;
+    }
+
+    .recurrence-toggle {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .recurrence-weekday-chip {
+        flex: 1 1 calc(33.333% - 0.55rem);
+        text-align: center;
+    }
+
+    .recurrence-inline-input {
+        width: 100%;
+    }
+
+    .recurrence-inline-input input,
+    .recurrence-end-options input[type="date"] {
+        width: 100%;
+    }
+
+    .recurrence-end-date-group {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 0.55rem;
     }
 
     .shift-status-filter {

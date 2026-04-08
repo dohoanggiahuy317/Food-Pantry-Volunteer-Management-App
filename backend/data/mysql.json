@@ -5,189 +5,243 @@
       "full_name": "Admin User - Heo Puy",
       "email": "jeremy.do.service@gmail.com",
       "created_at": "2024-01-01T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "user_id": 2,
       "full_name": "Khoa Ho",
       "email": "ho_d1@denison.edu",
       "created_at": "2024-01-01T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "user_id": 3,
       "full_name": "Jenny Nguyen",
       "email": "nguyen_j6@denison.edu ",
       "created_at": "2024-01-01T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "user_id": 4,
       "full_name": "Dong Ngu = Cho",
       "email": "tran_d2@denison.edu ",
       "created_at": "2024-01-01T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "user_id": 5,
       "full_name": "Hoang Ngo",
       "email": "ngo_h2@denison.edu",
       "created_at": "2024-01-15T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-15T00:00:00Z"
     },
     {
       "user_id": 6,
       "full_name": "Ben Turner",
       "email": "ben@volunteer.org",
       "created_at": "2024-01-15T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-15T00:00:00Z"
     },
     {
       "user_id": 7,
       "full_name": "Chloe Nguyen",
       "email": "chloe@volunteer.org",
       "created_at": "2024-01-16T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-16T00:00:00Z"
     },
     {
       "user_id": 8,
       "full_name": "Daniel Kim",
       "email": "daniel@volunteer.org",
       "created_at": "2024-01-17T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-17T00:00:00Z"
     },
     {
       "user_id": 9,
       "full_name": "Elena Rossi",
       "email": "elena@volunteer.org",
       "created_at": "2024-01-18T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-18T00:00:00Z"
     },
     {
       "user_id": 10,
       "full_name": "Farah Ahmed",
       "email": "farah@volunteer.org",
       "created_at": "2024-01-19T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-19T00:00:00Z"
     },
     {
       "user_id": 11,
       "full_name": "Gabriel Lee",
       "email": "gabriel@volunteer.org",
       "created_at": "2024-01-20T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-20T00:00:00Z"
     },
     {
       "user_id": 12,
       "full_name": "Hannah Patel",
       "email": "hannah@volunteer.org",
       "created_at": "2024-01-21T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-21T00:00:00Z"
     },
     {
       "user_id": 13,
       "full_name": "Isaac Brown",
       "email": "isaac@volunteer.org",
       "created_at": "2024-01-22T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-22T00:00:00Z"
     },
     {
       "user_id": 14,
       "full_name": "Jasmine Lopez",
       "email": "jasmine@volunteer.org",
       "created_at": "2024-01-23T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-23T00:00:00Z"
     },
     {
       "user_id": 15,
       "full_name": "Kyle Martin",
       "email": "kyle@volunteer.org",
       "created_at": "2024-01-24T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-24T00:00:00Z"
     },
     {
       "user_id": 16,
       "full_name": "Lila Chen",
       "email": "lila@volunteer.org",
       "created_at": "2024-01-25T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-25T00:00:00Z"
     },
     {
       "user_id": 17,
       "full_name": "Noah Davis",
       "email": "noah@volunteer.org",
       "created_at": "2024-01-26T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-26T00:00:00Z"
     },
     {
       "user_id": 18,
       "full_name": "Olivia Green",
       "email": "olivia@volunteer.org",
       "created_at": "2024-01-27T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-27T00:00:00Z"
     },
     {
       "user_id": 19,
       "full_name": "Priya Singh",
       "email": "priya@volunteer.org",
       "created_at": "2024-01-28T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-28T00:00:00Z"
     },
     {
       "user_id": 20,
       "full_name": "Quentin Young",
       "email": "quentin@volunteer.org",
       "created_at": "2024-01-29T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-29T00:00:00Z"
     },
     {
       "user_id": 21,
       "full_name": "Rosa Martinez",
       "email": "rosa@volunteer.org",
       "created_at": "2024-01-30T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-30T00:00:00Z"
     },
     {
       "user_id": 22,
       "full_name": "Samuel Clark",
       "email": "samuel@volunteer.org",
       "created_at": "2024-01-31T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-31T00:00:00Z"
     },
     {
       "user_id": 23,
       "full_name": "Tiana Brooks",
       "email": "tiana@volunteer.org",
       "created_at": "2024-02-01T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-02-01T00:00:00Z"
     },
     {
       "user_id": 24,
       "full_name": "Victor Hall",
       "email": "victor@volunteer.org",
       "created_at": "2024-02-02T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-02-02T00:00:00Z"
     },
     {
       "user_id": 25,
       "full_name": "Diana Foster",
       "email": "diana@eastriver-pantry.org",
       "created_at": "2024-01-01T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "user_id": 26,
       "full_name": "Ethan Brooks",
       "email": "ethan@westgate-pantry.org",
       "created_at": "2024-01-01T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "user_id": 27,
       "full_name": "Sophie Turner",
       "email": "sophie@volunteer.org",
       "created_at": "2024-02-03T00:00:00Z",
-      "phone_number": null
+      "phone_number": null,
+      "timezone": null,
+      "updated_at": "2024-02-03T00:00:00Z"
     }
   ],
   "roles": [
@@ -323,31 +377,36 @@
       "pantry_id": 1,
       "name": "Licking County Pantry",
       "location_address": "123 Main St, Licking County, OH",
-      "created_at": "2024-01-01T00:00:00Z"
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "pantry_id": 2,
       "name": "Northside Pantry",
       "location_address": "456 Oak Ave, Northside, OH",
-      "created_at": "2024-01-01T00:00:00Z"
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "pantry_id": 3,
       "name": "Southpoint Pantry",
       "location_address": "789 Elm St, Southpoint, OH",
-      "created_at": "2024-01-01T00:00:00Z"
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     },
     {
       "pantry_id": 4,
       "name": "East River Pantry",
       "location_address": "101 River Rd, Columbus, OH",
-      "created_at": "2024-01-02T00:00:00Z"
+      "created_at": "2024-01-02T00:00:00Z",
+      "updated_at": "2024-01-02T00:00:00Z"
     },
     {
       "pantry_id": 5,
       "name": "Westgate Pantry",
       "location_address": "220 Broad St, Columbus, OH",
-      "created_at": "2024-01-03T00:00:00Z"
+      "created_at": "2024-01-03T00:00:00Z",
+      "updated_at": "2024-01-03T00:00:00Z"
     }
   ],
   "pantry_leads": [
@@ -381,7 +440,10 @@
       "end_time": "2025-12-20T18:00:00Z",
       "status": "OPEN",
       "created_by": 1,
-      "created_at": "2025-11-20T00:00:00Z"
+      "created_at": "2025-11-20T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2025-11-20T00:00:00Z"
     },
     {
       "shift_id": 2,
@@ -391,7 +453,10 @@
       "end_time": "2026-01-10T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2025-12-20T00:00:00Z"
+      "created_at": "2025-12-20T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2025-12-20T00:00:00Z"
     },
     {
       "shift_id": 3,
@@ -401,7 +466,10 @@
       "end_time": "2026-02-14T19:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-01-25T00:00:00Z"
+      "created_at": "2026-01-25T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-01-25T00:00:00Z"
     },
     {
       "shift_id": 4,
@@ -411,7 +479,10 @@
       "end_time": "2026-02-28T18:00:00Z",
       "status": "OPEN",
       "created_by": 1,
-      "created_at": "2026-02-01T00:00:00Z"
+      "created_at": "2026-02-01T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-01T00:00:00Z"
     },
     {
       "shift_id": 14,
@@ -421,7 +492,10 @@
       "end_time": "2026-03-03T23:59:59Z",
       "status": "CANCELLED",
       "created_by": 1,
-      "created_at": "2026-02-27T00:00:00Z"
+      "created_at": "2026-02-27T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-27T00:00:00Z"
     },
     {
       "shift_id": 5,
@@ -431,7 +505,10 @@
       "end_time": "2026-03-01T20:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-02-10T00:00:00Z"
+      "created_at": "2026-02-10T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-10T00:00:00Z"
     },
     {
       "shift_id": 6,
@@ -441,7 +518,10 @@
       "end_time": "2026-03-03T23:59:59Z",
       "status": "OPEN",
       "created_by": 1,
-      "created_at": "2026-02-20T00:00:00Z"
+      "created_at": "2026-02-20T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-20T00:00:00Z"
     },
     {
       "shift_id": 7,
@@ -451,7 +531,10 @@
       "end_time": "2026-03-03T16:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-02-22T00:00:00Z"
+      "created_at": "2026-02-22T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-22T00:00:00Z"
     },
     {
       "shift_id": 8,
@@ -461,7 +544,10 @@
       "end_time": "2026-03-03T23:30:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-02-23T00:00:00Z"
+      "created_at": "2026-02-23T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-23T00:00:00Z"
     },
     {
       "shift_id": 9,
@@ -471,7 +557,10 @@
       "end_time": "2026-03-04T17:00:00Z",
       "status": "OPEN",
       "created_by": 1,
-      "created_at": "2026-02-24T00:00:00Z"
+      "created_at": "2026-02-24T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-24T00:00:00Z"
     },
     {
       "shift_id": 10,
@@ -481,7 +570,10 @@
       "end_time": "2026-03-05T18:30:00Z",
       "status": "OPEN",
       "created_by": 1,
-      "created_at": "2026-02-25T00:00:00Z"
+      "created_at": "2026-02-25T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-25T00:00:00Z"
     },
     {
       "shift_id": 11,
@@ -491,7 +583,10 @@
       "end_time": "2026-03-06T19:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-02-25T00:00:00Z"
+      "created_at": "2026-02-25T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-25T00:00:00Z"
     },
     {
       "shift_id": 12,
@@ -501,7 +596,10 @@
       "end_time": "2026-03-08T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-02-26T00:00:00Z"
+      "created_at": "2026-02-26T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-26T00:00:00Z"
     },
     {
       "shift_id": 13,
@@ -511,7 +609,10 @@
       "end_time": "2026-03-10T17:30:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-02-27T00:00:00Z"
+      "created_at": "2026-02-27T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-27T00:00:00Z"
     },
     {
       "shift_id": 15,
@@ -521,7 +622,10 @@
       "end_time": "2026-03-15T22:00:00Z",
       "status": "OPEN",
       "created_by": 1,
-      "created_at": "2026-02-28T00:00:00Z"
+      "created_at": "2026-02-28T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-02-28T00:00:00Z"
     },
     {
       "shift_id": 16,
@@ -531,7 +635,10 @@
       "end_time": "2026-03-20T16:30:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-03-01T00:00:00Z"
+      "created_at": "2026-03-01T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-03-01T00:00:00Z"
     },
     {
       "shift_id": 17,
@@ -541,7 +648,10 @@
       "end_time": "2026-03-25T18:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-03-01T00:00:00Z"
+      "created_at": "2026-03-01T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-03-01T00:00:00Z"
     },
     {
       "shift_id": 18,
@@ -551,7 +661,10 @@
       "end_time": "2026-04-02T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-03-01T00:00:00Z"
+      "created_at": "2026-03-01T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-03-01T00:00:00Z"
     },
     {
       "shift_id": 23,
@@ -561,7 +674,10 @@
       "end_time": "2026-04-07T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 24,
@@ -571,7 +687,10 @@
       "end_time": "2026-04-08T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 25,
@@ -581,7 +700,10 @@
       "end_time": "2026-04-09T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 26,
@@ -591,7 +713,10 @@
       "end_time": "2026-04-10T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 27,
@@ -601,7 +726,10 @@
       "end_time": "2026-04-11T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 28,
@@ -611,7 +739,10 @@
       "end_time": "2026-04-14T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 29,
@@ -621,7 +752,10 @@
       "end_time": "2026-04-15T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 19,
@@ -631,7 +765,10 @@
       "end_time": "2026-04-15T19:00:00Z",
       "status": "OPEN",
       "created_by": 1,
-      "created_at": "2026-03-02T00:00:00Z"
+      "created_at": "2026-03-02T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-03-02T00:00:00Z"
     },
     {
       "shift_id": 30,
@@ -641,7 +778,10 @@
       "end_time": "2026-04-16T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 31,
@@ -651,7 +791,10 @@
       "end_time": "2026-04-17T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 32,
@@ -661,7 +804,10 @@
       "end_time": "2026-04-18T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 33,
@@ -671,7 +817,10 @@
       "end_time": "2026-04-21T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 34,
@@ -681,7 +830,10 @@
       "end_time": "2026-04-22T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 35,
@@ -691,7 +843,10 @@
       "end_time": "2026-04-23T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 36,
@@ -701,7 +856,10 @@
       "end_time": "2026-04-24T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 37,
@@ -711,7 +869,10 @@
       "end_time": "2026-04-25T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 38,
@@ -721,7 +882,10 @@
       "end_time": "2026-04-28T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 39,
@@ -731,7 +895,10 @@
       "end_time": "2026-04-29T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 40,
@@ -741,7 +908,10 @@
       "end_time": "2026-04-30T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 20,
@@ -751,7 +921,10 @@
       "end_time": "2026-05-01T16:00:00Z",
       "status": "OPEN",
       "created_by": 1,
-      "created_at": "2026-03-02T00:00:00Z"
+      "created_at": "2026-03-02T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-03-02T00:00:00Z"
     },
     {
       "shift_id": 41,
@@ -761,7 +934,10 @@
       "end_time": "2026-05-01T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 42,
@@ -771,7 +947,10 @@
       "end_time": "2026-05-02T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 43,
@@ -781,7 +960,10 @@
       "end_time": "2026-05-05T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 44,
@@ -791,7 +973,10 @@
       "end_time": "2026-05-06T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 45,
@@ -801,7 +986,10 @@
       "end_time": "2026-05-07T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 46,
@@ -811,7 +999,10 @@
       "end_time": "2026-05-08T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 47,
@@ -821,7 +1012,10 @@
       "end_time": "2026-05-09T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 48,
@@ -831,7 +1025,10 @@
       "end_time": "2026-05-12T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 49,
@@ -841,7 +1038,10 @@
       "end_time": "2026-05-13T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 50,
@@ -851,7 +1051,10 @@
       "end_time": "2026-05-14T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 51,
@@ -861,7 +1064,10 @@
       "end_time": "2026-05-15T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 21,
@@ -871,7 +1077,10 @@
       "end_time": "2026-05-15T18:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-03-02T00:00:00Z"
+      "created_at": "2026-03-02T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-03-02T00:00:00Z"
     },
     {
       "shift_id": 52,
@@ -881,7 +1090,10 @@
       "end_time": "2026-05-16T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 53,
@@ -891,7 +1103,10 @@
       "end_time": "2026-05-19T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 54,
@@ -901,7 +1116,10 @@
       "end_time": "2026-05-20T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 55,
@@ -911,7 +1129,10 @@
       "end_time": "2026-05-21T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 56,
@@ -921,7 +1142,10 @@
       "end_time": "2026-05-22T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 57,
@@ -931,7 +1155,10 @@
       "end_time": "2026-05-23T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 58,
@@ -941,7 +1168,10 @@
       "end_time": "2026-05-26T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 59,
@@ -951,7 +1181,10 @@
       "end_time": "2026-05-27T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 60,
@@ -961,7 +1194,10 @@
       "end_time": "2026-05-28T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 61,
@@ -971,7 +1207,10 @@
       "end_time": "2026-05-29T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 62,
@@ -981,7 +1220,10 @@
       "end_time": "2026-05-30T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 22,
@@ -991,7 +1233,10 @@
       "end_time": "2026-06-01T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-03-02T00:00:00Z"
+      "created_at": "2026-03-02T00:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-03-02T00:00:00Z"
     },
     {
       "shift_id": 63,
@@ -1001,7 +1246,10 @@
       "end_time": "2026-06-02T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 64,
@@ -1011,7 +1259,10 @@
       "end_time": "2026-06-03T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 65,
@@ -1021,7 +1272,10 @@
       "end_time": "2026-06-04T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 66,
@@ -1031,7 +1285,10 @@
       "end_time": "2026-06-05T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 67,
@@ -1041,7 +1298,10 @@
       "end_time": "2026-06-06T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 68,
@@ -1051,7 +1311,10 @@
       "end_time": "2026-06-09T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 69,
@@ -1061,7 +1324,10 @@
       "end_time": "2026-06-10T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 70,
@@ -1071,7 +1337,10 @@
       "end_time": "2026-06-11T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 71,
@@ -1081,7 +1350,10 @@
       "end_time": "2026-06-12T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 72,
@@ -1091,7 +1363,10 @@
       "end_time": "2026-06-13T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 73,
@@ -1101,7 +1376,10 @@
       "end_time": "2026-06-16T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 74,
@@ -1111,7 +1389,10 @@
       "end_time": "2026-06-17T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 75,
@@ -1121,7 +1402,10 @@
       "end_time": "2026-06-18T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 76,
@@ -1131,7 +1415,10 @@
       "end_time": "2026-06-19T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 77,
@@ -1141,7 +1428,10 @@
       "end_time": "2026-06-20T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 78,
@@ -1151,7 +1441,10 @@
       "end_time": "2026-06-23T17:00:00Z",
       "status": "OPEN",
       "created_by": 2,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 79,
@@ -1161,7 +1454,10 @@
       "end_time": "2026-06-24T18:00:00Z",
       "status": "OPEN",
       "created_by": 3,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 80,
@@ -1171,7 +1467,10 @@
       "end_time": "2026-06-25T19:00:00Z",
       "status": "OPEN",
       "created_by": 4,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 81,
@@ -1181,7 +1480,10 @@
       "end_time": "2026-06-26T17:00:00Z",
       "status": "OPEN",
       "created_by": 25,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
     },
     {
       "shift_id": 82,
@@ -1191,7 +1493,816 @@
       "end_time": "2026-06-27T18:00:00Z",
       "status": "OPEN",
       "created_by": 26,
-      "created_at": "2026-04-07T12:00:00Z"
+      "created_at": "2026-04-07T12:00:00Z",
+      "shift_series_id": null,
+      "series_position": null,
+      "updated_at": "2026-04-07T12:00:00Z"
+    },
+    {
+      "shift_id": 83,
+      "pantry_id": 1,
+      "shift_series_id": 1,
+      "series_position": 1,
+      "shift_name": "Tuesday Produce Sort",
+      "start_time": "2026-04-14T13:00:00Z",
+      "end_time": "2026-04-14T16:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 84,
+      "pantry_id": 1,
+      "shift_series_id": 1,
+      "series_position": 2,
+      "shift_name": "Tuesday Produce Sort",
+      "start_time": "2026-04-21T13:00:00Z",
+      "end_time": "2026-04-21T16:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 85,
+      "pantry_id": 1,
+      "shift_series_id": 1,
+      "series_position": 3,
+      "shift_name": "Tuesday Produce Sort",
+      "start_time": "2026-04-28T13:00:00Z",
+      "end_time": "2026-04-28T16:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 86,
+      "pantry_id": 1,
+      "shift_series_id": 1,
+      "series_position": 4,
+      "shift_name": "Tuesday Produce Sort",
+      "start_time": "2026-05-05T13:00:00Z",
+      "end_time": "2026-05-05T16:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 87,
+      "pantry_id": 1,
+      "shift_series_id": 1,
+      "series_position": 5,
+      "shift_name": "Tuesday Produce Sort",
+      "start_time": "2026-05-12T13:00:00Z",
+      "end_time": "2026-05-12T16:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 88,
+      "pantry_id": 1,
+      "shift_series_id": 1,
+      "series_position": 6,
+      "shift_name": "Tuesday Produce Sort",
+      "start_time": "2026-05-19T13:00:00Z",
+      "end_time": "2026-05-19T16:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 89,
+      "pantry_id": 1,
+      "shift_series_id": 1,
+      "series_position": 7,
+      "shift_name": "Tuesday Produce Sort",
+      "start_time": "2026-05-26T13:00:00Z",
+      "end_time": "2026-05-26T16:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 90,
+      "pantry_id": 1,
+      "shift_series_id": 1,
+      "series_position": 8,
+      "shift_name": "Tuesday Produce Sort",
+      "start_time": "2026-06-02T13:00:00Z",
+      "end_time": "2026-06-02T16:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 91,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 1,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-04-15T17:30:00Z",
+      "end_time": "2026-04-15T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 92,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 2,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-04-18T17:30:00Z",
+      "end_time": "2026-04-18T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 93,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 3,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-04-22T17:30:00Z",
+      "end_time": "2026-04-22T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 94,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 4,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-04-25T17:30:00Z",
+      "end_time": "2026-04-25T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 95,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 5,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-04-29T17:30:00Z",
+      "end_time": "2026-04-29T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 96,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 6,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-05-02T17:30:00Z",
+      "end_time": "2026-05-02T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 97,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 7,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-05-06T17:30:00Z",
+      "end_time": "2026-05-06T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 98,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 8,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-05-09T17:30:00Z",
+      "end_time": "2026-05-09T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 99,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 9,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-05-13T17:30:00Z",
+      "end_time": "2026-05-13T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 100,
+      "pantry_id": 2,
+      "shift_series_id": 2,
+      "series_position": 10,
+      "shift_name": "Family Pack Assembly",
+      "start_time": "2026-05-16T17:30:00Z",
+      "end_time": "2026-05-16T20:30:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 101,
+      "pantry_id": 3,
+      "shift_series_id": 3,
+      "series_position": 1,
+      "shift_name": "Mobile Pantry Loadout",
+      "start_time": "2026-04-16T12:00:00Z",
+      "end_time": "2026-04-16T15:00:00Z",
+      "status": "OPEN",
+      "created_by": 3,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 102,
+      "pantry_id": 3,
+      "shift_series_id": 3,
+      "series_position": 2,
+      "shift_name": "Mobile Pantry Loadout",
+      "start_time": "2026-04-30T12:00:00Z",
+      "end_time": "2026-04-30T15:00:00Z",
+      "status": "OPEN",
+      "created_by": 3,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 103,
+      "pantry_id": 3,
+      "shift_series_id": 3,
+      "series_position": 3,
+      "shift_name": "Mobile Pantry Loadout",
+      "start_time": "2026-05-14T12:00:00Z",
+      "end_time": "2026-05-14T15:00:00Z",
+      "status": "OPEN",
+      "created_by": 3,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 104,
+      "pantry_id": 3,
+      "shift_series_id": 3,
+      "series_position": 4,
+      "shift_name": "Mobile Pantry Loadout",
+      "start_time": "2026-05-28T12:00:00Z",
+      "end_time": "2026-05-28T15:00:00Z",
+      "status": "OPEN",
+      "created_by": 3,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 105,
+      "pantry_id": 3,
+      "shift_series_id": 3,
+      "series_position": 5,
+      "shift_name": "Mobile Pantry Loadout",
+      "start_time": "2026-06-11T12:00:00Z",
+      "end_time": "2026-06-11T15:00:00Z",
+      "status": "OPEN",
+      "created_by": 3,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 106,
+      "pantry_id": 3,
+      "shift_series_id": 3,
+      "series_position": 6,
+      "shift_name": "Mobile Pantry Loadout",
+      "start_time": "2026-06-25T12:00:00Z",
+      "end_time": "2026-06-25T15:00:00Z",
+      "status": "OPEN",
+      "created_by": 3,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 107,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 1,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-04-13T14:00:00Z",
+      "end_time": "2026-04-13T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 108,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 2,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-04-17T14:00:00Z",
+      "end_time": "2026-04-17T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 109,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 3,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-04-20T14:00:00Z",
+      "end_time": "2026-04-20T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 110,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 4,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-04-24T14:00:00Z",
+      "end_time": "2026-04-24T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 111,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 5,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-04-27T14:00:00Z",
+      "end_time": "2026-04-27T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 112,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 6,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-01T14:00:00Z",
+      "end_time": "2026-05-01T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 113,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 7,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-04T14:00:00Z",
+      "end_time": "2026-05-04T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 114,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 8,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-08T14:00:00Z",
+      "end_time": "2026-05-08T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 115,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 9,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-11T14:00:00Z",
+      "end_time": "2026-05-11T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 116,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 10,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-15T14:00:00Z",
+      "end_time": "2026-05-15T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 117,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 11,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-18T14:00:00Z",
+      "end_time": "2026-05-18T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 118,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 12,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-22T14:00:00Z",
+      "end_time": "2026-05-22T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 119,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 13,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-25T14:00:00Z",
+      "end_time": "2026-05-25T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 120,
+      "pantry_id": 4,
+      "shift_series_id": 4,
+      "series_position": 14,
+      "shift_name": "Senior Delivery Prep",
+      "start_time": "2026-05-29T14:00:00Z",
+      "end_time": "2026-05-29T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 121,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 1,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-04-18T13:00:00Z",
+      "end_time": "2026-04-18T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 122,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 2,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-04-25T13:00:00Z",
+      "end_time": "2026-04-25T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 123,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 3,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-05-02T13:00:00Z",
+      "end_time": "2026-05-02T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 124,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 4,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-05-09T13:00:00Z",
+      "end_time": "2026-05-09T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 125,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 5,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-05-16T13:00:00Z",
+      "end_time": "2026-05-16T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 126,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 6,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-05-23T13:00:00Z",
+      "end_time": "2026-05-23T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 127,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 7,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-05-30T13:00:00Z",
+      "end_time": "2026-05-30T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 128,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 8,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-06-06T13:00:00Z",
+      "end_time": "2026-06-06T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 129,
+      "pantry_id": 5,
+      "shift_series_id": 5,
+      "series_position": 9,
+      "shift_name": "Community Market Check-In",
+      "start_time": "2026-06-13T13:00:00Z",
+      "end_time": "2026-06-13T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 130,
+      "pantry_id": 1,
+      "shift_series_id": 6,
+      "series_position": 1,
+      "shift_name": "Evening Warehouse Reset",
+      "start_time": "2026-04-19T21:00:00Z",
+      "end_time": "2026-04-19T23:30:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 131,
+      "pantry_id": 1,
+      "shift_series_id": 6,
+      "series_position": 2,
+      "shift_name": "Evening Warehouse Reset",
+      "start_time": "2026-05-03T21:00:00Z",
+      "end_time": "2026-05-03T23:30:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 132,
+      "pantry_id": 1,
+      "shift_series_id": 6,
+      "series_position": 3,
+      "shift_name": "Evening Warehouse Reset",
+      "start_time": "2026-05-17T21:00:00Z",
+      "end_time": "2026-05-17T23:30:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 133,
+      "pantry_id": 1,
+      "shift_series_id": 6,
+      "series_position": 4,
+      "shift_name": "Evening Warehouse Reset",
+      "start_time": "2026-05-31T21:00:00Z",
+      "end_time": "2026-05-31T23:30:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 134,
+      "pantry_id": 1,
+      "shift_series_id": 6,
+      "series_position": 5,
+      "shift_name": "Evening Warehouse Reset",
+      "start_time": "2026-06-14T21:00:00Z",
+      "end_time": "2026-06-14T23:30:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_id": 135,
+      "pantry_id": 1,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "Weekend Family Pantry Pop-Up",
+      "start_time": "2026-04-25T14:00:00Z",
+      "end_time": "2026-04-25T18:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-04-15T14:00:00Z",
+      "updated_at": "2026-04-15T14:00:00Z"
+    },
+    {
+      "shift_id": 136,
+      "pantry_id": 2,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "Spring Donation Intake Blitz",
+      "start_time": "2026-04-29T13:00:00Z",
+      "end_time": "2026-04-29T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-04-19T13:00:00Z",
+      "updated_at": "2026-04-19T13:00:00Z"
+    },
+    {
+      "shift_id": 137,
+      "pantry_id": 3,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "Neighborhood Fresh Box Pickup",
+      "start_time": "2026-05-02T15:00:00Z",
+      "end_time": "2026-05-02T18:00:00Z",
+      "status": "OPEN",
+      "created_by": 3,
+      "created_at": "2026-04-22T15:00:00Z",
+      "updated_at": "2026-04-22T15:00:00Z"
+    },
+    {
+      "shift_id": 138,
+      "pantry_id": 4,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "After School Snack Pack Build",
+      "start_time": "2026-05-06T19:00:00Z",
+      "end_time": "2026-05-06T21:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-04-26T19:00:00Z",
+      "updated_at": "2026-04-26T19:00:00Z"
+    },
+    {
+      "shift_id": 139,
+      "pantry_id": 5,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "Saturday Community Market",
+      "start_time": "2026-05-09T13:00:00Z",
+      "end_time": "2026-05-09T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-04-29T13:00:00Z",
+      "updated_at": "2026-04-29T13:00:00Z"
+    },
+    {
+      "shift_id": 140,
+      "pantry_id": 1,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "College Volunteer Welcome Shift",
+      "start_time": "2026-05-13T20:00:00Z",
+      "end_time": "2026-05-13T22:00:00Z",
+      "status": "OPEN",
+      "created_by": 1,
+      "created_at": "2026-05-03T20:00:00Z",
+      "updated_at": "2026-05-03T20:00:00Z"
+    },
+    {
+      "shift_id": 141,
+      "pantry_id": 2,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "Neighborhood Produce Restock",
+      "start_time": "2026-05-16T14:00:00Z",
+      "end_time": "2026-05-16T17:00:00Z",
+      "status": "OPEN",
+      "created_by": 2,
+      "created_at": "2026-05-06T14:00:00Z",
+      "updated_at": "2026-05-06T14:00:00Z"
+    },
+    {
+      "shift_id": 142,
+      "pantry_id": 3,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "Summer Kickoff Pantry Prep",
+      "start_time": "2026-05-20T13:30:00Z",
+      "end_time": "2026-05-20T17:30:00Z",
+      "status": "OPEN",
+      "created_by": 3,
+      "created_at": "2026-05-10T13:30:00Z",
+      "updated_at": "2026-05-10T13:30:00Z"
+    },
+    {
+      "shift_id": 143,
+      "pantry_id": 4,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "Fresh Pantry Evening Distribution",
+      "start_time": "2026-05-23T16:00:00Z",
+      "end_time": "2026-05-23T20:00:00Z",
+      "status": "OPEN",
+      "created_by": 25,
+      "created_at": "2026-05-13T16:00:00Z",
+      "updated_at": "2026-05-13T16:00:00Z"
+    },
+    {
+      "shift_id": 144,
+      "pantry_id": 5,
+      "shift_series_id": null,
+      "series_position": null,
+      "shift_name": "Volunteer Appreciation Sort",
+      "start_time": "2026-05-27T18:00:00Z",
+      "end_time": "2026-05-27T21:00:00Z",
+      "status": "OPEN",
+      "created_by": 26,
+      "created_at": "2026-05-17T18:00:00Z",
+      "updated_at": "2026-05-17T18:00:00Z"
     }
   ],
   "shift_roles": [
@@ -2506,6 +3617,998 @@
       "required_count": 3,
       "filled_count": 0,
       "status": "OPEN"
+    },
+    {
+      "shift_role_id": 165,
+      "shift_id": 83,
+      "role_title": "Produce Sorter",
+      "required_count": 4,
+      "filled_count": 4,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 166,
+      "shift_id": 83,
+      "role_title": "Check-in",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 167,
+      "shift_id": 84,
+      "role_title": "Produce Sorter",
+      "required_count": 4,
+      "filled_count": 3,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 168,
+      "shift_id": 84,
+      "role_title": "Check-in",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 169,
+      "shift_id": 85,
+      "role_title": "Produce Sorter",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 170,
+      "shift_id": 85,
+      "role_title": "Check-in",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 171,
+      "shift_id": 86,
+      "role_title": "Produce Sorter",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 172,
+      "shift_id": 86,
+      "role_title": "Check-in",
+      "required_count": 2,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 173,
+      "shift_id": 87,
+      "role_title": "Produce Sorter",
+      "required_count": 4,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 174,
+      "shift_id": 87,
+      "role_title": "Check-in",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 175,
+      "shift_id": 88,
+      "role_title": "Produce Sorter",
+      "required_count": 4,
+      "filled_count": 4,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 176,
+      "shift_id": 88,
+      "role_title": "Check-in",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 177,
+      "shift_id": 89,
+      "role_title": "Produce Sorter",
+      "required_count": 4,
+      "filled_count": 3,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 178,
+      "shift_id": 89,
+      "role_title": "Check-in",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 179,
+      "shift_id": 90,
+      "role_title": "Produce Sorter",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 180,
+      "shift_id": 90,
+      "role_title": "Check-in",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 181,
+      "shift_id": 91,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 182,
+      "shift_id": 91,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 183,
+      "shift_id": 92,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 184,
+      "shift_id": 92,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 185,
+      "shift_id": 93,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 5,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 186,
+      "shift_id": 93,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 187,
+      "shift_id": 94,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 4,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 188,
+      "shift_id": 94,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 189,
+      "shift_id": 95,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 190,
+      "shift_id": 95,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 191,
+      "shift_id": 96,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 192,
+      "shift_id": 96,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 193,
+      "shift_id": 97,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 194,
+      "shift_id": 97,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 195,
+      "shift_id": 98,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 5,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 196,
+      "shift_id": 98,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 197,
+      "shift_id": 99,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 4,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 198,
+      "shift_id": 99,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 199,
+      "shift_id": 100,
+      "role_title": "Box Packer",
+      "required_count": 5,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 200,
+      "shift_id": 100,
+      "role_title": "Dock Runner",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 201,
+      "shift_id": 101,
+      "role_title": "Loadout Crew",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 202,
+      "shift_id": 101,
+      "role_title": "Inventory Lead",
+      "required_count": 1,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 203,
+      "shift_id": 102,
+      "role_title": "Loadout Crew",
+      "required_count": 4,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 204,
+      "shift_id": 102,
+      "role_title": "Inventory Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 205,
+      "shift_id": 103,
+      "role_title": "Loadout Crew",
+      "required_count": 4,
+      "filled_count": 4,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 206,
+      "shift_id": 103,
+      "role_title": "Inventory Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 207,
+      "shift_id": 104,
+      "role_title": "Loadout Crew",
+      "required_count": 4,
+      "filled_count": 3,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 208,
+      "shift_id": 104,
+      "role_title": "Inventory Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 209,
+      "shift_id": 105,
+      "role_title": "Loadout Crew",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 210,
+      "shift_id": 105,
+      "role_title": "Inventory Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 211,
+      "shift_id": 106,
+      "role_title": "Loadout Crew",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 212,
+      "shift_id": 106,
+      "role_title": "Inventory Lead",
+      "required_count": 1,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 213,
+      "shift_id": 107,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 214,
+      "shift_id": 107,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 215,
+      "shift_id": 108,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 3,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 216,
+      "shift_id": 108,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 217,
+      "shift_id": 109,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 218,
+      "shift_id": 109,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 219,
+      "shift_id": 110,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 220,
+      "shift_id": 110,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 221,
+      "shift_id": 111,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 222,
+      "shift_id": 111,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 223,
+      "shift_id": 112,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 224,
+      "shift_id": 112,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 225,
+      "shift_id": 113,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 3,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 226,
+      "shift_id": 113,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 227,
+      "shift_id": 114,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 228,
+      "shift_id": 114,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 229,
+      "shift_id": 115,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 230,
+      "shift_id": 115,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 231,
+      "shift_id": 116,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 232,
+      "shift_id": 116,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 233,
+      "shift_id": 117,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 234,
+      "shift_id": 117,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 235,
+      "shift_id": 118,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 3,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 236,
+      "shift_id": 118,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 237,
+      "shift_id": 119,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 238,
+      "shift_id": 119,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 239,
+      "shift_id": 120,
+      "role_title": "Route Prep",
+      "required_count": 3,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 240,
+      "shift_id": 120,
+      "role_title": "Phone Outreach",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 241,
+      "shift_id": 121,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 242,
+      "shift_id": 121,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 243,
+      "shift_id": 122,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 244,
+      "shift_id": 122,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 4,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 245,
+      "shift_id": 123,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 3,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 246,
+      "shift_id": 123,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 3,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 247,
+      "shift_id": 124,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 248,
+      "shift_id": 124,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 249,
+      "shift_id": 125,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 250,
+      "shift_id": 125,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 251,
+      "shift_id": 126,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 252,
+      "shift_id": 126,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 253,
+      "shift_id": 127,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 254,
+      "shift_id": 127,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 4,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 255,
+      "shift_id": 128,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 3,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 256,
+      "shift_id": 128,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 3,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 257,
+      "shift_id": 129,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 258,
+      "shift_id": 129,
+      "role_title": "Table Restock",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 259,
+      "shift_id": 130,
+      "role_title": "Warehouse Reset",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 260,
+      "shift_id": 130,
+      "role_title": "Cleanup Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 261,
+      "shift_id": 131,
+      "role_title": "Warehouse Reset",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 262,
+      "shift_id": 131,
+      "role_title": "Cleanup Lead",
+      "required_count": 1,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 263,
+      "shift_id": 132,
+      "role_title": "Warehouse Reset",
+      "required_count": 4,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 264,
+      "shift_id": 132,
+      "role_title": "Cleanup Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 265,
+      "shift_id": 133,
+      "role_title": "Warehouse Reset",
+      "required_count": 4,
+      "filled_count": 4,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 266,
+      "shift_id": 133,
+      "role_title": "Cleanup Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 267,
+      "shift_id": 134,
+      "role_title": "Warehouse Reset",
+      "required_count": 4,
+      "filled_count": 3,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 268,
+      "shift_id": 134,
+      "role_title": "Cleanup Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 269,
+      "shift_id": 135,
+      "role_title": "Greeter",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 270,
+      "shift_id": 135,
+      "role_title": "Line Support",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 271,
+      "shift_id": 136,
+      "role_title": "Intake Desk",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 272,
+      "shift_id": 136,
+      "role_title": "Donation Sorter",
+      "required_count": 5,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 273,
+      "shift_id": 137,
+      "role_title": "Pickup Host",
+      "required_count": 2,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 274,
+      "shift_id": 137,
+      "role_title": "Box Runner",
+      "required_count": 4,
+      "filled_count": 4,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 275,
+      "shift_id": 138,
+      "role_title": "Assembly Lead",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 276,
+      "shift_id": 138,
+      "role_title": "Snack Packer",
+      "required_count": 4,
+      "filled_count": 3,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 277,
+      "shift_id": 139,
+      "role_title": "Check-in",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 278,
+      "shift_id": 139,
+      "role_title": "Market Floater",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 279,
+      "shift_id": 140,
+      "role_title": "Orientation Host",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 280,
+      "shift_id": 140,
+      "role_title": "Setup Crew",
+      "required_count": 3,
+      "filled_count": 2,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 281,
+      "shift_id": 141,
+      "role_title": "Restock Lead",
+      "required_count": 1,
+      "filled_count": 1,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 282,
+      "shift_id": 141,
+      "role_title": "Shelf Stocker",
+      "required_count": 4,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 283,
+      "shift_id": 142,
+      "role_title": "Registration Table",
+      "required_count": 2,
+      "filled_count": 0,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 284,
+      "shift_id": 142,
+      "role_title": "Prep Crew",
+      "required_count": 5,
+      "filled_count": 5,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 285,
+      "shift_id": 143,
+      "role_title": "Guest Check-in",
+      "required_count": 2,
+      "filled_count": 2,
+      "status": "FULL"
+    },
+    {
+      "shift_role_id": 286,
+      "shift_id": 143,
+      "role_title": "Distribution Runner",
+      "required_count": 4,
+      "filled_count": 3,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 287,
+      "shift_id": 144,
+      "role_title": "Welcome Table",
+      "required_count": 2,
+      "filled_count": 1,
+      "status": "OPEN"
+    },
+    {
+      "shift_role_id": 288,
+      "shift_id": 144,
+      "role_title": "Sort Crew",
+      "required_count": 4,
+      "filled_count": 2,
+      "status": "OPEN"
     }
   ],
   "shift_signups": [
@@ -2514,497 +4617,2454 @@
       "shift_role_id": 1,
       "user_id": 5,
       "signup_status": "SHOW_UP",
-      "created_at": "2025-12-19T12:00:00Z"
+      "created_at": "2025-12-19T12:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 2,
       "shift_role_id": 1,
       "user_id": 6,
       "signup_status": "SHOW_UP",
-      "created_at": "2025-12-19T12:10:00Z"
+      "created_at": "2025-12-19T12:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 3,
       "shift_role_id": 2,
       "user_id": 7,
       "signup_status": "SHOW_UP",
-      "created_at": "2025-12-19T12:20:00Z"
+      "created_at": "2025-12-19T12:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 4,
       "shift_role_id": 2,
       "user_id": 8,
       "signup_status": "NO_SHOW",
-      "created_at": "2025-12-19T12:30:00Z"
+      "created_at": "2025-12-19T12:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 5,
       "shift_role_id": 2,
       "user_id": 9,
       "signup_status": "SHOW_UP",
-      "created_at": "2025-12-19T12:40:00Z"
+      "created_at": "2025-12-19T12:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 6,
       "shift_role_id": 3,
       "user_id": 10,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-01-07T12:00:00Z"
+      "created_at": "2026-01-07T12:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 7,
       "shift_role_id": 4,
       "user_id": 11,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-01-07T12:10:00Z"
+      "created_at": "2026-01-07T12:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 8,
       "shift_role_id": 4,
       "user_id": 12,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-01-07T12:20:00Z"
+      "created_at": "2026-01-07T12:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 9,
       "shift_role_id": 4,
       "user_id": 13,
       "signup_status": "NO_SHOW",
-      "created_at": "2026-01-07T12:30:00Z"
+      "created_at": "2026-01-07T12:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 10,
       "shift_role_id": 4,
       "user_id": 14,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-01-07T12:40:00Z"
+      "created_at": "2026-01-07T12:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 11,
       "shift_role_id": 5,
       "user_id": 15,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-12T11:00:00Z"
+      "created_at": "2026-02-12T11:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 12,
       "shift_role_id": 5,
       "user_id": 16,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-12T11:10:00Z"
+      "created_at": "2026-02-12T11:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 13,
       "shift_role_id": 6,
       "user_id": 17,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-12T11:20:00Z"
+      "created_at": "2026-02-12T11:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 14,
       "shift_role_id": 6,
       "user_id": 18,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-12T11:30:00Z"
+      "created_at": "2026-02-12T11:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 15,
       "shift_role_id": 6,
       "user_id": 19,
       "signup_status": "NO_SHOW",
-      "created_at": "2026-02-12T11:40:00Z"
+      "created_at": "2026-02-12T11:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 16,
       "shift_role_id": 6,
       "user_id": 20,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-12T11:50:00Z"
+      "created_at": "2026-02-12T11:50:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 17,
       "shift_role_id": 7,
       "user_id": 21,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-26T10:00:00Z"
+      "created_at": "2026-02-26T10:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 18,
       "shift_role_id": 7,
       "user_id": 22,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-26T10:10:00Z"
+      "created_at": "2026-02-26T10:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 19,
       "shift_role_id": 8,
       "user_id": 23,
       "signup_status": "NO_SHOW",
-      "created_at": "2026-02-26T10:20:00Z"
+      "created_at": "2026-02-26T10:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 20,
       "shift_role_id": 9,
       "user_id": 24,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-28T10:00:00Z"
+      "created_at": "2026-02-28T10:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 21,
       "shift_role_id": 9,
       "user_id": 5,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-28T10:10:00Z"
+      "created_at": "2026-02-28T10:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 22,
       "shift_role_id": 9,
       "user_id": 6,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-28T10:20:00Z"
+      "created_at": "2026-02-28T10:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 23,
       "shift_role_id": 10,
       "user_id": 7,
       "signup_status": "NO_SHOW",
-      "created_at": "2026-02-28T10:30:00Z"
+      "created_at": "2026-02-28T10:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 24,
       "shift_role_id": 10,
       "user_id": 8,
       "signup_status": "SHOW_UP",
-      "created_at": "2026-02-28T10:40:00Z"
+      "created_at": "2026-02-28T10:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 25,
       "shift_role_id": 11,
       "user_id": 9,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T09:00:00Z"
+      "created_at": "2026-03-02T09:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 26,
       "shift_role_id": 11,
       "user_id": 10,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T09:10:00Z"
+      "created_at": "2026-03-02T09:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 27,
       "shift_role_id": 12,
       "user_id": 11,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T09:20:00Z"
+      "created_at": "2026-03-02T09:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 28,
       "shift_role_id": 12,
       "user_id": 12,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T09:30:00Z"
+      "created_at": "2026-03-02T09:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 29,
       "shift_role_id": 12,
       "user_id": 13,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T09:40:00Z"
+      "created_at": "2026-03-02T09:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 30,
       "shift_role_id": 13,
       "user_id": 14,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T10:00:00Z"
+      "created_at": "2026-03-02T10:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 31,
       "shift_role_id": 14,
       "user_id": 15,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T10:10:00Z"
+      "created_at": "2026-03-02T10:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 32,
       "shift_role_id": 14,
       "user_id": 16,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T10:20:00Z"
+      "created_at": "2026-03-02T10:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 33,
       "shift_role_id": 16,
       "user_id": 17,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-02T10:30:00Z"
+      "created_at": "2026-03-02T10:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 34,
       "shift_role_id": 17,
       "user_id": 18,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T07:00:00Z"
+      "created_at": "2026-03-03T07:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 35,
       "shift_role_id": 18,
       "user_id": 19,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T07:10:00Z"
+      "created_at": "2026-03-03T07:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 36,
       "shift_role_id": 18,
       "user_id": 20,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T07:20:00Z"
+      "created_at": "2026-03-03T07:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 37,
       "shift_role_id": 19,
       "user_id": 21,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T07:30:00Z"
+      "created_at": "2026-03-03T07:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 38,
       "shift_role_id": 19,
       "user_id": 22,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T07:40:00Z"
+      "created_at": "2026-03-03T07:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 39,
       "shift_role_id": 20,
       "user_id": 23,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T07:50:00Z"
+      "created_at": "2026-03-03T07:50:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 40,
       "shift_role_id": 21,
       "user_id": 24,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T08:00:00Z"
+      "created_at": "2026-03-03T08:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 41,
       "shift_role_id": 21,
       "user_id": 5,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T08:10:00Z"
+      "created_at": "2026-03-03T08:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 42,
       "shift_role_id": 21,
       "user_id": 6,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T08:20:00Z"
+      "created_at": "2026-03-03T08:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 43,
       "shift_role_id": 22,
       "user_id": 7,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T08:30:00Z"
+      "created_at": "2026-03-03T08:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 44,
       "shift_role_id": 23,
       "user_id": 8,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T08:40:00Z"
+      "created_at": "2026-03-03T08:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 45,
       "shift_role_id": 23,
       "user_id": 9,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T08:50:00Z"
+      "created_at": "2026-03-03T08:50:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 46,
       "shift_role_id": 24,
       "user_id": 10,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T09:00:00Z"
+      "created_at": "2026-03-03T09:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 47,
       "shift_role_id": 25,
       "user_id": 11,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T09:10:00Z"
+      "created_at": "2026-03-03T09:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 48,
       "shift_role_id": 25,
       "user_id": 12,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T09:20:00Z"
+      "created_at": "2026-03-03T09:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 49,
       "shift_role_id": 26,
       "user_id": 13,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T09:30:00Z"
+      "created_at": "2026-03-03T09:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 50,
       "shift_role_id": 29,
       "user_id": 14,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T09:40:00Z"
+      "created_at": "2026-03-03T09:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 51,
       "shift_role_id": 31,
       "user_id": 15,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T09:50:00Z"
+      "created_at": "2026-03-03T09:50:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 52,
       "shift_role_id": 31,
       "user_id": 16,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T10:00:00Z"
+      "created_at": "2026-03-03T10:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 53,
       "shift_role_id": 32,
       "user_id": 17,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T10:10:00Z"
+      "created_at": "2026-03-03T10:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 54,
       "shift_role_id": 33,
       "user_id": 18,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T10:20:00Z"
+      "created_at": "2026-03-03T10:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 55,
       "shift_role_id": 34,
       "user_id": 19,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T10:30:00Z"
+      "created_at": "2026-03-03T10:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 56,
       "shift_role_id": 34,
       "user_id": 20,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T10:40:00Z"
+      "created_at": "2026-03-03T10:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 57,
       "shift_role_id": 34,
       "user_id": 21,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T10:50:00Z"
+      "created_at": "2026-03-03T10:50:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 58,
       "shift_role_id": 35,
       "user_id": 22,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T11:00:00Z"
+      "created_at": "2026-03-03T11:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 59,
       "shift_role_id": 35,
       "user_id": 23,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T11:10:00Z"
+      "created_at": "2026-03-03T11:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 60,
       "shift_role_id": 36,
       "user_id": 24,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T11:20:00Z"
+      "created_at": "2026-03-03T11:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 61,
       "shift_role_id": 37,
       "user_id": 5,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T11:30:00Z"
+      "created_at": "2026-03-03T11:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 62,
       "shift_role_id": 38,
       "user_id": 6,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T11:40:00Z"
+      "created_at": "2026-03-03T11:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 63,
       "shift_role_id": 38,
       "user_id": 7,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T11:50:00Z"
+      "created_at": "2026-03-03T11:50:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 64,
       "shift_role_id": 39,
       "user_id": 8,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T12:00:00Z"
+      "created_at": "2026-03-03T12:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 65,
       "shift_role_id": 40,
       "user_id": 9,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T12:10:00Z"
+      "created_at": "2026-03-03T12:10:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 66,
       "shift_role_id": 41,
       "user_id": 10,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T12:20:00Z"
+      "created_at": "2026-03-03T12:20:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 67,
       "shift_role_id": 42,
       "user_id": 11,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T12:30:00Z"
+      "created_at": "2026-03-03T12:30:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 68,
       "shift_role_id": 42,
       "user_id": 12,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T12:40:00Z"
+      "created_at": "2026-03-03T12:40:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 69,
       "shift_role_id": 43,
       "user_id": 13,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T12:50:00Z"
+      "created_at": "2026-03-03T12:50:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 70,
       "shift_role_id": 43,
       "user_id": 14,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T13:00:00Z"
+      "created_at": "2026-03-03T13:00:00Z",
+      "reservation_expires_at": null
     },
     {
       "signup_id": 71,
       "shift_role_id": 44,
       "user_id": 15,
       "signup_status": "CONFIRMED",
-      "created_at": "2026-03-03T13:10:00Z"
+      "created_at": "2026-03-03T13:10:00Z",
+      "reservation_expires_at": null
+    },
+    {
+      "signup_id": 72,
+      "shift_role_id": 165,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-08T12:47:00Z"
+    },
+    {
+      "signup_id": 73,
+      "shift_role_id": 165,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-08T12:34:00Z"
+    },
+    {
+      "signup_id": 74,
+      "shift_role_id": 165,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-08T12:21:00Z"
+    },
+    {
+      "signup_id": 75,
+      "shift_role_id": 165,
+      "user_id": 9,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-14T11:00:00Z",
+      "created_at": "2026-04-08T12:08:00Z"
+    },
+    {
+      "signup_id": 76,
+      "shift_role_id": 165,
+      "user_id": 10,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-09T12:53:00Z"
+    },
+    {
+      "signup_id": 77,
+      "shift_role_id": 166,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-08T12:47:00Z"
+    },
+    {
+      "signup_id": 78,
+      "shift_role_id": 167,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-15T12:47:00Z"
+    },
+    {
+      "signup_id": 79,
+      "shift_role_id": 167,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-15T12:34:00Z"
+    },
+    {
+      "signup_id": 80,
+      "shift_role_id": 167,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-15T12:21:00Z"
+    },
+    {
+      "signup_id": 81,
+      "shift_role_id": 168,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-15T12:47:00Z"
+    },
+    {
+      "signup_id": 82,
+      "shift_role_id": 169,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-22T12:47:00Z"
+    },
+    {
+      "signup_id": 83,
+      "shift_role_id": 169,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-22T12:34:00Z"
+    },
+    {
+      "signup_id": 84,
+      "shift_role_id": 170,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-22T12:47:00Z"
+    },
+    {
+      "signup_id": 85,
+      "shift_role_id": 170,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-22T12:34:00Z"
+    },
+    {
+      "signup_id": 86,
+      "shift_role_id": 170,
+      "user_id": 20,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-23T12:53:00Z"
+    },
+    {
+      "signup_id": 87,
+      "shift_role_id": 171,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-29T12:47:00Z"
+    },
+    {
+      "signup_id": 88,
+      "shift_role_id": 171,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-29T12:34:00Z"
+    },
+    {
+      "signup_id": 89,
+      "shift_role_id": 174,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-06T12:47:00Z"
+    },
+    {
+      "signup_id": 90,
+      "shift_role_id": 174,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-06T12:34:00Z"
+    },
+    {
+      "signup_id": 91,
+      "shift_role_id": 175,
+      "user_id": 27,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-13T12:47:00Z"
+    },
+    {
+      "signup_id": 92,
+      "shift_role_id": 175,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-13T12:34:00Z"
+    },
+    {
+      "signup_id": 93,
+      "shift_role_id": 175,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-13T12:21:00Z"
+    },
+    {
+      "signup_id": 94,
+      "shift_role_id": 175,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-13T12:08:00Z"
+    },
+    {
+      "signup_id": 95,
+      "shift_role_id": 176,
+      "user_id": 9,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-13T12:47:00Z"
+    },
+    {
+      "signup_id": 96,
+      "shift_role_id": 177,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-20T12:47:00Z"
+    },
+    {
+      "signup_id": 97,
+      "shift_role_id": 177,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-20T12:34:00Z"
+    },
+    {
+      "signup_id": 98,
+      "shift_role_id": 177,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-20T12:21:00Z"
+    },
+    {
+      "signup_id": 99,
+      "shift_role_id": 178,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-20T12:47:00Z"
+    },
+    {
+      "signup_id": 100,
+      "shift_role_id": 179,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-27T12:47:00Z"
+    },
+    {
+      "signup_id": 101,
+      "shift_role_id": 179,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-27T12:34:00Z"
+    },
+    {
+      "signup_id": 102,
+      "shift_role_id": 180,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-27T12:47:00Z"
+    },
+    {
+      "signup_id": 103,
+      "shift_role_id": 180,
+      "user_id": 17,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-05-27T12:34:00Z"
+    },
+    {
+      "signup_id": 104,
+      "shift_role_id": 181,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-09T17:17:00Z"
+    },
+    {
+      "signup_id": 105,
+      "shift_role_id": 181,
+      "user_id": 19,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-15T15:30:00Z",
+      "created_at": "2026-04-09T17:04:00Z"
+    },
+    {
+      "signup_id": 106,
+      "shift_role_id": 184,
+      "user_id": 20,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-12T17:17:00Z"
+    },
+    {
+      "signup_id": 107,
+      "shift_role_id": 184,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-12T17:04:00Z"
+    },
+    {
+      "signup_id": 108,
+      "shift_role_id": 185,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-16T17:17:00Z"
+    },
+    {
+      "signup_id": 109,
+      "shift_role_id": 185,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-16T17:04:00Z"
+    },
+    {
+      "signup_id": 110,
+      "shift_role_id": 185,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-16T16:51:00Z"
+    },
+    {
+      "signup_id": 111,
+      "shift_role_id": 185,
+      "user_id": 27,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-16T16:38:00Z"
+    },
+    {
+      "signup_id": 112,
+      "shift_role_id": 185,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-16T16:25:00Z"
+    },
+    {
+      "signup_id": 113,
+      "shift_role_id": 186,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-16T17:17:00Z"
+    },
+    {
+      "signup_id": 114,
+      "shift_role_id": 187,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T17:17:00Z"
+    },
+    {
+      "signup_id": 115,
+      "shift_role_id": 187,
+      "user_id": 9,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T17:04:00Z"
+    },
+    {
+      "signup_id": 116,
+      "shift_role_id": 187,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T16:51:00Z"
+    },
+    {
+      "signup_id": 117,
+      "shift_role_id": 187,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T16:38:00Z"
+    },
+    {
+      "signup_id": 118,
+      "shift_role_id": 188,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T17:17:00Z"
+    },
+    {
+      "signup_id": 119,
+      "shift_role_id": 189,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-23T17:17:00Z"
+    },
+    {
+      "signup_id": 120,
+      "shift_role_id": 189,
+      "user_id": 14,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-04-23T17:04:00Z"
+    },
+    {
+      "signup_id": 121,
+      "shift_role_id": 190,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-23T17:17:00Z"
+    },
+    {
+      "signup_id": 122,
+      "shift_role_id": 190,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-23T17:04:00Z"
+    },
+    {
+      "signup_id": 123,
+      "shift_role_id": 191,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T17:17:00Z"
+    },
+    {
+      "signup_id": 124,
+      "shift_role_id": 191,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T17:04:00Z"
+    },
+    {
+      "signup_id": 125,
+      "shift_role_id": 194,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-30T17:17:00Z"
+    },
+    {
+      "signup_id": 126,
+      "shift_role_id": 194,
+      "user_id": 20,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-30T17:04:00Z"
+    },
+    {
+      "signup_id": 127,
+      "shift_role_id": 194,
+      "user_id": 21,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-01T17:23:00Z"
+    },
+    {
+      "signup_id": 128,
+      "shift_role_id": 195,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T17:17:00Z"
+    },
+    {
+      "signup_id": 129,
+      "shift_role_id": 195,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T17:04:00Z"
+    },
+    {
+      "signup_id": 130,
+      "shift_role_id": 195,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T16:51:00Z"
+    },
+    {
+      "signup_id": 131,
+      "shift_role_id": 195,
+      "user_id": 27,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T16:38:00Z"
+    },
+    {
+      "signup_id": 132,
+      "shift_role_id": 195,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T16:25:00Z"
+    },
+    {
+      "signup_id": 133,
+      "shift_role_id": 195,
+      "user_id": 7,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-04T17:23:00Z"
+    },
+    {
+      "signup_id": 134,
+      "shift_role_id": 196,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T17:17:00Z"
+    },
+    {
+      "signup_id": 135,
+      "shift_role_id": 197,
+      "user_id": 9,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-07T17:17:00Z"
+    },
+    {
+      "signup_id": 136,
+      "shift_role_id": 197,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-07T17:04:00Z"
+    },
+    {
+      "signup_id": 137,
+      "shift_role_id": 197,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-07T16:51:00Z"
+    },
+    {
+      "signup_id": 138,
+      "shift_role_id": 197,
+      "user_id": 12,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-05-07T16:38:00Z"
+    },
+    {
+      "signup_id": 139,
+      "shift_role_id": 198,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-07T17:17:00Z"
+    },
+    {
+      "signup_id": 140,
+      "shift_role_id": 199,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-10T17:17:00Z"
+    },
+    {
+      "signup_id": 141,
+      "shift_role_id": 199,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-10T17:04:00Z"
+    },
+    {
+      "signup_id": 142,
+      "shift_role_id": 200,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-10T17:17:00Z"
+    },
+    {
+      "signup_id": 143,
+      "shift_role_id": 200,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-10T17:04:00Z"
+    },
+    {
+      "signup_id": 144,
+      "shift_role_id": 200,
+      "user_id": 18,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-11T17:23:00Z"
+    },
+    {
+      "signup_id": 145,
+      "shift_role_id": 201,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-10T11:47:00Z"
+    },
+    {
+      "signup_id": 146,
+      "shift_role_id": 201,
+      "user_id": 20,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-10T11:34:00Z"
+    },
+    {
+      "signup_id": 147,
+      "shift_role_id": 204,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-24T11:47:00Z"
+    },
+    {
+      "signup_id": 148,
+      "shift_role_id": 205,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-08T11:47:00Z"
+    },
+    {
+      "signup_id": 149,
+      "shift_role_id": 205,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-08T11:34:00Z"
+    },
+    {
+      "signup_id": 150,
+      "shift_role_id": 205,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-08T11:21:00Z"
+    },
+    {
+      "signup_id": 151,
+      "shift_role_id": 205,
+      "user_id": 27,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-05-08T11:08:00Z"
+    },
+    {
+      "signup_id": 152,
+      "shift_role_id": 206,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-08T11:47:00Z"
+    },
+    {
+      "signup_id": 153,
+      "shift_role_id": 206,
+      "user_id": 7,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-09T11:53:00Z"
+    },
+    {
+      "signup_id": 154,
+      "shift_role_id": 207,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-22T11:47:00Z"
+    },
+    {
+      "signup_id": 155,
+      "shift_role_id": 207,
+      "user_id": 9,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-22T11:34:00Z"
+    },
+    {
+      "signup_id": 156,
+      "shift_role_id": 207,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-22T11:21:00Z"
+    },
+    {
+      "signup_id": 157,
+      "shift_role_id": 208,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-22T11:47:00Z"
+    },
+    {
+      "signup_id": 158,
+      "shift_role_id": 209,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-05T11:47:00Z"
+    },
+    {
+      "signup_id": 159,
+      "shift_role_id": 209,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-05T11:34:00Z"
+    },
+    {
+      "signup_id": 160,
+      "shift_role_id": 210,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-05T11:47:00Z"
+    },
+    {
+      "signup_id": 161,
+      "shift_role_id": 211,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-19T11:47:00Z"
+    },
+    {
+      "signup_id": 162,
+      "shift_role_id": 211,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-19T11:34:00Z"
+    },
+    {
+      "signup_id": 163,
+      "shift_role_id": 214,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-07T13:47:00Z"
+    },
+    {
+      "signup_id": 164,
+      "shift_role_id": 214,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-07T13:34:00Z"
+    },
+    {
+      "signup_id": 165,
+      "shift_role_id": 215,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-11T13:47:00Z"
+    },
+    {
+      "signup_id": 166,
+      "shift_role_id": 215,
+      "user_id": 20,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-11T13:34:00Z"
+    },
+    {
+      "signup_id": 167,
+      "shift_role_id": 215,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-11T13:21:00Z"
+    },
+    {
+      "signup_id": 168,
+      "shift_role_id": 216,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-11T13:47:00Z"
+    },
+    {
+      "signup_id": 169,
+      "shift_role_id": 217,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-14T13:47:00Z"
+    },
+    {
+      "signup_id": 170,
+      "shift_role_id": 217,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-14T13:34:00Z"
+    },
+    {
+      "signup_id": 171,
+      "shift_role_id": 218,
+      "user_id": 27,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-14T13:47:00Z"
+    },
+    {
+      "signup_id": 172,
+      "shift_role_id": 219,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-18T13:47:00Z"
+    },
+    {
+      "signup_id": 173,
+      "shift_role_id": 220,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-18T13:47:00Z"
+    },
+    {
+      "signup_id": 174,
+      "shift_role_id": 220,
+      "user_id": 8,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-24T12:00:00Z",
+      "created_at": "2026-04-18T13:34:00Z"
+    },
+    {
+      "signup_id": 175,
+      "shift_role_id": 221,
+      "user_id": 9,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-21T13:47:00Z"
+    },
+    {
+      "signup_id": 176,
+      "shift_role_id": 221,
+      "user_id": 10,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-04-21T13:34:00Z"
+    },
+    {
+      "signup_id": 177,
+      "shift_role_id": 224,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-25T13:47:00Z"
+    },
+    {
+      "signup_id": 178,
+      "shift_role_id": 224,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-25T13:34:00Z"
+    },
+    {
+      "signup_id": 179,
+      "shift_role_id": 224,
+      "user_id": 13,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T13:53:00Z"
+    },
+    {
+      "signup_id": 180,
+      "shift_role_id": 225,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-28T13:47:00Z"
+    },
+    {
+      "signup_id": 181,
+      "shift_role_id": 225,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-28T13:34:00Z"
+    },
+    {
+      "signup_id": 182,
+      "shift_role_id": 225,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-28T13:21:00Z"
+    },
+    {
+      "signup_id": 183,
+      "shift_role_id": 225,
+      "user_id": 17,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-29T13:53:00Z"
+    },
+    {
+      "signup_id": 184,
+      "shift_role_id": 226,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-28T13:47:00Z"
+    },
+    {
+      "signup_id": 185,
+      "shift_role_id": 227,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-02T13:47:00Z"
+    },
+    {
+      "signup_id": 186,
+      "shift_role_id": 227,
+      "user_id": 20,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-02T13:34:00Z"
+    },
+    {
+      "signup_id": 187,
+      "shift_role_id": 228,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-02T13:47:00Z"
+    },
+    {
+      "signup_id": 188,
+      "shift_role_id": 229,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-05T13:47:00Z"
+    },
+    {
+      "signup_id": 189,
+      "shift_role_id": 230,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-05T13:47:00Z"
+    },
+    {
+      "signup_id": 190,
+      "shift_role_id": 230,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-05T13:34:00Z"
+    },
+    {
+      "signup_id": 191,
+      "shift_role_id": 230,
+      "user_id": 27,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-06T13:53:00Z"
+    },
+    {
+      "signup_id": 192,
+      "shift_role_id": 231,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-09T13:47:00Z"
+    },
+    {
+      "signup_id": 193,
+      "shift_role_id": 231,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-09T13:34:00Z"
+    },
+    {
+      "signup_id": 194,
+      "shift_role_id": 234,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-12T13:47:00Z"
+    },
+    {
+      "signup_id": 195,
+      "shift_role_id": 234,
+      "user_id": 9,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-12T13:34:00Z"
+    },
+    {
+      "signup_id": 196,
+      "shift_role_id": 235,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-16T13:47:00Z"
+    },
+    {
+      "signup_id": 197,
+      "shift_role_id": 235,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-16T13:34:00Z"
+    },
+    {
+      "signup_id": 198,
+      "shift_role_id": 235,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-16T13:21:00Z"
+    },
+    {
+      "signup_id": 199,
+      "shift_role_id": 236,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-16T13:47:00Z"
+    },
+    {
+      "signup_id": 200,
+      "shift_role_id": 237,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-19T13:47:00Z"
+    },
+    {
+      "signup_id": 201,
+      "shift_role_id": 237,
+      "user_id": 15,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-05-19T13:34:00Z"
+    },
+    {
+      "signup_id": 202,
+      "shift_role_id": 238,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-19T13:47:00Z"
+    },
+    {
+      "signup_id": 203,
+      "shift_role_id": 239,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-23T13:47:00Z"
+    },
+    {
+      "signup_id": 204,
+      "shift_role_id": 240,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-23T13:47:00Z"
+    },
+    {
+      "signup_id": 205,
+      "shift_role_id": 240,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-23T13:34:00Z"
+    },
+    {
+      "signup_id": 206,
+      "shift_role_id": 241,
+      "user_id": 20,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-12T12:47:00Z"
+    },
+    {
+      "signup_id": 207,
+      "shift_role_id": 241,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-12T12:34:00Z"
+    },
+    {
+      "signup_id": 208,
+      "shift_role_id": 244,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T12:47:00Z"
+    },
+    {
+      "signup_id": 209,
+      "shift_role_id": 244,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T12:34:00Z"
+    },
+    {
+      "signup_id": 210,
+      "shift_role_id": 244,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T12:21:00Z"
+    },
+    {
+      "signup_id": 211,
+      "shift_role_id": 244,
+      "user_id": 27,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-25T11:00:00Z",
+      "created_at": "2026-04-19T12:08:00Z"
+    },
+    {
+      "signup_id": 212,
+      "shift_role_id": 245,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T12:47:00Z"
+    },
+    {
+      "signup_id": 213,
+      "shift_role_id": 245,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T12:34:00Z"
+    },
+    {
+      "signup_id": 214,
+      "shift_role_id": 245,
+      "user_id": 8,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-04-26T12:21:00Z"
+    },
+    {
+      "signup_id": 215,
+      "shift_role_id": 246,
+      "user_id": 9,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T12:47:00Z"
+    },
+    {
+      "signup_id": 216,
+      "shift_role_id": 246,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T12:34:00Z"
+    },
+    {
+      "signup_id": 217,
+      "shift_role_id": 246,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T12:21:00Z"
+    },
+    {
+      "signup_id": 218,
+      "shift_role_id": 247,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T12:47:00Z"
+    },
+    {
+      "signup_id": 219,
+      "shift_role_id": 247,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T12:34:00Z"
+    },
+    {
+      "signup_id": 220,
+      "shift_role_id": 248,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T12:47:00Z"
+    },
+    {
+      "signup_id": 221,
+      "shift_role_id": 248,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T12:34:00Z"
+    },
+    {
+      "signup_id": 222,
+      "shift_role_id": 249,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-10T12:47:00Z"
+    },
+    {
+      "signup_id": 223,
+      "shift_role_id": 250,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-10T12:47:00Z"
+    },
+    {
+      "signup_id": 224,
+      "shift_role_id": 250,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-10T12:34:00Z"
+    },
+    {
+      "signup_id": 225,
+      "shift_role_id": 251,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-17T12:47:00Z"
+    },
+    {
+      "signup_id": 226,
+      "shift_role_id": 251,
+      "user_id": 20,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-17T12:34:00Z"
+    },
+    {
+      "signup_id": 227,
+      "shift_role_id": 254,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-24T12:47:00Z"
+    },
+    {
+      "signup_id": 228,
+      "shift_role_id": 254,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-24T12:34:00Z"
+    },
+    {
+      "signup_id": 229,
+      "shift_role_id": 254,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-24T12:21:00Z"
+    },
+    {
+      "signup_id": 230,
+      "shift_role_id": 254,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-24T12:08:00Z"
+    },
+    {
+      "signup_id": 231,
+      "shift_role_id": 254,
+      "user_id": 27,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-25T12:53:00Z"
+    },
+    {
+      "signup_id": 232,
+      "shift_role_id": 255,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-31T12:47:00Z"
+    },
+    {
+      "signup_id": 233,
+      "shift_role_id": 255,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-31T12:34:00Z"
+    },
+    {
+      "signup_id": 234,
+      "shift_role_id": 255,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-31T12:21:00Z"
+    },
+    {
+      "signup_id": 235,
+      "shift_role_id": 255,
+      "user_id": 9,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-01T12:53:00Z"
+    },
+    {
+      "signup_id": 236,
+      "shift_role_id": 256,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-31T12:47:00Z"
+    },
+    {
+      "signup_id": 237,
+      "shift_role_id": 256,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-31T12:34:00Z"
+    },
+    {
+      "signup_id": 238,
+      "shift_role_id": 256,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-31T12:21:00Z"
+    },
+    {
+      "signup_id": 239,
+      "shift_role_id": 257,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-07T12:47:00Z"
+    },
+    {
+      "signup_id": 240,
+      "shift_role_id": 257,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-07T12:34:00Z"
+    },
+    {
+      "signup_id": 241,
+      "shift_role_id": 258,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-07T12:47:00Z"
+    },
+    {
+      "signup_id": 242,
+      "shift_role_id": 258,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-07T12:34:00Z"
+    },
+    {
+      "signup_id": 243,
+      "shift_role_id": 259,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-13T20:47:00Z"
+    },
+    {
+      "signup_id": 244,
+      "shift_role_id": 259,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-13T20:34:00Z"
+    },
+    {
+      "signup_id": 245,
+      "shift_role_id": 260,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-13T20:47:00Z"
+    },
+    {
+      "signup_id": 246,
+      "shift_role_id": 260,
+      "user_id": 20,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-14T20:53:00Z"
+    },
+    {
+      "signup_id": 247,
+      "shift_role_id": 261,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-27T20:47:00Z"
+    },
+    {
+      "signup_id": 248,
+      "shift_role_id": 261,
+      "user_id": 22,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-04-27T20:34:00Z"
+    },
+    {
+      "signup_id": 249,
+      "shift_role_id": 264,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-11T20:47:00Z"
+    },
+    {
+      "signup_id": 250,
+      "shift_role_id": 265,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-25T20:47:00Z"
+    },
+    {
+      "signup_id": 251,
+      "shift_role_id": 265,
+      "user_id": 27,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-25T20:34:00Z"
+    },
+    {
+      "signup_id": 252,
+      "shift_role_id": 265,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-25T20:21:00Z"
+    },
+    {
+      "signup_id": 253,
+      "shift_role_id": 265,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-25T20:08:00Z"
+    },
+    {
+      "signup_id": 254,
+      "shift_role_id": 266,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-25T20:47:00Z"
+    },
+    {
+      "signup_id": 255,
+      "shift_role_id": 266,
+      "user_id": 9,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-26T20:53:00Z"
+    },
+    {
+      "signup_id": 256,
+      "shift_role_id": 267,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-08T20:47:00Z"
+    },
+    {
+      "signup_id": 257,
+      "shift_role_id": 267,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-08T20:34:00Z"
+    },
+    {
+      "signup_id": 258,
+      "shift_role_id": 267,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-08T20:21:00Z"
+    },
+    {
+      "signup_id": 259,
+      "shift_role_id": 268,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-06-08T20:47:00Z"
+    },
+    {
+      "signup_id": 260,
+      "shift_role_id": 269,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T13:47:00Z"
+    },
+    {
+      "signup_id": 261,
+      "shift_role_id": 270,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T13:47:00Z"
+    },
+    {
+      "signup_id": 262,
+      "shift_role_id": 270,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-19T13:34:00Z"
+    },
+    {
+      "signup_id": 263,
+      "shift_role_id": 271,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-23T12:47:00Z"
+    },
+    {
+      "signup_id": 264,
+      "shift_role_id": 271,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-23T12:34:00Z"
+    },
+    {
+      "signup_id": 265,
+      "shift_role_id": 274,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T14:47:00Z"
+    },
+    {
+      "signup_id": 266,
+      "shift_role_id": 274,
+      "user_id": 20,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T14:34:00Z"
+    },
+    {
+      "signup_id": 267,
+      "shift_role_id": 274,
+      "user_id": 21,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T14:21:00Z"
+    },
+    {
+      "signup_id": 268,
+      "shift_role_id": 274,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-26T14:08:00Z"
+    },
+    {
+      "signup_id": 269,
+      "shift_role_id": 275,
+      "user_id": 23,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-30T18:47:00Z"
+    },
+    {
+      "signup_id": 270,
+      "shift_role_id": 275,
+      "user_id": 24,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-30T18:34:00Z"
+    },
+    {
+      "signup_id": 271,
+      "shift_role_id": 276,
+      "user_id": 27,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-30T18:47:00Z"
+    },
+    {
+      "signup_id": 272,
+      "shift_role_id": 276,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-04-30T18:34:00Z"
+    },
+    {
+      "signup_id": 273,
+      "shift_role_id": 276,
+      "user_id": 7,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-04-30T18:21:00Z"
+    },
+    {
+      "signup_id": 274,
+      "shift_role_id": 277,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T12:47:00Z"
+    },
+    {
+      "signup_id": 275,
+      "shift_role_id": 277,
+      "user_id": 9,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-05-03T12:34:00Z"
+    },
+    {
+      "signup_id": 276,
+      "shift_role_id": 278,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T12:47:00Z"
+    },
+    {
+      "signup_id": 277,
+      "shift_role_id": 278,
+      "user_id": 11,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-03T12:34:00Z"
+    },
+    {
+      "signup_id": 278,
+      "shift_role_id": 279,
+      "user_id": 12,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-07T19:47:00Z"
+    },
+    {
+      "signup_id": 279,
+      "shift_role_id": 280,
+      "user_id": 13,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-07T19:47:00Z"
+    },
+    {
+      "signup_id": 280,
+      "shift_role_id": 280,
+      "user_id": 14,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-07T19:34:00Z"
+    },
+    {
+      "signup_id": 281,
+      "shift_role_id": 281,
+      "user_id": 15,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-10T13:47:00Z"
+    },
+    {
+      "signup_id": 282,
+      "shift_role_id": 284,
+      "user_id": 16,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-14T13:17:00Z"
+    },
+    {
+      "signup_id": 283,
+      "shift_role_id": 284,
+      "user_id": 17,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-14T13:04:00Z"
+    },
+    {
+      "signup_id": 284,
+      "shift_role_id": 284,
+      "user_id": 18,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-14T12:51:00Z"
+    },
+    {
+      "signup_id": 285,
+      "shift_role_id": 284,
+      "user_id": 19,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-14T12:38:00Z"
+    },
+    {
+      "signup_id": 286,
+      "shift_role_id": 284,
+      "user_id": 20,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-05-14T12:25:00Z"
+    },
+    {
+      "signup_id": 287,
+      "shift_role_id": 284,
+      "user_id": 21,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-15T13:23:00Z"
+    },
+    {
+      "signup_id": 288,
+      "shift_role_id": 285,
+      "user_id": 22,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-17T15:47:00Z"
+    },
+    {
+      "signup_id": 289,
+      "shift_role_id": 285,
+      "user_id": 23,
+      "signup_status": "PENDING_CONFIRMATION",
+      "reservation_expires_at": "2026-04-27T12:00:00Z",
+      "created_at": "2026-05-17T15:34:00Z"
+    },
+    {
+      "signup_id": 290,
+      "shift_role_id": 285,
+      "user_id": 24,
+      "signup_status": "WAITLISTED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-18T15:53:00Z"
+    },
+    {
+      "signup_id": 291,
+      "shift_role_id": 286,
+      "user_id": 27,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-17T15:47:00Z"
+    },
+    {
+      "signup_id": 292,
+      "shift_role_id": 286,
+      "user_id": 6,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-17T15:34:00Z"
+    },
+    {
+      "signup_id": 293,
+      "shift_role_id": 286,
+      "user_id": 7,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-17T15:21:00Z"
+    },
+    {
+      "signup_id": 294,
+      "shift_role_id": 287,
+      "user_id": 8,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-21T17:47:00Z"
+    },
+    {
+      "signup_id": 295,
+      "shift_role_id": 288,
+      "user_id": 9,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-21T17:47:00Z"
+    },
+    {
+      "signup_id": 296,
+      "shift_role_id": 288,
+      "user_id": 10,
+      "signup_status": "CONFIRMED",
+      "reservation_expires_at": null,
+      "created_at": "2026-05-21T17:34:00Z"
+    }
+  ],
+  "shift_series": [
+    {
+      "shift_series_id": 1,
+      "pantry_id": 1,
+      "created_by": 1,
+      "timezone": "America/New_York",
+      "frequency": "WEEKLY",
+      "interval_weeks": 1,
+      "weekdays_csv": "TU",
+      "end_mode": "COUNT",
+      "occurrence_count": 8,
+      "until_date": null,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_series_id": 2,
+      "pantry_id": 2,
+      "created_by": 2,
+      "timezone": "America/New_York",
+      "frequency": "WEEKLY",
+      "interval_weeks": 1,
+      "weekdays_csv": "WE,SA",
+      "end_mode": "COUNT",
+      "occurrence_count": 10,
+      "until_date": null,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_series_id": 3,
+      "pantry_id": 3,
+      "created_by": 3,
+      "timezone": "America/New_York",
+      "frequency": "WEEKLY",
+      "interval_weeks": 2,
+      "weekdays_csv": "TH",
+      "end_mode": "COUNT",
+      "occurrence_count": 6,
+      "until_date": null,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_series_id": 4,
+      "pantry_id": 4,
+      "created_by": 25,
+      "timezone": "America/New_York",
+      "frequency": "WEEKLY",
+      "interval_weeks": 1,
+      "weekdays_csv": "MO,FR",
+      "end_mode": "UNTIL",
+      "occurrence_count": null,
+      "until_date": "2026-05-29",
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_series_id": 5,
+      "pantry_id": 5,
+      "created_by": 26,
+      "timezone": "America/New_York",
+      "frequency": "WEEKLY",
+      "interval_weeks": 1,
+      "weekdays_csv": "SA",
+      "end_mode": "COUNT",
+      "occurrence_count": 9,
+      "until_date": null,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
+    },
+    {
+      "shift_series_id": 6,
+      "pantry_id": 1,
+      "created_by": 1,
+      "timezone": "America/New_York",
+      "frequency": "WEEKLY",
+      "interval_weeks": 2,
+      "weekdays_csv": "SU",
+      "end_mode": "COUNT",
+      "occurrence_count": 5,
+      "until_date": null,
+      "created_at": "2026-04-03T12:00:00Z",
+      "updated_at": "2026-04-03T12:00:00Z"
     }
   ]
 }

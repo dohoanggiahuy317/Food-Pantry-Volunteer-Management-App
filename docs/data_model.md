@@ -59,6 +59,7 @@ Defined in `backend/db/migrations/001_initial.sql`:
 - `user_roles`
 - `pantries`
 - `pantry_leads`
+- `shift_series`
 - `shifts`
 - `shift_roles`
 - `shift_signups`
@@ -71,6 +72,9 @@ Important constraints:
 - `shift_signups` has unique `(shift_role_id, user_id)` to prevent duplicate signups.
 - `shift_signups` stores `reservation_expires_at` for 48-hour reconfirmation reservation windows.
 - `shift_signups` has index `idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at)` for reservation-aware capacity checks.
+- `shift_series` stores recurring weekly schedule metadata (`timezone`, `interval_weeks`, `weekdays_csv`, finite end rule).
+- `shifts.shift_series_id` is nullable so one-off shifts remain simple while recurring occurrences link back to a series.
+- `shifts.series_position` preserves the occurrence order inside the current recurring slice.
 - Foreign keys enforce cascade cleanup for dependent records.
 - `shifts.created_by` is nullable and uses `ON DELETE SET NULL`, so deleting a user does not block on shifts they created.
 
@@ -96,6 +100,11 @@ Account lifecycle notes:
 - Full shift edit path updates the shift, upserts submitted roles, and soft-cancels omitted roles with signups inside one transaction.
 - Reconfirm path locks signup + role (+ shift checks) so reduced-capacity reconfirmation is first-come-first-serve without overbooking.
 
+Recurring-series note:
+- Recurring creation and future-scope recurring edits/cancels are orchestrated in `backend/app.py` and still operate on concrete shift rows.
+- The current backend contract persists recurring metadata through `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`.
+- Manager-facing payloads expose `is_recurring`, `shift_series_id`, `series_position`, and `recurrence` metadata for edit flows.
+
 ## File roles
 - `backend/backends/base.py`: storage interface.
 - `backend/backends/memory_backend.py`: legacy in-memory backend.
@@ -110,4 +119,4 @@ Account lifecycle notes:
 - `backend/data/in_memory.json`: in-memory backend seed dataset.
 
 Dev note:
-- This branch keeps account-schema changes in `001_initial.sql`. Recreate older dev databases if they were initialized before the current auth/account model.
+- This branch keeps account and recurring-shift schema changes in `001_initial.sql`. Recreate older dev databases if they were initialized before the current auth/timezone/recurring-shift model.

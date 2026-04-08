@@ -457,6 +457,7 @@ function renderDesktopMonthCalendar(container, shifts) {
 
 function renderCalendarMonthEvent(shift) {
     const palette = getCalendarPantryPalette(shift.pantry_id);
+    const spanIndicator = getCalendarSpanIndicator(shift);
     return `
         <button
             type="button"
@@ -466,6 +467,7 @@ function renderCalendarMonthEvent(shift) {
         >
             <span class="calendar-month-event-time">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate, { includeDate: false }))}</span>
             <span class="calendar-month-event-title">${escapeHtml(shift.shift_name)}</span>
+            ${spanIndicator ? `<span class="calendar-month-event-span">${escapeHtml(spanIndicator)}</span>` : ''}
         </button>
     `;
 }
@@ -591,15 +593,37 @@ function layoutWeekDayEvents(dayEvents) {
     return layouts;
 }
 
+function isCalendarMultiDayShift(shift) {
+    return getCalendarDateKey(shift.startDate) !== getCalendarDateKey(shift.endDate);
+}
+
+function getCalendarDisplayEndDate(shift) {
+    const endOfStartDay = endOfCalendarDay(shift.startDate);
+    return shift.endDate.getTime() > endOfStartDay.getTime() ? endOfStartDay : shift.endDate;
+}
+
+function getCalendarSpanIndicator(shift) {
+    if (!isCalendarMultiDayShift(shift)) {
+        return '';
+    }
+
+    const daySpan = Math.round(
+        (startOfCalendarDay(shift.endDate).getTime() - startOfCalendarDay(shift.startDate).getTime()) / (24 * 60 * 60 * 1000)
+    );
+    return daySpan > 1 ? 'Multi-day' : 'Continues next day';
+}
+
 function renderWeekEventBlock(entry, startHour, slotHeight) {
     const shift = entry.shift;
     const palette = getCalendarPantryPalette(shift.pantry_id);
     const startDecimal = shift.startDate.getHours() + (shift.startDate.getMinutes() / 60);
-    const endDecimal = shift.endDate.getHours() + (shift.endDate.getMinutes() / 60);
+    const visualEnd = getCalendarDisplayEndDate(shift);
+    const endDecimal = visualEnd.getHours() + (visualEnd.getMinutes() / 60) + (visualEnd.getSeconds() / 3600);
     const top = Math.max(0, (startDecimal - startHour) * slotHeight);
     const height = Math.max(32, (endDecimal - startDecimal) * slotHeight);
     const laneWidth = 100 / entry.laneCount;
     const left = laneWidth * entry.laneIndex;
+    const spanIndicator = getCalendarSpanIndicator(shift);
     return `
         <button
             type="button"
@@ -617,6 +641,7 @@ function renderWeekEventBlock(entry, startHour, slotHeight) {
         >
             <span class="calendar-week-event-title">${escapeHtml(shift.shift_name)}</span>
             <span class="calendar-week-event-meta">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate, { includeDate: false }))}</span>
+            ${spanIndicator ? `<span class="calendar-week-event-span">${escapeHtml(spanIndicator)}</span>` : ''}
             <span class="calendar-week-event-meta">${escapeHtml(shift.pantry_name)}</span>
         </button>
     `;
@@ -645,6 +670,7 @@ function renderDesktopDayCalendar(container, shifts) {
 
 function renderCalendarDayAgendaCard(shift) {
     const palette = getCalendarPantryPalette(shift.pantry_id);
+    const spanIndicator = getCalendarSpanIndicator(shift);
     return `
         <button
             type="button"
@@ -654,6 +680,7 @@ function renderCalendarDayAgendaCard(shift) {
         >
             <div class="calendar-day-card-time">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate, { includeDate: false }))}</div>
             <div class="calendar-day-card-title">${escapeHtml(shift.shift_name)}</div>
+            ${spanIndicator ? `<div class="calendar-day-card-span">${escapeHtml(spanIndicator)}</div>` : ''}
             <div class="calendar-day-card-meta">${escapeHtml(shift.pantry_name)}${shift.pantry.location_address ? ` • ${escapeHtml(shift.pantry.location_address)}` : ''}</div>
             <div class="calendar-day-card-meta">${escapeHtml(renderCalendarRoleSummary(shift.roles || []))}</div>
         </button>
@@ -735,6 +762,7 @@ function renderPhoneAgendaSection(section) {
 }
 
 function renderPhoneAgendaEvent(shift, palette) {
+    const spanIndicator = getCalendarSpanIndicator(shift);
     return `
         <button
             type="button"
@@ -744,6 +772,7 @@ function renderPhoneAgendaEvent(shift, palette) {
         >
             <span class="calendar-phone-event-time">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate, { includeDate: false }))}</span>
             <span class="calendar-phone-event-title">${escapeHtml(shift.shift_name)}</span>
+            ${spanIndicator ? `<span class="calendar-phone-event-span">${escapeHtml(spanIndicator)}</span>` : ''}
             <span class="calendar-phone-event-meta">${escapeHtml(renderCalendarRoleSummary(shift.roles || []))}</span>
         </button>
     `;
@@ -784,6 +813,7 @@ function renderActiveCalendarShiftModal() {
             <span class="calendar-modal-pantry-badge" style="background:${palette.soft}; color:${palette.text};">${escapeHtml(shift.pantry_name)}</span>
             <h2 class="calendar-modal-title">${escapeHtml(shift.shift_name)}</h2>
             <p class="calendar-modal-time">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate))}</p>
+            ${getCalendarSpanIndicator(shift) ? `<p class="calendar-modal-span">${escapeHtml(getCalendarSpanIndicator(shift))}</p>` : ''}
             <p class="calendar-modal-location">${escapeHtml(shift.pantry.location_address || 'Location unavailable')}</p>
         </div>
         <div class="calendar-modal-section">
@@ -940,15 +970,16 @@ function getCalendarHourBounds(shifts) {
     let maxHour = 0;
     shifts.forEach((shift) => {
         const startHour = shift.startDate.getHours() + (shift.startDate.getMinutes() / 60);
-        const endHour = shift.endDate.getHours() + (shift.endDate.getMinutes() / 60);
+        const visualEnd = getCalendarDisplayEndDate(shift);
+        const endHour = visualEnd.getHours() + (visualEnd.getMinutes() / 60) + (visualEnd.getSeconds() / 3600);
         minHour = Math.min(minHour, Math.floor(startHour));
         maxHour = Math.max(maxHour, Math.ceil(endHour));
     });
 
     minHour = Math.max(6, minHour - 1);
-    maxHour = Math.min(23, maxHour + 1);
+    maxHour = Math.min(24, maxHour + 1);
     if (maxHour - minHour < 8) {
-        maxHour = Math.min(23, minHour + 8);
+        maxHour = Math.min(24, minHour + 8);
     }
     return { startHour: minHour, endHour: maxHour };
 }

@@ -118,7 +118,7 @@ python app.py
 ```
 
 > **First startup note:** Flask will automatically initialize the database schema (create all tables from `backend/db/migrations/001_initial.sql`) and seed sample data from `backend/data/mysql.json` if the database is empty.  
-> For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly. The current baseline includes `users.timezone` for localized emails.
+> For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly. The current baseline includes `users.timezone` for localized emails and recurring-shift support through `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`.
 > The current MySQL seed includes a larger future shift dataset so the calendar and signup flows have much denser mock data out of the box.
 
 ---

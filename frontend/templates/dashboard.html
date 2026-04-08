@@ -314,7 +314,69 @@
                                 <input type="datetime-local" id="shift-end" name="end_time" required>
                             </div>
                         </div>
-                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC.</div>
+                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC. Multi-day shifts are allowed and appear on the calendar starting on their first day.</div>
+
+                        <div class="card section-muted-card recurrence-card">
+                            <div class="card-header section-muted-header recurrence-card-header">
+                                <div>
+                                    <div class="recurrence-title-row">
+                                        <h3 class="section-muted-title">Repeat</h3>
+                                        <span class="recurrence-meta-badge">Optional</span>
+                                    </div>
+                                    <p class="shift-view-copy recurrence-copy">Create a weekly pattern for this shift.</p>
+                                </div>
+                                <label class="recurrence-toggle">
+                                    <input type="checkbox" id="shift-repeat-toggle">
+                                    <span>Recurring shift</span>
+                                </label>
+                            </div>
+                            <div id="shift-recurrence-fields" class="recurrence-fields app-hidden">
+                                <div class="form-grid recurrence-grid">
+                                    <div class="form-group">
+                                        <label for="shift-repeat-interval">Repeat every</label>
+                                        <div class="recurrence-inline-input">
+                                            <input type="number" id="shift-repeat-interval" min="1" value="1">
+                                            <span>week(s)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Repeat on</label>
+                                    <div class="recurrence-weekday-group" id="shift-repeat-weekdays">
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="MO">Mon</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TU">Tue</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="WE">Wed</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TH">Thu</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="FR">Fri</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SA">Sat</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SU">Sun</button>
+                                    </div>
+                                    <p class="recurrence-helper">Selected days reuse the same shift time window.</p>
+                                </div>
+                                <div class="form-grid recurrence-grid">
+                                    <div class="form-group">
+                                        <label>Ends</label>
+                                        <div class="recurrence-end-options" id="shift-repeat-end-options">
+                                            <label class="recurrence-end-option">
+                                                <input type="radio" name="shift-repeat-end-mode" value="COUNT" checked>
+                                                <span>After</span>
+                                            </label>
+                                            <div class="recurrence-inline-input">
+                                                <input type="number" id="shift-repeat-count" min="1" value="4">
+                                                <span>occurrence(s)</span>
+                                            </div>
+                                            <div class="recurrence-end-date-group">
+                                                <label class="recurrence-end-option recurrence-end-option-date">
+                                                    <input type="radio" name="shift-repeat-end-mode" value="UNTIL">
+                                                    <span>On date</span>
+                                                </label>
+                                                <input type="date" id="shift-repeat-until" disabled>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="card section-muted-card">
                             <div class="card-header section-muted-header">
@@ -364,7 +426,67 @@
                                 <input type="datetime-local" id="edit-shift-end" name="end_time" required>
                             </div>
                         </div>
-                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC.</div>
+                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC. Multi-day shifts are allowed and appear on the calendar starting on their first day.</div>
+
+                        <div id="edit-shift-recurrence-card" class="card section-muted-card recurrence-card app-hidden">
+                            <div class="card-header section-muted-header recurrence-card-header">
+                                <div>
+                                    <div class="recurrence-title-row">
+                                        <h3 class="section-muted-title">Recurring Series</h3>
+                                        <span class="recurrence-meta-badge">Series</span>
+                                    </div>
+                                    <p id="edit-shift-recurrence-summary" class="shift-view-copy recurrence-copy"></p>
+                                </div>
+                                <span class="status-badge recurrence-badge">Recurring</span>
+                            </div>
+                            <div class="account-note recurrence-note">Pattern changes apply only if you choose <b>This and following events</b> when saving.</div>
+                            <div id="edit-shift-recurrence-fields" class="recurrence-fields">
+                                <div class="form-grid recurrence-grid">
+                                    <div class="form-group">
+                                        <label for="edit-shift-repeat-interval">Repeat every</label>
+                                        <div class="recurrence-inline-input">
+                                            <input type="number" id="edit-shift-repeat-interval" min="1" value="1">
+                                            <span>week(s)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Repeat on</label>
+                                    <div class="recurrence-weekday-group" id="edit-shift-repeat-weekdays">
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="MO">Mon</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TU">Tue</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="WE">Wed</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TH">Thu</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="FR">Fri</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SA">Sat</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SU">Sun</button>
+                                    </div>
+                                    <p class="recurrence-helper">Selected days reuse the same shift time window.</p>
+                                </div>
+                                <div class="form-grid recurrence-grid">
+                                    <div class="form-group">
+                                        <label>Ends</label>
+                                        <div class="recurrence-end-options">
+                                            <label class="recurrence-end-option">
+                                                <input type="radio" name="edit-shift-repeat-end-mode" value="COUNT" checked>
+                                                <span>After</span>
+                                            </label>
+                                            <div class="recurrence-inline-input">
+                                                <input type="number" id="edit-shift-repeat-count" min="1" value="1">
+                                                <span>occurrence(s)</span>
+                                            </div>
+                                            <div class="recurrence-end-date-group">
+                                                <label class="recurrence-end-option recurrence-end-option-date">
+                                                    <input type="radio" name="edit-shift-repeat-end-mode" value="UNTIL">
+                                                    <span>On date</span>
+                                                </label>
+                                                <input type="date" id="edit-shift-repeat-until" disabled>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="card section-muted-card">
                             <div class="card-header section-muted-header">
@@ -595,6 +717,19 @@
             <div class="modal-panel modal-panel-calendar">
                 <button type="button" id="calendar-shift-modal-close" class="modal-close-button" aria-label="Close shift details">&times;</button>
                 <div id="calendar-shift-modal-body"></div>
+            </div>
+        </div>
+
+        <div id="recurring-scope-modal" class="modal-overlay app-hidden">
+            <div class="modal-panel modal-panel-sm">
+                <button type="button" id="recurring-scope-modal-close" class="modal-close-button" aria-label="Close recurring scope chooser">&times;</button>
+                <h2 id="recurring-scope-modal-title" class="modal-title">Choose scope</h2>
+                <p id="recurring-scope-modal-copy" class="recurring-scope-copy">Apply this change to just one event or the rest of the recurring series.</p>
+                <div class="recurring-scope-actions">
+                    <button type="button" class="btn btn-primary" data-recurring-scope-choice="single">This event only</button>
+                    <button type="button" class="btn btn-secondary" data-recurring-scope-choice="future">This and following events</button>
+                    <button type="button" class="btn btn-danger" data-recurring-scope-choice="cancel">Cancel</button>
+                </div>
             </div>
         </div>
     </div>

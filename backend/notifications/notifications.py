@@ -87,10 +87,19 @@ def _format_shift_window(shift: dict[str, Any], timezone_name: str | None = None
     resolved_timezone = ZoneInfo(_resolved_timezone_name(timezone_name))
     local_start = start_time.astimezone(resolved_timezone)
     local_end = end_time.astimezone(resolved_timezone)
-    timezone_label = local_start.tzname() or _resolved_timezone_name(timezone_name)
+    start_timezone_label = local_start.tzname() or _resolved_timezone_name(timezone_name)
+    end_timezone_label = local_end.tzname() or _resolved_timezone_name(timezone_name)
+    timezone_label = start_timezone_label if start_timezone_label == end_timezone_label else f"{start_timezone_label} / {end_timezone_label}"
+
+    if local_start.date() == local_end.date():
+        return (
+            f"{local_start.strftime('%A, %B %d, %Y at %I:%M %p')} "
+            f"- {local_end.strftime('%I:%M %p')} {timezone_label}"
+        )
+
     return (
         f"{local_start.strftime('%A, %B %d, %Y at %I:%M %p')} "
-        f"to {local_end.strftime('%I:%M %p')} GMT{timezone_label}"
+        f"- {local_end.strftime('%A, %B %d, %Y at %I:%M %p')} {timezone_label}"
     )
 
 

@@ -29,7 +29,7 @@ volunteer_managing/
 │   │   ├── init_schema.py          # Runs all SQL files in db/migrations idempotently on startup
 │   │   ├── seed.py                 # Seeds MySQL from backend/data/mysql.json if empty
 │   │   └── migrations/
-│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. signup reservations and users.timezone)
+│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. users.timezone and recurring shift series)
 │   │
 │   └── data/
 │       ├── mysql.json              # MySQL seed data, including a larger future mock shift set
@@ -46,7 +46,7 @@ volunteer_managing/
             ├── timezone-helpers.js # Browser timezone detection + shared local time formatting
             ├── user-functions.js   # getCurrentUser(), userHasRole(), createUser()
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
-            ├── lead-functions.js   # getShifts(), createShift(), updateShift(), updateFullShift(), markAttendance()
+            ├── lead-functions.js   # getShifts(), createFullShift(), updateShift(), updateFullShift(), cancelShiftWithScope(), markAttendance()
             ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup()
             └── dashboard.js        # App entry point: boot sequence, UI state, event handlers
 ```
@@ -102,6 +102,8 @@ shifts
 ──────
 shift_id (PK, AUTO_INCREMENT)
 pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+shift_series_id (nullable FK → shift_series.shift_series_id, ON DELETE SET NULL)
+series_position (nullable)
 shift_name
 start_time
 end_time
@@ -110,6 +112,23 @@ created_by (nullable FK → users.user_id, ON DELETE SET NULL)
 created_at
 updated_at
 INDEX idx_shifts_pantry_id (pantry_id)
+INDEX idx_shifts_shift_series_id (shift_series_id)
+
+shift_series
+────────────
+shift_series_id (PK, AUTO_INCREMENT)
+pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+created_by (nullable FK → users.user_id, ON DELETE SET NULL)
+timezone
+frequency
+interval_weeks
+weekdays_csv
+end_mode
+occurrence_count (nullable)
+until_date (nullable)
+created_at
+updated_at
+INDEX idx_shift_series_pantry_id (pantry_id)
 
 shift_roles
 ───────────
@@ -138,6 +157,8 @@ INDEX idx_shift_signups_role_status_reservation (shift_role_id, signup_status, r
 Relationship summary:
 
 - Deleting a pantry cascades to its shifts, then to shift roles, then to shift signups.
+- Recurring schedules live in `shift_series`, while each actual occurrence still lives as a normal row in `shifts`.
+- `shifts.shift_series_id` links each occurrence back to its series and `series_position` preserves order inside the recurring slice.
 - Deleting a user cascades out of `user_roles`, `pantry_leads`, and `shift_signups`.
 - Deleting a user does not block on shifts they created because `shifts.created_by` uses `ON DELETE SET NULL`.
 - Role rows in `roles` cannot be deleted while referenced from `user_roles` because that foreign key uses `ON DELETE RESTRICT`.
@@ -221,6 +242,26 @@ The notification module is intentionally separate from Flask route handlers:
 
 `app.py` consumes that result in dedicated route helpers and logs warning details when delivery is skipped or fails.
 
+### Recurring shift flow (`app.py`)
+
+Recurring shifts are stored as concrete shift rows linked by a shared `shift_series` record, so volunteer signup, capacity, notifications, calendar rendering, and attendance still operate on normal shift/role/signup rows.
+
+- `normalize_recurrence_payload(...)`
+  - validates weekly recurrence input from the manager UI
+  - supports custom weekdays, weekly interval, and finite end rules (`COUNT` or `UNTIL`)
+- `generate_weekly_occurrences(...)`
+  - builds concrete occurrences in the series timezone first, then converts them to UTC
+  - prevents DST drift across recurring weekly shifts
+- `POST /api/pantries/<id>/shifts/full-create`
+  - creates one one-off shift when `recurrence` is omitted
+  - creates one `shift_series` row plus many concrete `shifts` and `shift_roles` rows when `recurrence` is present
+- `PUT /api/shifts/<id>/full-update`
+  - `apply_scope: "single"` updates one occurrence
+  - `apply_scope: "future"` updates the clicked occurrence and later occurrences in the recurring slice
+- `POST /api/shifts/<id>/cancel`
+  - `apply_scope: "single"` cancels one occurrence
+  - `apply_scope: "future"` cancels the clicked occurrence and later occurrences
+
 ---
 
 ## 4. Data Serialization Path
@@ -232,11 +273,11 @@ MySQL row (cursor.fetchone())
   → raw dict: { "shift_id": 1, "start_time": datetime(2025,6,1,9,0), ... }
 
 mysql_backend.py: _serialize_shift(row)
-  → clean dict: { "shift_id": 1, "start_time": "2025-06-01T09:00:00Z", ... }
+  → clean dict: { "shift_id": 1, "shift_series_id": 3, "series_position": 2, "start_time": "2025-06-01T09:00:00Z", ... }
      (datetimes converted to ISO-8601 strings by _to_iso_z())
 
 app.py: route handler attaches related data
-  → enriched dict: { ..., "roles": [ {shift_role_id, role_title, ...}, ... ] }
+  → enriched dict: { ..., "is_recurring": true/false, "recurrence": {...}, "roles": [ {shift_role_id, role_title, ...}, ... ] }
 
 app.py: jsonify(shift)
   → Flask serializes dict to JSON string, sets Content-Type: application/json
@@ -282,10 +323,10 @@ if (typeof getCurrentUser === 'undefined') {
 ```
 dashboard.js  →  user-functions.js:     getCurrentUser(), userHasRole()
 dashboard.js  →  admin-functions.js:    getPantries(), createPantry(), addPantryLead(), removePantryLead()
-dashboard.js  →  lead-functions.js:     getShifts(), getActiveShifts(), createShift(), updateShift(),
-                                        updateFullShift(), deleteShift(), createShiftRole(),
-                                        updateShiftRole(), deleteShiftRole(), getShiftRegistrations(),
-                                        markAttendance()
+dashboard.js  →  lead-functions.js:     getShifts(), getActiveShifts(), createFullShift(), updateShift(),
+                                        updateFullShift(), cancelShiftWithScope(), deleteShift(),
+                                        createShiftRole(), updateShiftRole(), deleteShiftRole(),
+                                        getShiftRegistrations(), markAttendance()
 dashboard.js  →  volunteer-functions.js: signupForShift(), cancelSignup(), reconfirmSignup(),
                                          getUserSignups(), classifyShiftBucket(), formatShiftDate(),
                                          formatShiftTime(), getCapacityStatus()
@@ -336,7 +377,12 @@ window 'load' event fires
   ├─ 5. setupEventListeners()     [dashboard.js:1152]
   │       attaches click handlers to nav tabs → activateTab()
   │       attaches click handlers to Admin subtabs → setAdminSubtab() + loadAdminTab()
-  │       attaches submit to #create-shift-form → createShift() + createShiftRole() loop
+  │       attaches submit to #create-shift-form → createFullShift()
+  │       attaches recurring-shift UI handlers:
+  │         #shift-repeat-toggle
+  │         weekday chips
+  │         finite end controls
+  │       attaches recurring edit/cancel scope modal handlers
   │       attaches submit to #create-pantry-form → createPantry()
   │       attaches click to #assign-lead-btn → addPantryLead()
   │       attaches search/result handlers for:
@@ -363,16 +409,16 @@ Every single API request from the browser follows this exact path:
 
 ```
 dashboard.js calls a domain function
-  e.g. createShift(pantryId, data)
+  e.g. createFullShift(pantryId, data)
         │
         ▼
-lead-functions.js: createShift()
-  apiPost(`/api/pantries/${pantryId}/shifts`, data)
+lead-functions.js: createFullShift()
+  apiPost(`/api/pantries/${pantryId}/shifts/full-create`, data)
         │
         ▼
 api-helpers.js: apiCall(path, options)
   reads window.location.search               ← preserves ?user_id=X
-  fullPath = '/api/pantries/1/shifts?user_id=4'
+  fullPath = '/api/pantries/1/shifts/full-create?user_id=4'
   fetch(fullPath, { method:'POST', body: JSON.stringify(data) })
         │
         ▼  HTTP POST over localhost
@@ -399,13 +445,14 @@ mysql_backend.py: create_shift()
   with get_connection() as conn:            ← borrows from pool
     cursor.execute("INSERT INTO shifts ...")
     conn.commit()
-    cursor.execute("SELECT * FROM shifts WHERE shift_id = LAST_INSERT_ID()")
-    row = cursor.fetchone()
-  return _serialize_shift(row)              ← datetimes → ISO strings
+    if recurrence omitted:
+      create one shift row + related role rows
+    else:
+      create one shift_series row + many concrete shift rows + role clones
+  return JSON summary                        ← created_shift_count, first_shift, shift_series_id
         │
         ▼  back in app.py
-shift["roles"] = []
-return jsonify(shift), 201                  ← Flask serializes to JSON, HTTP 201
+return jsonify(summary), 201                ← Flask serializes to JSON, HTTP 201
         │
         ▼  HTTP 201 JSON response
         │
@@ -414,11 +461,11 @@ api-helpers.js: apiCall()
   return response.json()                    ← parsed JS object
         │
         ▼
-lead-functions.js: createShift() returns shift
+lead-functions.js: createFullShift() returns summary
         │
         ▼
-dashboard.js: receives shift object
-  DOM update — appends shift card / refreshes table
+dashboard.js: receives creation summary
+  DOM update — refreshes manager table + calendar
   (no page reload)
 ```
 
