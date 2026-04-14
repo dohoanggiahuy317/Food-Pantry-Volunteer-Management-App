@@ -1,22 +1,42 @@
+version: '3.8'
+
 services:
   mysql:
     image: mysql:8.4
     container_name: volunteer_managing_mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: volunteer_managing
-      MYSQL_USER: volunteer_user
-      MYSQL_PASSWORD: volunteer_pass
-    ports:
-      - "3306:3306"
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    # Removed the 'ports' block here for security
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 5s
       timeout: 5s
       retries: 20
+
+  web:
+    build: .
+    container_name: volunteer_managing_flask
+    restart: unless-stopped
+    ports:
+      - "80:8000" # Exposes your Flask app to the internet on standard HTTP port 80
+    depends_on:
+      mysql:
+        condition: service_healthy # Uses your healthcheck to wait for MySQL!
+    environment:
+      - DATA_BACKEND=mysql
+      - MYSQL_HOST=mysql # Matches the service name above
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - AUTH_PROVIDER=firebase
+      # It will also read your Firebase/Resend keys from the .env file automatically
 
 volumes:
   mysql_data:
