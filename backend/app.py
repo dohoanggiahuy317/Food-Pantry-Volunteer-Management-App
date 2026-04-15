@@ -966,6 +966,27 @@ def create_signup(shift_role_id: int) -> Any:
         return jsonify({"error": "Users can only sign themselves up"}), 403
     user_id = int(payload_user_id or current_user_id)
 
+    # Check 1: Prevent signing up for multiple roles in the same shift
+    shift_id = int(shift_role.get("shift_id"))
+    for role in backend.list_shift_roles(shift_id):
+        for s in backend.list_shift_signups(int(role.get("shift_role_id"))):
+            if int(s.get("user_id")) == user_id and str(s.get("signup_status", "")).upper() not in {"CANCELLED", "WAITLISTED"}:
+                return jsonify({"error": "You are already signed up for a role in this shift"}), 400
+
+    # Check 2: Prevent signing up for overlapping shifts
+    shift_start = parse_iso_datetime_to_utc(shift.get("start_time"))
+    shift_end = parse_iso_datetime_to_utc(shift.get("end_time"))
+    if shift_start and shift_end:
+        for existing in backend.list_signups_by_user(user_id):
+            if str(existing.get("signup_status", "")).upper() in {"CANCELLED", "WAITLISTED"}:
+                continue
+            if int(existing.get("shift_id")) == shift_id:
+                continue
+            existing_start = parse_iso_datetime_to_utc(existing.get("start_time"))
+            existing_end = parse_iso_datetime_to_utc(existing.get("end_time"))
+            if existing_start and existing_end and shift_start < existing_end and existing_start < shift_end:
+                return jsonify({"error": "You already have a shift during this time"}), 400
+
     try:
         signup = backend.create_signup(
             shift_role_id=shift_role_id,
