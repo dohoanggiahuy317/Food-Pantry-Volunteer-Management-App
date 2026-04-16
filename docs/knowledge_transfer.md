@@ -835,6 +835,9 @@ Attendance helpers:
 - `GET /api/pantries`
 - `GET /api/all_pantries`
 - `GET /api/pantries/<id>`
+- `GET /api/volunteer/pantries`
+- `POST /api/pantries/<id>/subscribe`
+- `DELETE /api/pantries/<id>/subscribe`
 - `POST /api/pantries`
 - `POST /api/pantries/<id>/leads`
 - `DELETE /api/pantries/<id>/leads/<lead_id>`
@@ -993,6 +996,7 @@ Responsive rules (≤768px):
 - single-column grids
 - vertical action buttons
 - mobile spacing adjustments
+- volunteer `Pantries` tab expands the selected pantry inline in the list instead of relying on the desktop side panel
 
 
 ---
@@ -1081,6 +1085,7 @@ Functions:
 `apiCall(path, options)`
 
 - Adds page query string to request
+- Adds browser timezone header for authenticated routes
 - Sends HTTP request using `fetch`
 - Throws error if response not OK
 - Returns JSON response
@@ -1128,6 +1133,11 @@ Key state variables:
 - `registrationsCache`
 - `editingShiftSnapshot`
 - `activeManageShiftsSubtab`
+- `volunteerPantryDirectory`
+- `volunteerPantrySearchQuery`
+- `volunteerPantrySort`
+- `volunteerPantrySubscriptionFilter`
+- `selectedVolunteerPantryId`
 
 
 Initialization:
@@ -1163,6 +1173,7 @@ Tab switching:
 - loads required data for that tab
 - Admin tab now has `Pantries` and `Users` subtabs
 - Admin `Users` subtab supports user search, profile viewing, and single-role updates
+- Volunteer tab set now includes `Pantries`, which loads an aggregate pantry directory with subscription state and shift preview data
 
 
 Pantry management:
@@ -1182,6 +1193,26 @@ Pantry management:
 `updatePantriesTable()`
 
 - renders table of pantries
+
+Volunteer pantry directory:
+
+`loadVolunteerPantryDirectory()`
+
+- fetches `GET /api/volunteer/pantries`
+- keeps the volunteer pantry list/search/sort/filter state synchronized
+- defaults to the first pantry in compact view when the directory loads
+
+`renderVolunteerPantryDirectory()`
+
+- renders the searchable pantry list and selected pantry detail
+- desktop keeps a side detail panel
+- tablet/phone expand the selected pantry inline in the scrollable list
+
+`toggleVolunteerPantrySubscription(buttonEl)`
+
+- calls subscribe/unsubscribe API routes
+- updates `is_subscribed` state in place
+- refreshes both the list badge and the selected pantry detail view
 
 
 Calendar / shift browsing:
@@ -1631,6 +1662,15 @@ Admin Panel
   - user table
   - user profile panel
   - single-role selector for editable user roles
+
+Volunteer `Pantries` tab
+
+- search by pantry name or address
+- sort by `Name A-Z` or `Name Z-A`
+- filter by `All`, `Subscribed`, or `Unsubscribed`
+- pantry detail shows pantry leads and only the next incoming shift preview
+- compact view uses an inline expanding detail card with a selected wrapper state and slide-in animation
+- subscribe/unsubscribe button updates both the detail panel and list badges immediately after API success
 
 
 Scripts loaded:

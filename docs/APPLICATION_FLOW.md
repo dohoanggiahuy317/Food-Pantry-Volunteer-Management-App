@@ -16,7 +16,7 @@ volunteer_managing/
 │   ├── .env                        # Runtime config (DB credentials, backend type)
 │   ├── notifications/
 │   │   ├── __init__.py             # Notification package exports
-│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation + timezone-aware shift windows
+│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation/subscriber notifications + timezone-aware shift windows
 │   │
 │   ├── backends/
 │   │   ├── base.py                 # Abstract interface: StoreBackend (ABC)
@@ -29,10 +29,10 @@ volunteer_managing/
 │   │   ├── init_schema.py          # Runs all SQL files in db/migrations idempotently on startup
 │   │   ├── seed.py                 # Seeds MySQL from backend/data/mysql.json if empty
 │   │   └── migrations/
-│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. users.timezone and recurring shift series)
+│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. users.timezone, pantry_subscriptions, and recurring shift series)
 │   │
 │   └── data/
-│       ├── mysql.json              # MySQL seed data, including a larger future mock shift set
+│       ├── mysql.json              # MySQL seed data, including pantry subscriptions, recurring series, and a larger future mock shift set
 │       └── in_memory.json          # In-memory backend seed data
 │
 └── frontend/
@@ -47,8 +47,8 @@ volunteer_managing/
             ├── user-functions.js   # getCurrentUser(), userHasRole(), createUser()
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
             ├── lead-functions.js   # getShifts(), createFullShift(), updateShift(), updateFullShift(), cancelShiftWithScope(), markAttendance()
-            ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup()
-            └── dashboard.js        # App entry point: boot sequence, UI state, event handlers
+            ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup(), pantry subscription helpers
+            └── dashboard.js        # App entry point: boot sequence, tab state, event handlers, volunteer pantry directory UI
 ```
 
 ---
@@ -97,6 +97,14 @@ PRIMARY KEY (pantry_id, user_id)
 pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
 user_id (FK → users.user_id, ON DELETE CASCADE)
 INDEX idx_pantry_leads_user_id (user_id)
+
+pantry_subscriptions
+───────────────────
+PRIMARY KEY (pantry_id, user_id)
+pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+user_id (FK → users.user_id, ON DELETE CASCADE)
+created_at
+INDEX idx_pantry_subscriptions_user_id (user_id)
 
 shifts
 ──────
@@ -160,9 +168,11 @@ Relationship summary:
 - Recurring schedules live in `shift_series`, while each actual occurrence still lives as a normal row in `shifts`.
 - `shifts.shift_series_id` links each occurrence back to its series and `series_position` preserves order inside the recurring slice.
 - Deleting a user cascades out of `user_roles`, `pantry_leads`, and `shift_signups`.
+- Deleting a pantry or user also cascades through `pantry_subscriptions`.
 - Deleting a user does not block on shifts they created because `shifts.created_by` uses `ON DELETE SET NULL`.
 - Role rows in `roles` cannot be deleted while referenced from `user_roles` because that foreign key uses `ON DELETE RESTRICT`.
 - Duplicate signup to the same role is blocked by `uq_shift_signups_role_user (shift_role_id, user_id)`.
+- Duplicate pantry subscription is blocked by the composite primary key `(pantry_id, user_id)`.
 - Reservation-aware capacity checks are supported by `idx_shift_signups_role_status_reservation`.
 
 ---
@@ -186,7 +196,7 @@ app.py
     │    return MySQLBackend instance
     └─ NO  → return MemoryBackend instance
   backend = <chosen instance>            ← module-level singleton used by all routes
-  notifications.send_*()               ← called for confirmed signups, shift updates, and shift cancellations
+  notifications.send_*()               ← called for confirmed signups, shift updates, shift cancellations, and pantry-subscriber new-shift emails
   app.run(port=5000)
 ```
 

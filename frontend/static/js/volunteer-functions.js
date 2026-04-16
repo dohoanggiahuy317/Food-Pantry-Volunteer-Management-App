@@ -1,6 +1,42 @@
 // Volunteer Functions - Shift Signups and Viewing
 
 /**
+ * Get volunteer pantry directory with subscription state and preview shifts.
+ */
+async function getVolunteerPantries() {
+    try {
+        return await apiGet('/api/volunteer/pantries');
+    } catch (error) {
+        console.error('Failed to get volunteer pantries:', error);
+        throw error;
+    }
+}
+
+/**
+ * Subscribe the current volunteer to a pantry.
+ */
+async function subscribeToPantry(pantryId) {
+    try {
+        return await apiPost(`/api/pantries/${pantryId}/subscribe`, {});
+    } catch (error) {
+        console.error('Failed to subscribe to pantry:', error);
+        throw error;
+    }
+}
+
+/**
+ * Unsubscribe the current volunteer from a pantry.
+ */
+async function unsubscribeFromPantry(pantryId) {
+    try {
+        return await apiDelete(`/api/pantries/${pantryId}/subscribe`);
+    } catch (error) {
+        console.error('Failed to unsubscribe from pantry:', error);
+        throw error;
+    }
+}
+
+/**
  * Get all signups for a specific shift role
  */
 async function getSignupsForRole(shiftRoleId) {

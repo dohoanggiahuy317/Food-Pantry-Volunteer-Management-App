@@ -18,7 +18,7 @@ We aim to build a robust, secure, and user-friendly volunteer management system 
 | Frontend            | Vanilla JS, HTML, CSS                                                                                      |
 | Database            | in-memory or MySQL 8.4 (containerized via Docker)                                                          |
 | Auth                | in-memory demo auth or Firebase Authentication with Google sign-in. Flask uses session cookies after login |
-| Email notifications | Resend API for signup confirmation, shift update, and shift cancellation emails                            |
+| Email notifications | Resend API for signup confirmation, shift update, shift cancellation, and pantry-subscriber new-shift emails |
 
 ---
 
@@ -45,10 +45,11 @@ After a successful login or signup, Flask stores the authenticated local user in
 ### Notification Flow
 
 - `backend/notifications/notifications.py` is the shared email service layer for volunteer notifications.
-- `app.py` sends notification emails for 3 scenarios:
+- `app.py` sends notification emails for 4 scenarios:
   - signup confirmed (optional due to rate-limit)
   - shift updated and reconfirmation required
   - shift cancelled (optional due to rate-limit)
+  - pantry subscriber notified when a pantry posts a new one-off shift or recurring series
 - Shift times in emails are formatted from UTC into the saved `users.timezone` value when available, with `America/New_York` as the fallback.
 - The notification service returns a structured result payload with `ok`, `code`, `message`, `recipient_email`, `subject`, and `provider_response`.
 - `app.py` logs warning details when the email is skipped or fails, instead of mixing Flask `jsonify(...)` responses into the notification helper.
@@ -80,6 +81,9 @@ After a successful login or signup, Flask stores the authenticated local user in
 | `GET`    | `/api/pantries`                      | List pantries accessible to current user                                          |
 | `GET`    | `/api/pantries/<id>/shifts`          | List all shifts for a pantry (admin/lead view)                                    |
 | `GET`    | `/api/pantries/<id>/active-shifts`   | List non-expired shifts (public/volunteer view)                                   |
+| `GET`    | `/api/volunteer/pantries`            | List pantries for the volunteer directory, including subscription state and next shift preview |
+| `POST`   | `/api/pantries/<id>/subscribe`       | Subscribe the current volunteer to new-shift emails for a pantry                  |
+| `DELETE` | `/api/pantries/<id>/subscribe`       | Unsubscribe the current volunteer from pantry new-shift emails                    |
 | `POST`   | `/api/pantries/<id>/shifts`          | Create a basic one-off shift                                                      |
 | `POST`   | `/api/pantries/<id>/shifts/full-create` | Create a one-off or recurring shift series with roles in one request           |
 | `PATCH`  | `/api/shifts/<id>`                   | Update simple shift details or reopen a cancelled shift                           |
@@ -131,6 +135,9 @@ The app now shows an auth gate before the dashboard.
 
 ### Volunteer
 - Can browse open, non-expired shifts.
+- Can use the `Pantries` tab to search pantries by name/address, sort by name, and filter by `All`, `Subscribed`, or `Unsubscribed`.
+- Can open a pantry detail view to see pantry leads and the next incoming shift preview.
+- Can subscribe or unsubscribe from a pantry to receive email when that pantry creates a new one-off shift or recurring series.
 - Each user has one system role in the runtime admin-management flow.
 - Shift edits move existing signups to `PENDING_CONFIRMATION` with a 48-hour reservation window.
 - Can reconfirm after shift edits.
@@ -152,7 +159,7 @@ Set up Firebase Authentication and Resend email for the full experience, or use 
 
 If you want real email delivery in development or production, configure Resend in `backend/.env` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Resend’s official docs say sending uses a domain you own and recommend a subdomain such as `updates.yourdomain.com`; if your team does not already own a domain, register one first, then follow the Resend domain setup docs and DNS provider guide before using that sender address.
 
-For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes, including `users.timezone` and recurring-shift tables/columns such as `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`, apply cleanly.
+For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes, including `users.timezone`, pantry subscriptions, and recurring-shift tables/columns such as `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`, apply cleanly.
 
 ---
 

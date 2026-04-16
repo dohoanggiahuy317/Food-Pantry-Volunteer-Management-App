@@ -23,6 +23,12 @@ let lastAdminUsersPhoneViewport = null;
 let dashboardBootPromise = null;
 let dashboardEventListenersBound = false;
 let recurringScopeResolver = null;
+let volunteerPantryDirectory = [];
+let volunteerPantrySearchQuery = '';
+let volunteerPantrySort = 'name-asc';
+let volunteerPantrySubscriptionFilter = 'all';
+let selectedVolunteerPantryId = null;
+let lastVolunteerPantriesCompactViewport = null;
 
 const RECURRING_WEEKDAY_ORDER = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
 const RECURRING_WEEKDAY_LABELS = {
@@ -331,6 +337,7 @@ function setupRoleBasedUI() {
     const calendarContent = document.getElementById('content-calendar');
     const shiftsTab = document.getElementById('tab-shifts');
     const adminTab = document.getElementById('tab-admin');
+    const pantriesTab = document.getElementById('tab-pantries');
     const myShiftsTab = document.getElementById('tab-my-shifts');
     let defaultTab = 'calendar';
 
@@ -345,6 +352,7 @@ function setupRoleBasedUI() {
 
     shiftsTab?.classList.toggle('hidden', !(isAdmin || isPantryLead));
     adminTab?.classList.toggle('hidden', !isAdmin);
+    pantriesTab?.classList.toggle('hidden', !isVolunteer);
     myShiftsTab?.classList.toggle('hidden', !isVolunteer);
 
     return defaultTab;
@@ -365,7 +373,7 @@ async function activateTab(targetTab) {
     // Show/hide pantry selector based on tab
     const pantrySelector = document.getElementById('pantry-selector');
     if (pantrySelector) {
-        const shouldHideSelector = targetTab === 'calendar' || targetTab === 'my-shifts' || targetTab === 'my-account' || targetTab === 'admin';
+        const shouldHideSelector = targetTab === 'calendar' || targetTab === 'pantries' || targetTab === 'my-shifts' || targetTab === 'my-account' || targetTab === 'admin';
         pantrySelector.classList.toggle('app-hidden', shouldHideSelector);
     }
 
@@ -378,6 +386,8 @@ async function activateTab(targetTab) {
         await loadAdminTab();
     } else if (targetTab === 'my-shifts') {
         await loadMyRegisteredShifts();
+    } else if (targetTab === 'pantries') {
+        await loadVolunteerPantryDirectory();
     } else if (targetTab === 'my-account') {
         await loadMyAccount();
     } else if (targetTab === 'calendar') {
@@ -445,6 +455,244 @@ async function loadPantryLeads() {
     } catch (error) {
         console.error('Failed to load leads:', error);
     }
+}
+
+function getFilteredVolunteerPantries() {
+    const search = volunteerPantrySearchQuery.toLowerCase();
+    const filtered = volunteerPantryDirectory.filter((pantry) => {
+        if (volunteerPantrySubscriptionFilter === 'subscribed' && !pantry.is_subscribed) {
+            return false;
+        }
+        if (volunteerPantrySubscriptionFilter === 'unsubscribed' && pantry.is_subscribed) {
+            return false;
+        }
+        if (!search) {
+            return true;
+        }
+
+        const name = String(pantry.name || '').toLowerCase();
+        const address = String(pantry.location_address || '').toLowerCase();
+        return name.includes(search) || address.includes(search);
+    });
+
+    filtered.sort((left, right) => {
+        const nameComparison = String(left.name || '').localeCompare(String(right.name || ''), undefined, { sensitivity: 'base' });
+        if (volunteerPantrySort === 'name-desc') {
+            return nameComparison * -1;
+        }
+        return nameComparison;
+    });
+
+    return filtered;
+}
+
+function updateVolunteerPantryFilterUi() {
+    document.querySelectorAll('[data-pantry-subscription-filter]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.pantrySubscriptionFilter === volunteerPantrySubscriptionFilter);
+    });
+
+    const summary = document.getElementById('volunteer-pantries-summary');
+    if (!summary) {
+        return;
+    }
+
+    const filtered = getFilteredVolunteerPantries();
+    const total = volunteerPantryDirectory.length;
+    const qualifier = volunteerPantrySearchQuery ? ` matching "${volunteerPantrySearchQuery}"` : '';
+    summary.textContent = `${filtered.length} of ${total} pantry${total === 1 ? '' : 'ies'} shown${qualifier}.`;
+}
+
+function isVolunteerPantryCompactViewport() {
+    return window.matchMedia('(max-width: 1023px)').matches;
+}
+
+function buildVolunteerPantryDetailMarkup(pantry, options = {}) {
+    const inline = Boolean(options.inline);
+    const leads = Array.isArray(pantry.leads) ? pantry.leads : [];
+    const previewShifts = Array.isArray(pantry.preview_shifts) ? pantry.preview_shifts.slice(0, 1) : [];
+    const remainingShiftCount = Math.max(0, Number(pantry.upcoming_shift_count || 0) - previewShifts.length);
+
+    return `
+        <div class="volunteer-pantry-detail-head">
+            <div>
+                <h2 class="volunteer-pantry-detail-title">${escapeHtml(pantry.name || 'Unnamed Pantry')}</h2>
+                <p class="volunteer-pantry-detail-address">${escapeHtml(pantry.location_address || 'No address')}</p>
+            </div>
+            <button
+                type="button"
+                class="btn ${pantry.is_subscribed ? 'btn-secondary' : 'btn-primary'}"
+                data-volunteer-subscribe-id="${pantry.pantry_id}"
+                data-subscribed="${pantry.is_subscribed ? 'true' : 'false'}"
+            >
+                ${pantry.is_subscribed ? 'Unsubscribe' : 'Subscribe'}
+            </button>
+        </div>
+        <div class="volunteer-pantry-detail-section">
+            <h3>Pantry Leads</h3>
+            ${leads.length > 0
+                ? `<div class="volunteer-pantry-leads">${leads.map((lead) => `<span class="volunteer-pantry-lead-pill">${escapeHtml(lead.full_name || lead.email || 'Assigned lead')}</span>`).join('')}</div>`
+                : '<p class="volunteer-pantry-preview-empty">No pantry leads listed yet.</p>'}
+        </div>
+        <div class="volunteer-pantry-detail-section">
+            <h3>${inline ? 'Next Incoming Shift' : 'Next Incoming Shift'}</h3>
+            ${previewShifts.length > 0
+                ? `<div class="volunteer-pantry-preview-list">${previewShifts.map((shift) => `
+                    <div class="volunteer-pantry-preview-item">
+                        <div class="volunteer-pantry-preview-item-title">${escapeHtml(shift.shift_name || 'Untitled Shift')}</div>
+                        <div class="volunteer-pantry-preview-item-time">${escapeHtml(formatLocalTimeRange(shift.start_time, shift.end_time))}</div>
+                        <div class="volunteer-pantry-preview-item-meta">${escapeHtml(renderCalendarRoleSummary(shift.roles || []))}</div>
+                    </div>
+                `).join('')}</div>
+                ${remainingShiftCount > 0 ? `<p class="volunteer-pantry-preview-more">${remainingShiftCount} more upcoming shift${remainingShiftCount === 1 ? '' : 's'}.</p>` : ''}`
+                : '<p class="volunteer-pantry-preview-empty">No upcoming shifts are posted yet.</p>'}
+        </div>
+    `;
+}
+
+function renderVolunteerPantryList() {
+    const listEl = document.getElementById('volunteer-pantries-list');
+    if (!listEl) {
+        return;
+    }
+
+    const filtered = getFilteredVolunteerPantries();
+    const compactView = isVolunteerPantryCompactViewport();
+    updateVolunteerPantryFilterUi();
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = '<p class="empty-state">No pantries match the current filters.</p>';
+        return;
+    }
+
+    listEl.innerHTML = filtered.map((pantry) => {
+        const isSelected = Number(pantry.pantry_id) === Number(selectedVolunteerPantryId);
+        const toggleLabel = compactView && isSelected ? 'Tap to hide details' : 'Tap to view details';
+        return `
+            <div class="volunteer-pantry-list-entry${compactView && isSelected ? ' is-selected' : ''}">
+                <button type="button" class="volunteer-pantry-list-card${isSelected ? ' is-selected' : ''}" data-volunteer-pantry-id="${pantry.pantry_id}">
+                    <div class="volunteer-pantry-list-head">
+                        <div>
+                            <div class="volunteer-pantry-list-name">${escapeHtml(pantry.name || 'Unnamed Pantry')}</div>
+                            <div class="volunteer-pantry-list-address">${escapeHtml(pantry.location_address || 'No address')}</div>
+                        </div>
+                        <span class="volunteer-pantry-pill${pantry.is_subscribed ? ' is-subscribed' : ''}">${pantry.is_subscribed ? 'Subscribed' : 'Not subscribed'}</span>
+                    </div>
+                    <div class="volunteer-pantry-list-meta">
+                        <span>${Number(pantry.upcoming_shift_count || 0)} upcoming shift${Number(pantry.upcoming_shift_count || 0) === 1 ? '' : 's'}</span>
+                        <span>${Array.isArray(pantry.leads) && pantry.leads.length > 0 ? `${pantry.leads.length} lead${pantry.leads.length === 1 ? '' : 's'}` : 'No assigned leads'}</span>
+                    </div>
+                    ${compactView ? `<div class="volunteer-pantry-list-hint">${toggleLabel}</div>` : ''}
+                </button>
+                ${compactView && isSelected
+                    ? `<div class="volunteer-pantry-detail-card volunteer-pantry-detail-card-inline">${buildVolunteerPantryDetailMarkup(pantry, { inline: true })}</div>`
+                    : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function renderVolunteerPantryDetail() {
+    const detailEl = document.getElementById('volunteer-pantry-detail');
+    if (!detailEl) {
+        return;
+    }
+
+    if (isVolunteerPantryCompactViewport()) {
+        detailEl.innerHTML = '';
+        return;
+    }
+
+    const pantry = volunteerPantryDirectory.find((item) => Number(item.pantry_id) === Number(selectedVolunteerPantryId));
+    if (!pantry) {
+        detailEl.innerHTML = '<p class="auth-empty">Select a pantry to see its details and upcoming shifts.</p>';
+        return;
+    }
+
+    detailEl.innerHTML = buildVolunteerPantryDetailMarkup(pantry);
+}
+
+function renderVolunteerPantryDirectory() {
+    const filteredPantries = getFilteredVolunteerPantries();
+    const availablePantryIds = new Set(filteredPantries.map((pantry) => Number(pantry.pantry_id)));
+    if (!selectedVolunteerPantryId || !availablePantryIds.has(Number(selectedVolunteerPantryId))) {
+        selectedVolunteerPantryId = filteredPantries.length > 0 ? Number(filteredPantries[0].pantry_id) : null;
+    }
+    renderVolunteerPantryList();
+    renderVolunteerPantryDetail();
+}
+
+async function loadVolunteerPantryDirectory() {
+    const listEl = document.getElementById('volunteer-pantries-list');
+    const detailEl = document.getElementById('volunteer-pantry-detail');
+    if (!listEl || !detailEl) {
+        return;
+    }
+
+    const searchInput = document.getElementById('volunteer-pantry-search');
+    const sortInput = document.getElementById('volunteer-pantry-sort');
+    if (searchInput && searchInput.value !== volunteerPantrySearchQuery) {
+        searchInput.value = volunteerPantrySearchQuery;
+    }
+    if (sortInput) {
+        sortInput.value = volunteerPantrySort;
+    }
+
+    listEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading pantry directory...</p></div>';
+    detailEl.innerHTML = '<p class="auth-empty">Loading pantry details...</p>';
+
+    try {
+        volunteerPantryDirectory = await getVolunteerPantries();
+        renderVolunteerPantryDirectory();
+    } catch (error) {
+        volunteerPantryDirectory = [];
+        listEl.innerHTML = `<p class="empty-state">Failed to load pantries: ${escapeHtml(error.message)}</p>`;
+        detailEl.innerHTML = '<p class="auth-empty">Pantry details are unavailable right now.</p>';
+        showMessage('pantries', `Failed to load pantries: ${error.message}`, 'error');
+    }
+}
+
+function updateVolunteerPantryDirectoryState(pantryId, isSubscribed) {
+    volunteerPantryDirectory = volunteerPantryDirectory.map((pantry) => (
+        Number(pantry.pantry_id) === Number(pantryId)
+            ? { ...pantry, is_subscribed: isSubscribed }
+            : pantry
+    ));
+    renderVolunteerPantryDirectory();
+}
+
+async function toggleVolunteerPantrySubscription(buttonEl) {
+    const pantryId = Number(buttonEl.dataset.volunteerSubscribeId || 0);
+    if (!pantryId) {
+        return;
+    }
+
+    const isSubscribed = buttonEl.dataset.subscribed === 'true';
+    buttonEl.setAttribute('disabled', 'disabled');
+    try {
+        if (isSubscribed) {
+            await unsubscribeFromPantry(pantryId);
+            updateVolunteerPantryDirectoryState(pantryId, false);
+            showMessage('pantries', 'Pantry unsubscribed successfully.', 'success');
+        } else {
+            await subscribeToPantry(pantryId);
+            updateVolunteerPantryDirectoryState(pantryId, true);
+            showMessage('pantries', 'Pantry subscribed successfully.', 'success');
+        }
+    } catch (error) {
+        showMessage('pantries', `Subscription update failed: ${error.message}`, 'error');
+    } finally {
+        buttonEl.removeAttribute('disabled');
+    }
+}
+
+function handleVolunteerPantriesViewportChange() {
+    const compactView = isVolunteerPantryCompactViewport();
+    if (lastVolunteerPantriesCompactViewport === compactView) {
+        return;
+    }
+
+    lastVolunteerPantriesCompactViewport = compactView;
+    renderVolunteerPantryDirectory();
 }
 
 function getAssignPantrySearchMatches(query) {
@@ -2277,7 +2525,9 @@ function setupEventListeners() {
     setManageShiftsSubtab(activeManageShiftsSubtab);
     setAdminSubtab(activeAdminSubtab);
     lastAdminUsersPhoneViewport = isPhoneViewport();
+    lastVolunteerPantriesCompactViewport = isVolunteerPantryCompactViewport();
     window.addEventListener('resize', handleAdminUsersViewportChange);
+    window.addEventListener('resize', handleVolunteerPantriesViewportChange);
     if (typeof initializeCalendarUi === 'function') {
         initializeCalendarUi();
     }
@@ -2314,6 +2564,58 @@ function setupEventListeners() {
             setAdminSubtab(targetSubtab);
             await loadAdminTab();
         });
+    });
+
+    document.getElementById('volunteer-pantry-search')?.addEventListener('input', () => {
+        volunteerPantrySearchQuery = document.getElementById('volunteer-pantry-search')?.value.trim() || '';
+        renderVolunteerPantryDirectory();
+    });
+
+    document.getElementById('volunteer-pantry-sort')?.addEventListener('change', () => {
+        volunteerPantrySort = document.getElementById('volunteer-pantry-sort')?.value || 'name-asc';
+        renderVolunteerPantryDirectory();
+    });
+
+    document.querySelectorAll('[data-pantry-subscription-filter]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const nextFilter = button.dataset.pantrySubscriptionFilter || 'all';
+            if (!['all', 'subscribed', 'unsubscribed'].includes(nextFilter)) {
+                return;
+            }
+            volunteerPantrySubscriptionFilter = nextFilter;
+            renderVolunteerPantryDirectory();
+        });
+    });
+
+    document.getElementById('volunteer-pantries-list')?.addEventListener('click', (event) => {
+        const subscribeButton = event.target instanceof HTMLElement ? event.target.closest('[data-volunteer-subscribe-id]') : null;
+        if (subscribeButton instanceof HTMLElement) {
+            toggleVolunteerPantrySubscription(subscribeButton);
+            return;
+        }
+
+        const target = event.target instanceof HTMLElement ? event.target.closest('[data-volunteer-pantry-id]') : null;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+
+        const pantryId = Number(target.dataset.volunteerPantryId || 0) || null;
+        if (isVolunteerPantryCompactViewport() && pantryId && Number(selectedVolunteerPantryId) === pantryId) {
+            selectedVolunteerPantryId = null;
+            renderVolunteerPantryDirectory();
+            return;
+        }
+
+        selectedVolunteerPantryId = pantryId;
+        renderVolunteerPantryDirectory();
+    });
+
+    document.getElementById('volunteer-pantry-detail')?.addEventListener('click', async (event) => {
+        const target = event.target instanceof HTMLElement ? event.target.closest('[data-volunteer-subscribe-id]') : null;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        await toggleVolunteerPantrySubscription(target);
     });
 
     document.getElementById('assign-pantry-search')?.addEventListener('input', () => {

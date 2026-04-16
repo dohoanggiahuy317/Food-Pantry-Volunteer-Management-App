@@ -15,6 +15,8 @@ from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
 from backends.factory import create_backend
 from notifications import (
+    send_new_shift_series_subscriber_notification,
+    send_new_shift_subscriber_notification,
     send_shift_cancellation_notification,
     send_shift_update_notification,
     send_signup_confirmation,
@@ -306,6 +308,51 @@ def pantries_for_current_user() -> list[dict[str, Any]]:
 
 def get_pantry_leads(pantry_id: int) -> list[dict[str, Any]]:
     return backend.get_pantry_leads(pantry_id)
+
+
+def user_can_manage_pantry(pantry_id: int, user_id: int) -> bool:
+    return is_admin_capable(user_id) or backend.is_pantry_lead(pantry_id, user_id)
+
+
+def volunteer_user_required() -> tuple[dict[str, Any] | None, Any | None]:
+    user = current_user()
+    if not user:
+        return None, (jsonify({"error": "Forbidden"}), 403)
+
+    user_id = int(user.get("user_id"))
+    if not user_has_role(user_id, "VOLUNTEER"):
+        return None, (jsonify({"error": "Volunteer role required"}), 403)
+    return user, None
+
+
+def upcoming_shifts_for_pantry_preview(pantry_id: int, limit: int = 3) -> list[dict[str, Any]]:
+    shifts = backend.list_non_expired_shifts_by_pantry(pantry_id, include_cancelled=False)
+    serialized: list[dict[str, Any]] = []
+    for shift in shifts:
+        payload = attach_shift_recurrence_metadata(shift)
+        payload["roles"] = get_shift_roles(int(shift.get("shift_id")), include_cancelled=False)
+        serialized.append(payload)
+
+    serialized.sort(
+        key=lambda item: (
+            parse_iso_datetime_to_utc(item.get("start_time")) or datetime.max.replace(tzinfo=timezone.utc),
+            int(item.get("shift_id") or 0),
+        )
+    )
+    return serialized[:limit]
+
+
+def volunteer_pantry_payload(pantry: dict[str, Any], subscriber_pantry_ids: set[int]) -> dict[str, Any]:
+    pantry_id = int(pantry.get("pantry_id"))
+    preview_shifts = upcoming_shifts_for_pantry_preview(pantry_id, limit=3)
+    payload = dict(pantry)
+    payload["leads"] = get_pantry_leads(pantry_id)
+    payload["is_subscribed"] = pantry_id in subscriber_pantry_ids
+    payload["preview_shifts"] = preview_shifts
+    payload["upcoming_shift_count"] = len(
+        backend.list_non_expired_shifts_by_pantry(pantry_id, include_cancelled=False)
+    )
+    return payload
 
 
 def get_shift_roles(shift_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
@@ -878,6 +925,60 @@ def send_shift_notifications_if_configured(
                 notification_type,
                 shift.get("shift_id"),
                 user_id,
+            )
+
+
+def send_new_shift_notifications_to_subscribers_if_configured(
+    *,
+    pantry: dict[str, Any],
+    shift: dict[str, Any],
+    roles: list[dict[str, Any]],
+    recurrence: dict[str, Any] | None = None,
+    created_shift_count: int = 1,
+    preview_occurrences: list[dict[str, Any]] | None = None,
+) -> None:
+    pantry_id = pantry.get("pantry_id")
+    if pantry_id is None:
+        return
+
+    subscribers = backend.list_pantry_subscribers(int(pantry_id))
+    if not subscribers:
+        return
+
+    preview = preview_occurrences or [shift]
+    for recipient in subscribers:
+        try:
+            if recurrence:
+                result = send_new_shift_series_subscriber_notification(
+                    recipient=recipient,
+                    pantry=pantry,
+                    shift=shift,
+                    roles=roles,
+                    recurrence=recurrence,
+                    created_shift_count=created_shift_count,
+                    preview_occurrences=preview,
+                )
+            else:
+                result = send_new_shift_subscriber_notification(
+                    recipient=recipient,
+                    pantry=pantry,
+                    shift=shift,
+                    roles=roles,
+                )
+
+            if not result["ok"]:
+                app.logger.warning(
+                    "Subscriber notification not sent for pantry_id=%s user_id=%s code=%s message=%s",
+                    pantry_id,
+                    recipient.get("user_id"),
+                    result["code"],
+                    result["message"],
+                )
+        except Exception:
+            app.logger.exception(
+                "Failed to send subscriber notification for pantry_id=%s user_id=%s",
+                pantry_id,
+                recipient.get("user_id"),
             )
 
 
@@ -1650,6 +1751,62 @@ def list_all_pantries() -> Any:
     return jsonify(pantries)
 
 
+@app.get("/api/volunteer/pantries")
+def list_volunteer_pantries() -> Any:
+    user, error_response = volunteer_user_required()
+    if error_response:
+        return error_response
+
+    assert user is not None
+    subscriber_pantry_ids = set(backend.list_pantry_subscriptions_for_user(int(user.get("user_id"))))
+    pantries = backend.list_pantries()
+    payload = [volunteer_pantry_payload(pantry, subscriber_pantry_ids) for pantry in pantries]
+    payload.sort(key=lambda item: str(item.get("name") or "").lower())
+    return jsonify(payload)
+
+
+@app.post("/api/pantries/<int:pantry_id>/subscribe")
+def subscribe_to_pantry(pantry_id: int) -> Any:
+    user, error_response = volunteer_user_required()
+    if error_response:
+        return error_response
+
+    pantry = find_pantry_by_id(pantry_id)
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    assert user is not None
+    user_id = int(user.get("user_id"))
+    backend.subscribe_user_to_pantry(pantry_id, user_id)
+    return jsonify(
+        {
+            "pantry_id": pantry_id,
+            "is_subscribed": True,
+        }
+    ), 200
+
+
+@app.delete("/api/pantries/<int:pantry_id>/subscribe")
+def unsubscribe_from_pantry(pantry_id: int) -> Any:
+    user, error_response = volunteer_user_required()
+    if error_response:
+        return error_response
+
+    pantry = find_pantry_by_id(pantry_id)
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    assert user is not None
+    user_id = int(user.get("user_id"))
+    backend.unsubscribe_user_from_pantry(pantry_id, user_id)
+    return jsonify(
+        {
+            "pantry_id": pantry_id,
+            "is_subscribed": False,
+        }
+    ), 200
+
+
 
 
 @app.get("/api/pantries/<int:pantry_id>")
@@ -1877,6 +2034,11 @@ def create_shift(pantry_id: int) -> Any:
         created_by=user_id,
     )
     shift["roles"] = []
+    send_new_shift_notifications_to_subscribers_if_configured(
+        pantry=pantry,
+        shift=shift,
+        roles=[],
+    )
     return jsonify(shift), 201
 
 
@@ -1928,6 +2090,11 @@ def create_full_shift(pantry_id: int) -> Any:
             status=str(payload.get("status", "OPEN")).upper(),
             roles_payload=roles_payload,
         )
+        send_new_shift_notifications_to_subscribers_if_configured(
+            pantry=pantry,
+            shift=created_shift,
+            roles=created_shift.get("roles", []),
+        )
         response = {
             "created_shift_count": 1,
             "first_shift": created_shift,
@@ -1957,6 +2124,16 @@ def create_full_shift(pantry_id: int) -> Any:
                 shift_series_id=int(series.get("shift_series_id")),
                 series_position=index,
             )
+        )
+
+    if created_shifts:
+        send_new_shift_notifications_to_subscribers_if_configured(
+            pantry=pantry,
+            shift=created_shifts[0],
+            roles=created_shifts[0].get("roles", []),
+            recurrence=recurrence_for_client(series),
+            created_shift_count=len(created_shifts),
+            preview_occurrences=created_shifts[:3],
         )
 
     return jsonify(

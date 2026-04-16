@@ -93,6 +93,7 @@
         <div class="nav-tabs">
             <div class="nav-tabs-container">
                 <button class="nav-tab" data-tab="calendar">📅 Calendar</button>
+                <button class="nav-tab hidden" data-tab="pantries" id="tab-pantries">🏠 Pantries</button>
                 <button class="nav-tab hidden" data-tab="my-shifts" id="tab-my-shifts">🧾 My Shifts</button>
                 <button class="nav-tab hidden" data-tab="shifts" id="tab-shifts">🔧 Manage Shifts</button>
                 <button class="nav-tab hidden" data-tab="admin" id="tab-admin">👥 Admin Panel</button>
@@ -197,6 +198,51 @@
                         <div id="shifts-container" class="calendar-view-container loading">
                             <div class="spinner"></div>
                             <p>Loading shifts...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="content-pantries">
+            <div class="card volunteer-pantries-shell">
+                <div class="card-header volunteer-pantries-header">
+                    <div>
+                        <h2 class="card-title">Pantry Directory</h2>
+                        <p class="calendar-shell-copy">Browse pantry details, preview upcoming shifts, and subscribe for new shift emails.</p>
+                    </div>
+                </div>
+                <div id="message-pantries" class="message"></div>
+                <div class="volunteer-pantries-toolbar">
+                    <div class="volunteer-pantries-search-group">
+                        <label for="volunteer-pantry-search">Search</label>
+                        <input type="search" id="volunteer-pantry-search" placeholder="Search pantry name or address">
+                    </div>
+                    <div class="volunteer-pantries-sort-group">
+                        <label for="volunteer-pantry-sort">Sort</label>
+                        <select id="volunteer-pantry-sort">
+                            <option value="name-asc">Name A-Z</option>
+                            <option value="name-desc">Name Z-A</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="volunteer-pantries-filter-row" role="tablist" aria-label="Pantry subscription filter">
+                    <button type="button" class="volunteer-pantries-filter active" data-pantry-subscription-filter="all">All</button>
+                    <button type="button" class="volunteer-pantries-filter" data-pantry-subscription-filter="subscribed">Subscribed</button>
+                    <button type="button" class="volunteer-pantries-filter" data-pantry-subscription-filter="unsubscribed">Unsubscribed</button>
+                </div>
+                <div class="volunteer-pantries-layout">
+                    <div class="volunteer-pantries-list-column">
+                        <div id="volunteer-pantries-summary" class="volunteer-pantries-summary"></div>
+                        <div class="volunteer-pantries-list-shell">
+                            <div id="volunteer-pantries-list" class="volunteer-pantries-list">
+                                <p class="empty-state">Loading pantries...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="volunteer-pantries-detail-column">
+                        <div id="volunteer-pantry-detail" class="volunteer-pantry-detail-card">
+                            <p class="auth-empty">Select a pantry to see its details and upcoming shifts.</p>
                         </div>
                     </div>
                 </div>

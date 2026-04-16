@@ -14,6 +14,7 @@ TABLES_INSERT_ORDER = [
     "user_roles",
     "pantries",
     "pantry_leads",
+    "pantry_subscriptions",
     "shift_series",
     "shifts",
     "shift_roles",
@@ -25,6 +26,7 @@ TABLES_TRUNCATE_ORDER = [
     "shift_roles",
     "shifts",
     "shift_series",
+    "pantry_subscriptions",
     "pantry_leads",
     "pantries",
     "user_roles",
@@ -162,6 +164,20 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                 ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)
                 """,
                 (pantry_lead["pantry_id"], pantry_lead["user_id"]),
+            )
+
+        for subscription in payload.get("pantry_subscriptions", []):
+            cursor.execute(
+                """
+                INSERT INTO pantry_subscriptions (pantry_id, user_id, created_at)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE created_at = VALUES(created_at)
+                """,
+                (
+                    subscription["pantry_id"],
+                    subscription["user_id"],
+                    parse_iso_to_dt(subscription.get("created_at")),
+                ),
             )
 
         for shift_series in payload.get("shift_series", []):

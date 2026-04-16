@@ -44,6 +44,7 @@ class MemoryBackend(StoreBackend):
             "user_roles": [],
             "pantries": [],
             "pantry_leads": [],
+            "pantry_subscriptions": [],
             "shift_series": [],
             "shifts": [],
             "shift_roles": [],
@@ -119,6 +120,7 @@ class MemoryBackend(StoreBackend):
             "user_roles": list(data.get("user_roles", [])),
             "pantries": list(data.get("pantries", [])),
             "pantry_leads": list(data.get("pantry_leads", [])),
+            "pantry_subscriptions": list(data.get("pantry_subscriptions", [])),
             "shift_series": list(data.get("shift_series", [])),
             "shifts": list(data.get("shifts", [])),
             "shift_roles": list(data.get("shift_roles", [])),
@@ -325,6 +327,9 @@ class MemoryBackend(StoreBackend):
         self.store["users"] = [user for user in self.store["users"] if int(user.get("user_id", 0)) != user_id]
         self.store["user_roles"] = [row for row in self.store["user_roles"] if int(row.get("user_id", 0)) != user_id]
         self.store["pantry_leads"] = [row for row in self.store["pantry_leads"] if int(row.get("user_id", 0)) != user_id]
+        self.store["pantry_subscriptions"] = [
+            row for row in self.store["pantry_subscriptions"] if int(row.get("user_id", 0)) != user_id
+        ]
         self.store["shift_signups"] = [row for row in self.store["shift_signups"] if int(row.get("user_id", 0)) != user_id]
         for shift in self.store["shifts"]:
             if int(shift.get("created_by", 0)) == user_id:
@@ -421,6 +426,11 @@ class MemoryBackend(StoreBackend):
             for pantry_lead in self.store["pantry_leads"]
             if pantry_lead.get("pantry_id") != pantry_id
         ]
+        self.store["pantry_subscriptions"] = [
+            row
+            for row in self.store["pantry_subscriptions"]
+            if int(row.get("pantry_id", 0)) != pantry_id
+        ]
         self.store["pantries"] = [
             pantry
             for pantry in self.store["pantries"]
@@ -438,6 +448,48 @@ class MemoryBackend(StoreBackend):
             for pl in self.store["pantry_leads"]
             if not (pl.get("pantry_id") == pantry_id and pl.get("user_id") == user_id)
         ]
+
+    def list_pantry_subscriptions_for_user(self, user_id: int) -> list[int]:
+        return sorted(
+            {
+                int(row.get("pantry_id", 0))
+                for row in self.store["pantry_subscriptions"]
+                if int(row.get("user_id", 0)) == user_id
+            }
+        )
+
+    def is_user_subscribed_to_pantry(self, pantry_id: int, user_id: int) -> bool:
+        return any(
+            int(row.get("pantry_id", 0)) == pantry_id and int(row.get("user_id", 0)) == user_id
+            for row in self.store["pantry_subscriptions"]
+        )
+
+    def subscribe_user_to_pantry(self, pantry_id: int, user_id: int) -> None:
+        if self.is_user_subscribed_to_pantry(pantry_id, user_id):
+            return
+        self.store["pantry_subscriptions"].append(
+            {
+                "pantry_id": pantry_id,
+                "user_id": user_id,
+                "created_at": _utc_now_iso(),
+            }
+        )
+
+    def unsubscribe_user_from_pantry(self, pantry_id: int, user_id: int) -> None:
+        self.store["pantry_subscriptions"] = [
+            row
+            for row in self.store["pantry_subscriptions"]
+            if not (int(row.get("pantry_id", 0)) == pantry_id and int(row.get("user_id", 0)) == user_id)
+        ]
+
+    def list_pantry_subscribers(self, pantry_id: int) -> list[dict[str, Any]]:
+        user_ids = [
+            int(row.get("user_id", 0))
+            for row in self.store["pantry_subscriptions"]
+            if int(row.get("pantry_id", 0)) == pantry_id
+        ]
+        users_by_id = {int(user.get("user_id", 0)): dict(user) for user in self.store["users"]}
+        return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
 
     def list_shifts_by_pantry(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
         shifts = [dict(s) for s in self.store["shifts"] if s.get("pantry_id") == pantry_id]

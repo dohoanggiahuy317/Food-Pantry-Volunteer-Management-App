@@ -13,7 +13,7 @@ At backend startup:
    - `backend/backends/mysql_backend.py` is initialized.
    - If DB is empty and `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`, seed data is loaded from `backend/data/mysql.json`.
 4. API routes continue using the same request/response contract as before.
-5. `backend/app.py` can call `backend/notifications/notifications.py` to send Resend emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
+5. `backend/app.py` can call `backend/notifications/notifications.py` to send Resend emails for confirmed signups, shift updates that require reconfirmation, shift cancellations, and pantry-subscriber new-shift notifications.
 6. User timezone is detected in the browser, persisted on the `users` row, and reused by the backend when rendering email times.
 
 ## Configuration (`backend/.env`)
@@ -44,6 +44,7 @@ At backend startup:
   - confirmed signup
   - shift update / reconfirmation required
   - shift cancellation
+  - pantry subscriber notified when a pantry creates a new one-off shift or recurring series
 - Notification times are localized with Python `zoneinfo` from the saved `users.timezone` value, with `America/New_York` as the fallback.
 
 ## Resend domain note
@@ -59,6 +60,7 @@ Defined in `backend/db/migrations/001_initial.sql`:
 - `user_roles`
 - `pantries`
 - `pantry_leads`
+- `pantry_subscriptions`
 - `shift_series`
 - `shifts`
 - `shift_roles`
@@ -69,6 +71,7 @@ Important constraints:
 - `users.email` is unique.
 - `users.auth_uid` is unique when present and is used to link Firebase users to local accounts.
 - `user_roles` and `pantry_leads` use composite primary keys.
+- `pantry_subscriptions` uses composite primary key `(pantry_id, user_id)` so each volunteer can subscribe to a pantry only once.
 - `shift_signups` has unique `(shift_role_id, user_id)` to prevent duplicate signups.
 - `shift_signups` stores `reservation_expires_at` for 48-hour reconfirmation reservation windows.
 - `shift_signups` has index `idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at)` for reservation-aware capacity checks.
@@ -77,6 +80,7 @@ Important constraints:
 - `shifts.series_position` preserves the occurrence order inside the current recurring slice.
 - Foreign keys enforce cascade cleanup for dependent records.
 - `shifts.created_by` is nullable and uses `ON DELETE SET NULL`, so deleting a user does not block on shifts they created.
+- `pantry_subscriptions` cascades on both pantry and user deletion.
 
 Current user/account fields:
 - `users` stores `full_name`, `email`, `phone_number`, `timezone`, `auth_provider`, `auth_uid`, `attendance_score`, `created_at`, and `updated_at`.
@@ -104,6 +108,10 @@ Recurring-series note:
 - Recurring creation and future-scope recurring edits/cancels are orchestrated in `backend/app.py` and still operate on concrete shift rows.
 - The current backend contract persists recurring metadata through `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`.
 - Manager-facing payloads expose `is_recurring`, `shift_series_id`, `series_position`, and `recurrence` metadata for edit flows.
+
+Pantry-subscription note:
+- The volunteer pantry directory is backed by user-specific pantry payloads that include `is_subscribed`, `upcoming_shift_count`, and `preview_shifts`.
+- New-shift subscriber emails are triggered only on shift creation routes. One-off create sends one email per subscriber; recurring create sends one summary email per subscriber for the full series.
 
 ## File roles
 - `backend/backends/base.py`: storage interface.
