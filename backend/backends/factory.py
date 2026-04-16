@@ -18,7 +18,7 @@ def create_backend() -> StoreBackend:
         backend = MySQLBackend()
         should_seed = os.getenv("SEED_MYSQL_FROM_JSON_ON_EMPTY", "true").strip().lower() == "true"
         if should_seed and backend.is_empty():
-            data_path = Path(__file__).resolve().parents[1] / "data" / "db.json"
+            data_path = Path(__file__).resolve().parents[1] / "data" / "mysql.json"
             if data_path.exists():
                 seed_mysql_from_json(data_path=data_path, truncate=False)
         return backend

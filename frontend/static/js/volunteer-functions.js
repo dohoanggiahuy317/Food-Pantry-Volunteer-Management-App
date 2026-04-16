@@ -1,6 +1,42 @@
 // Volunteer Functions - Shift Signups and Viewing
 
 /**
+ * Get volunteer pantry directory with subscription state and preview shifts.
+ */
+async function getVolunteerPantries() {
+    try {
+        return await apiGet('/api/volunteer/pantries');
+    } catch (error) {
+        console.error('Failed to get volunteer pantries:', error);
+        throw error;
+    }
+}
+
+/**
+ * Subscribe the current volunteer to a pantry.
+ */
+async function subscribeToPantry(pantryId) {
+    try {
+        return await apiPost(`/api/pantries/${pantryId}/subscribe`, {});
+    } catch (error) {
+        console.error('Failed to subscribe to pantry:', error);
+        throw error;
+    }
+}
+
+/**
+ * Unsubscribe the current volunteer from a pantry.
+ */
+async function unsubscribeFromPantry(pantryId) {
+    try {
+        return await apiDelete(`/api/pantries/${pantryId}/subscribe`);
+    } catch (error) {
+        console.error('Failed to unsubscribe from pantry:', error);
+        throw error;
+    }
+}
+
+/**
  * Get all signups for a specific shift role
  */
 async function getSignupsForRole(shiftRoleId) {
@@ -50,7 +86,7 @@ async function signupForShift(shiftRoleId, userId = null) {
     try {
         const payload = userId ? { user_id: userId } : {};
         const data = await apiPost(`/api/shift-roles/${shiftRoleId}/signup`, payload);
-        return data.signup;
+        return data;
     } catch (error) {
         console.error('Failed to signup for shift:', error);
         throw error;
@@ -153,22 +189,14 @@ function getCapacityColor(status) {
  * Format shift time range for display
  */
 function formatShiftTime(shift) {
-    const start = new Date(shift.start_time);
-    const end = new Date(shift.end_time);
-    
-    const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
-    const startTime = start.toLocaleTimeString('en-US', timeOptions);
-    const endTime = end.toLocaleTimeString('en-US', timeOptions);
-    
-    return `${startTime} - ${endTime}`;
+    return formatLocalTimeRange(shift.start_time, shift.end_time, { includeDate: false });
 }
 
 /**
  * Format shift date for display
  */
 function formatShiftDate(shift) {
-    const start = new Date(shift.start_time);
-    return start.toLocaleDateString('en-US', {
+    return formatLocalDate(shift.start_time, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',

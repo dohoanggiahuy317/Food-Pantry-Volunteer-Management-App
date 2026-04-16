@@ -41,29 +41,42 @@ cp backend/env.example backend/.env
 Your `backend/.env` should look like this:
 
 ```env
-DATA_BACKEND=mysql
+AUTH_PROVIDER=firebase
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+FIREBASE_APP_ID=
+FIREBASE_ADMIN_CREDENTIALS=backend/firebase_private_key.json
 
+FLASK_SECRET_KEY=huybeo
+
+DATA_BACKEND=mysql
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
 MYSQL_DATABASE=volunteer_managing
 MYSQL_USER=volunteer_user
 MYSQL_PASSWORD=volunteer_pass
-
 MYSQL_POOL_SIZE=5
 MYSQL_CONNECT_TIMEOUT=10
-
 SEED_MYSQL_FROM_JSON_ON_EMPTY=true
+
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=noreply@updates.example.com
 ```
 
 **Variable reference:**
 
-| Variable | Purpose |
-|---|---|
-| `DATA_BACKEND` | Set to `mysql` for the real DB, or `memory` for an in-memory backend (no Docker needed — useful for quick testing) |
-| `MYSQL_HOST` / `MYSQL_PORT` | Where Flask looks for MySQL. Docker maps the container to `localhost:3306` |
-| `MYSQL_DATABASE` | The database name created by Docker on first start |
-| `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml` |
-| `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/db.json` if the tables are empty |
+| Variable                        | Purpose                                                                                        |
+| :------------------------------ | :--------------------------------------------------------------------------------------------- |
+| `AUTH_PROVIDER`                 | `memory` for sample login/logout, or `firebase` for Google sign-in with Firebase               |
+| `DATA_BACKEND`                  | Set to `mysql` for the real DB, or `memory` for an in-memory backend                           |
+| `FLASK_SECRET_KEY`              | Secret used to sign Flask session cookies                                                      |
+| `MYSQL_HOST` / `MYSQL_PORT`     | Where Flask looks for MySQL. Docker maps the container to `localhost:3306`                     |
+| `MYSQL_DATABASE`                | The database name created by Docker on first start                                             |
+| `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml`                                                    |
+| `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/mysql.json` if the tables are empty |
+| `RESEND_API_KEY`                | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
+| `RESEND_FROM_EMAIL`             | Verified sender address used for outgoing email (for example `noreply@updates.example.com`)    |
 
 ---
 
@@ -104,13 +117,13 @@ pip install -r requirements.txt
 python app.py
 ```
 
-> **First startup note:** Flask will automatically initialize the database schema (create all tables) and seed sample data from `backend/data/db.json` if the database is empty. You should see this happen in the terminal output. No manual SQL migrations are required.
+> **First startup note:** Flask will automatically initialize the database schema (create all tables from `backend/db/migrations/001_initial.sql`) and seed sample data from `backend/data/mysql.json` if the database is empty.  
+> For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly. The current baseline includes `users.timezone` for localized emails, `pantry_subscriptions` for volunteer pantry notifications, and recurring-shift support through `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`.
+> The current MySQL seed includes a larger future shift dataset so the calendar and signup flows have much denser mock data out of the box.
 
 ---
 
 ## Step 4: Accessing the App & Mock Authentication
-
-> **Note:** Real authentication has not yet been implemented. Steps 1–3 above are fully functional. This section describes the temporary dev-mode workaround in use until Firebase Auth is integrated (see [Upcoming: Firebase Authentication](#upcoming-firebase-authentication) below).
 
 **Open the app in your browser:**
 
@@ -120,27 +133,63 @@ http://localhost:5000
 
 Flask serves the full application — both the frontend (HTML/CSS/JS) and the API — from this single address. There is no separate frontend server to run.
 
-**How mock authentication works:**
+**How authentication works now:**
 
-The app defaults to acting as **user ID 4 (Admin)**. To switch users, append a `?user_id=` query parameter to any URL:
-
-| URL | Who you are acting as |
-|---|---|
-| `http://localhost:5000` | Default: Admin (user_id = 4) |
-| `http://localhost:5000/?user_id=1` | Acts as user with ID 1 |
-| `http://localhost:5000/?user_id=2` | Acts as user with ID 2 |
-
-To find available user IDs and their roles, query the API directly:
-
-```
-http://localhost:5000/api/users
-```
+- If `AUTH_PROVIDER=memory`, the first screen shows sample demo accounts for login/logout testing.
+- If `AUTH_PROVIDER=firebase`, the first screen shows Google login/signup and the app requires the Firebase variables described below.
 
 ---
 
-## Upcoming: Firebase Authentication
+## Step 5: Optional Resend Email Setup
 
-> **Status: Not yet active.** This section documents the planned Firebase Auth integration. Until it is complete, follow Step 4 above for dev access.
+Volunteer notification emails are sent through `backend/notifications/notifications.py` for confirmed signups, shift updates that require reconfirmation, shift cancellations, and pantry subscriber notifications when a pantry posts a new shift or recurring series.
+
+Timezone behavior in the current app:
+
+- API timestamps remain stored and transported as UTC ISO strings.
+- The browser detects a user's timezone with `Intl.DateTimeFormat().resolvedOptions().timeZone`.
+- After login, the frontend syncs that timezone to the user profile through `PATCH /api/me` if it is missing or changed.
+- Google signup includes the browser timezone in the initial signup request.
+- Notification emails render shift times in the saved user timezone, with `America/New_York` as the fallback when none is stored or the value is invalid.
+
+**1. Make sure you control a sending domain**
+
+- Resend requires a domain you own and recommends using a subdomain such as `updates.yourdomain.com`.
+- If your team does not already own a domain, register one first with your preferred registrar.
+
+**2. Add the domain in Resend**
+
+- Create or log in to your Resend account.
+- Add the domain or subdomain you want to send from.
+- Official doc: [Managing Domains](https://resend.com/docs/dashboard/domains/introduction)
+
+**3. Verify DNS records with your DNS provider**
+
+- Copy the SPF and DKIM records shown by Resend into your DNS provider.
+- Resend’s domain docs describe the verification flow and the official DNS provider guides show the exact steps for providers such as Cloudflare, GoDaddy, Namecheap, Route 53, and others.
+- After adding the records, trigger verification in Resend and wait until the domain status is `verified`.
+- Official DNS guide index: [Resend DNS Guides](https://resend.com/docs/knowledge-base/introduction)
+
+**4. Create a sending API key**
+
+- In the Resend dashboard, create an API key with `Sending access` or `Full access`.
+- Paste that value into `RESEND_API_KEY` in `backend/.env`.
+- Official doc: [Resend API Keys](https://resend.com/docs/dashboard/api-keys/introduction)
+
+**5. Configure the sender address**
+
+- Set `RESEND_FROM_EMAIL` to a verified sender on your Resend domain, for example `noreply@updates.example.com`.
+- Restart Flask after changing env values.
+
+**Behavior in this repo**
+
+- If `RESEND_API_KEY` or `RESEND_FROM_EMAIL` is missing, the notification helper returns a structured failure result and `app.py` logs a warning instead of crashing the signup or shift-management flow.
+- If Resend is configured correctly, volunteers receive emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
+- Those emails use the saved `users.timezone` value when formatting the shift time window.
+
+---
+
+## Firebase Authentication
 
 When Firebase Auth is integrated, the following will be required:
 
@@ -169,7 +218,16 @@ FIREBASE_ADMIN_CREDENTIALS=path/to/serviceAccountKey.json
 ```
 
 **4. Add all Firebase variables to `backend/.env`**
-- The above variables will be added to `env.example` once the integration is merged.
+- Set `AUTH_PROVIDER=firebase` and add:
+
+```env
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+FIREBASE_APP_ID=
+FIREBASE_ADMIN_CREDENTIALS=path/to/serviceAccountKey.json
+```
+
 - Do **not** commit `serviceAccountKey.json` to version control — it is a secret.
 
-Once these steps are complete, the mock `?user_id=` system will be removed and the app will require a real login.
+Once these steps are complete, the app will use the pre-dashboard auth gate instead of the old mock `?user_id=` flow.

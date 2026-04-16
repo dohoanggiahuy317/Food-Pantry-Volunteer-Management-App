@@ -1,22 +1,47 @@
 // API Helper Functions
-// Preserves query parameters (especially ?user_id=X) across all API calls
 
 /**
- * Core API call function that preserves query parameters
+ * Core API call function
  */
 async function apiCall(path, options = {}) {
-    // Preserve query parameters from current URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const separator = path.includes('?') ? '&' : '?';
-    const fullPath = path + separator + urlParams.toString();
-    
-    const response = await fetch(fullPath, options);
-    
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`API Error: ${response.status} - ${errorText}`);
+    const headers = new Headers(options.headers || {});
+    if (typeof getBrowserTimeZone === 'function') {
+        const browserTimeZone = getBrowserTimeZone();
+        if (browserTimeZone && !headers.has('X-Client-Timezone')) {
+            headers.set('X-Client-Timezone', browserTimeZone);
+        }
     }
-    
+
+    const requestOptions = { ...options };
+    delete requestOptions.headers;
+
+    const response = await fetch(path, {
+        credentials: 'same-origin',
+        ...requestOptions,
+        headers
+    });
+
+    if (!response.ok) {
+        let errorBody = null;
+        try {
+            errorBody = await response.json();
+        } catch (_error) {
+            errorBody = await response.text();
+        }
+
+        const errorMessage = typeof errorBody === 'string'
+            ? errorBody
+            : errorBody?.error || errorBody?.message || 'Unknown error';
+        const error = new Error(errorMessage);
+        error.status = response.status;
+        error.body = errorBody;
+        throw error;
+    }
+
+    if (response.status === 204) {
+        return null;
+    }
+
     return response.json();
 }
 
@@ -44,6 +69,17 @@ async function apiPost(path, data) {
 async function apiPatch(path, data) {
     return apiCall(path, {
         method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+}
+
+/**
+ * PUT request
+ */
+async function apiPut(path, data) {
+    return apiCall(path, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
     });

@@ -10,53 +10,241 @@
 </head>
 
 <body>
-    <!-- Header -->
-    <div class="header">
-        <div class="header-content">
-            <div class="header-left">
-                <h1>🗂️ Volunteer Management System</h1>
+    <div id="auth-shell" class="auth-shell app-hidden">
+        <div class="auth-card">
+            <div class="auth-hero">
+                <span class="auth-kicker">Volunteer Managing</span>
+                <h1>Volunteer Management System</h1>
+                <p>Authenticate before entering the app. Volunteer self-signup uses Google, and demo mode exposes sample accounts only.</p>
+                <span class="auth-mode-badge" id="auth-mode-badge">Loading auth mode...</span>
             </div>
-            <div class="header-right">
-                <div class="user-info">
-                    <div class="user-email" id="user-email">Loading...</div>
-                    <div class="user-role" id="user-role"></div>
+
+            <div id="auth-message" class="message"></div>
+
+            <div id="auth-loading" class="loading">
+                <div class="spinner"></div>
+                <p>Checking authentication...</p>
+            </div>
+
+            <div id="auth-provider-memory" class="auth-provider-panel app-hidden">
+                <div class="card auth-card-section">
+                    <div class="card-header">
+                        <h2 class="card-title">Sample Accounts</h2>
+                    </div>
+                    <p class="auth-section-copy">Use one of the in-memory demo accounts to test login and logout without Firebase.</p>
+                    <div id="memory-login-list" class="auth-account-list"></div>
+                </div>
+            </div>
+
+            <div id="auth-provider-firebase" class="auth-provider-panel app-hidden">
+                <div class="card auth-card-section">
+                    <div class="card-header">
+                        <h2 class="card-title">Continue With Google</h2>
+                    </div>
+                    <p class="auth-section-copy">Existing users can log in immediately. New volunteers sign in with Google first, then complete name and phone number.</p>
+                    <div class="auth-action-row">
+                        <button type="button" class="btn btn-primary" id="google-login-btn">Log In With Google</button>
+                        <button type="button" class="btn btn-secondary" id="google-signup-btn">Sign Up With Google</button>
+                    </div>
+
+                    <form id="google-signup-form" class="auth-signup-form app-hidden">
+                        <div class="auth-signup-header">
+                            <h3>Finish Your Volunteer Signup</h3>
+                            <p>Google account: <strong id="signup-email-preview"></strong></p>
+                        </div>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="signup-full-name">Full Name *</label>
+                                <input type="text" id="signup-full-name" autocomplete="name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="signup-phone-number">Phone Number *</label>
+                                <input type="tel" id="signup-phone-number" autocomplete="tel" required>
+                            </div>
+                        </div>
+                        <div class="auth-action-row">
+                            <button type="submit" class="btn btn-primary">Complete Signup</button>
+                            <button type="button" class="btn btn-secondary" id="cancel-signup-btn">Cancel</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Navigation Tabs -->
-    <div class="nav-tabs">
-        <div class="nav-tabs-container">
-            <button class="nav-tab" data-tab="calendar">📅 Calendar</button>
-            <button class="nav-tab hidden" data-tab="my-shifts" id="tab-my-shifts">🧾 My Shifts</button>
-            <button class="nav-tab hidden" data-tab="shifts" id="tab-shifts">🔧 Manage Shifts</button>
-            <button class="nav-tab hidden" data-tab="admin" id="tab-admin">👥 Admin Panel</button>
+    <div id="app-shell" class="app-hidden">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1>🗂️ Volunteer Management System</h1>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <div class="user-email" id="user-email">Loading...</div>
+                        <div class="user-role" id="user-role"></div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" id="logout-btn">Log Out</button>
+                </div>
+            </div>
         </div>
-    </div>
 
-    <!-- Pantry Selector (hidden by default, shown for Manage Shifts/Admin) -->
-    <div class="pantry-selector" id="pantry-selector" style="display: none;">
-        <div class="pantry-selector-container">
-            <label for="pantry-select">Select Pantry:</label>
-            <select id="pantry-select">
-                <option value="">Loading pantries...</option>
-            </select>
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <div class="nav-tabs-container">
+                <button class="nav-tab" data-tab="calendar">📅 Calendar</button>
+                <button class="nav-tab hidden" data-tab="pantries" id="tab-pantries">🏠 Pantries</button>
+                <button class="nav-tab hidden" data-tab="my-shifts" id="tab-my-shifts">🧾 My Shifts</button>
+                <button class="nav-tab hidden" data-tab="shifts" id="tab-shifts">🔧 Manage Shifts</button>
+                <button class="nav-tab hidden" data-tab="admin" id="tab-admin">👥 Admin Panel</button>
+                <button class="nav-tab" data-tab="my-account" id="tab-my-account">👤 My Account</button>
+            </div>
         </div>
-    </div>
 
-    <!-- Main Content -->
-    <div class="main-content">
+        <!-- Pantry Selector (hidden by default, shown for Manage Shifts/Admin) -->
+        <div class="pantry-selector app-hidden" id="pantry-selector">
+            <div class="pantry-selector-container">
+                <label for="pantry-select">Select Pantry:</label>
+                <select id="pantry-select">
+                    <option value="">Loading pantries...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
         <!-- Calendar Tab (All Users) -->
         <div class="tab-content active" id="content-calendar">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Available Shifts</h2>
+            <div class="card calendar-shell-card">
+                <div class="card-header calendar-shell-top">
+                    <div>
+                        <h2 class="card-title">Available Shifts Calendar</h2>
+                        <p class="calendar-shell-copy">Browse open volunteer shifts across all pantries with calendar views and quick filters.</p>
+                    </div>
                 </div>
                 <div id="message-calendar" class="message"></div>
-                <div id="shifts-container" class="loading">
-                    <div class="spinner"></div>
-                    <p>Loading shifts...</p>
+                <div class="calendar-app" id="calendar-app">
+                    <div id="calendar-sidebar-backdrop" class="calendar-sidebar-backdrop app-hidden"></div>
+                    <aside class="calendar-sidebar" id="calendar-sidebar">
+                        <div class="calendar-sidebar-header">
+                            <div>
+                                <h3 class="calendar-sidebar-title">Schedule</h3>
+                                <p class="calendar-sidebar-copy">Pick a date, week, and filters.</p>
+                            </div>
+                            <button type="button" class="calendar-sidebar-close" id="calendar-sidebar-close" aria-label="Close calendar filters">&times;</button>
+                        </div>
+
+                        <div class="calendar-mini-picker">
+                            <div class="calendar-mini-toolbar">
+                                <button type="button" class="calendar-nav-button" id="calendar-mini-prev" aria-label="Previous mini month">‹</button>
+                                <div id="calendar-mini-label" class="calendar-mini-label"></div>
+                                <button type="button" class="calendar-nav-button" id="calendar-mini-next" aria-label="Next mini month">›</button>
+                            </div>
+                            <div class="calendar-mini-weekdays" id="calendar-mini-weekdays"></div>
+                            <div class="calendar-mini-grid" id="calendar-mini-grid"></div>
+                        </div>
+
+                        <div class="calendar-filter-panel">
+                            <div class="calendar-filter-group">
+                                <label for="calendar-search-input">Search</label>
+                                <input type="search" id="calendar-search-input" placeholder="Search shifts, pantry, roles">
+                            </div>
+                            <div class="calendar-filter-group">
+                                <label for="calendar-pantry-filter">Pantry</label>
+                                <select id="calendar-pantry-filter">
+                                    <option value="all">All pantries</option>
+                                </select>
+                            </div>
+                            <div class="calendar-filter-group">
+                                <label for="calendar-time-filter">Time Bucket</label>
+                                <select id="calendar-time-filter">
+                                    <option value="all">All day</option>
+                                    <option value="morning">Morning</option>
+                                    <option value="afternoon">Afternoon</option>
+                                    <option value="evening">Evening</option>
+                                </select>
+                            </div>
+                            <div class="calendar-filter-actions">
+                                <button type="button" class="btn btn-secondary btn-sm" id="calendar-clear-filters-btn">Clear Filters</button>
+                            </div>
+                        </div>
+
+                        <div class="calendar-legend-panel">
+                            <h4 class="calendar-legend-title">Pantry Colors</h4>
+                            <div id="calendar-pantry-legend" class="calendar-pantry-legend"></div>
+                        </div>
+                    </aside>
+
+                    <div class="calendar-main">
+                        <div class="calendar-toolbar">
+                            <div class="calendar-toolbar-left">
+                                <button type="button" class="btn btn-secondary btn-sm calendar-sidebar-toggle" id="calendar-sidebar-toggle">Filters</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="calendar-today-btn">Today</button>
+                                <div class="calendar-nav-group">
+                                    <button type="button" class="calendar-nav-button" id="calendar-prev-btn" aria-label="Previous range">‹</button>
+                                    <button type="button" class="calendar-nav-button" id="calendar-next-btn" aria-label="Next range">›</button>
+                                </div>
+                                <div id="calendar-range-label" class="calendar-range-label">Loading…</div>
+                            </div>
+                            <div class="calendar-view-switch" role="tablist" aria-label="Calendar view switch">
+                                <button type="button" class="calendar-view-button active" data-calendar-view="month">Month</button>
+                                <button type="button" class="calendar-view-button" data-calendar-view="week">Week</button>
+                                <button type="button" class="calendar-view-button" data-calendar-view="day">Day</button>
+                            </div>
+                        </div>
+
+                        <div id="calendar-active-filter-summary" class="calendar-active-filter-summary"></div>
+
+                        <div id="shifts-container" class="calendar-view-container loading">
+                            <div class="spinner"></div>
+                            <p>Loading shifts...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="content-pantries">
+            <div class="card volunteer-pantries-shell">
+                <div class="card-header volunteer-pantries-header">
+                    <div>
+                        <h2 class="card-title">Pantry Directory</h2>
+                        <p class="calendar-shell-copy">Browse pantry details, preview upcoming shifts, and subscribe for new shift emails.</p>
+                    </div>
+                </div>
+                <div id="message-pantries" class="message"></div>
+                <div class="volunteer-pantries-toolbar">
+                    <div class="volunteer-pantries-search-group">
+                        <label for="volunteer-pantry-search">Search</label>
+                        <input type="search" id="volunteer-pantry-search" placeholder="Search pantry name or address">
+                    </div>
+                    <div class="volunteer-pantries-sort-group">
+                        <label for="volunteer-pantry-sort">Sort</label>
+                        <select id="volunteer-pantry-sort">
+                            <option value="name-asc">Name A-Z</option>
+                            <option value="name-desc">Name Z-A</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="volunteer-pantries-filter-row" role="tablist" aria-label="Pantry subscription filter">
+                    <button type="button" class="volunteer-pantries-filter active" data-pantry-subscription-filter="all">All</button>
+                    <button type="button" class="volunteer-pantries-filter" data-pantry-subscription-filter="subscribed">Subscribed</button>
+                    <button type="button" class="volunteer-pantries-filter" data-pantry-subscription-filter="unsubscribed">Unsubscribed</button>
+                </div>
+                <div class="volunteer-pantries-layout">
+                    <div class="volunteer-pantries-list-column">
+                        <div id="volunteer-pantries-summary" class="volunteer-pantries-summary"></div>
+                        <div class="volunteer-pantries-list-shell">
+                            <div id="volunteer-pantries-list" class="volunteer-pantries-list">
+                                <p class="empty-state">Loading pantries...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="volunteer-pantries-detail-column">
+                        <div id="volunteer-pantry-detail" class="volunteer-pantry-detail-card">
+                            <p class="auth-empty">Select a pantry to see its details and upcoming shifts.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -72,6 +260,73 @@
                     <div class="spinner"></div>
                     <p>Loading your registered shifts...</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- My Account Tab (All Users) -->
+        <div class="tab-content" id="content-my-account">
+            <div id="message-my-account" class="message"></div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Account Summary</h2>
+                </div>
+                <div id="my-account-summary" class="account-summary-grid">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading account details...</p>
+                    </div>
+                </div>
+                <div id="my-account-timezone-note" class="account-note"></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Basic Information</h2>
+                </div>
+                <form id="my-account-profile-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="account-full-name">Full Name *</label>
+                            <input type="text" id="account-full-name" autocomplete="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="account-phone-number">Phone Number</label>
+                            <input type="tel" id="account-phone-number" autocomplete="tel">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Basic Information</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Email Address</h2>
+                </div>
+                <div id="my-account-email-note" class="account-note"></div>
+                <form id="my-account-email-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="account-current-email">Current Email</label>
+                            <input type="email" id="account-current-email" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="account-new-email">New Email</label>
+                            <input type="email" id="account-new-email" autocomplete="email">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary" id="account-email-submit-btn">Start Email Change</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Delete Account</h2>
+                </div>
+                <div class="account-note delete-account-note">
+                    Deleting your account removes your local app user, signs you out, and in Firebase mode also deletes the linked Firebase account after a fresh Google reauthentication.
+                </div>
+                <button type="button" class="btn btn-danger" id="delete-account-btn">Delete My Account</button>
             </div>
         </div>
 
@@ -105,10 +360,73 @@
                                 <input type="datetime-local" id="shift-end" name="end_time" required>
                             </div>
                         </div>
+                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC. Multi-day shifts are allowed and appear on the calendar starting on their first day.</div>
 
-                        <div class="card" style="background: #f7fafc; margin-bottom: 1rem;">
-                            <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
-                                <h3 style="font-size: 1rem; color: #4a5568;">Roles/Positions for this Shift</h3>
+                        <div class="card section-muted-card recurrence-card">
+                            <div class="card-header section-muted-header recurrence-card-header">
+                                <div>
+                                    <div class="recurrence-title-row">
+                                        <h3 class="section-muted-title">Repeat</h3>
+                                        <span class="recurrence-meta-badge">Optional</span>
+                                    </div>
+                                    <p class="shift-view-copy recurrence-copy">Create a weekly pattern for this shift.</p>
+                                </div>
+                                <label class="recurrence-toggle">
+                                    <input type="checkbox" id="shift-repeat-toggle">
+                                    <span>Recurring shift</span>
+                                </label>
+                            </div>
+                            <div id="shift-recurrence-fields" class="recurrence-fields app-hidden">
+                                <div class="form-grid recurrence-grid">
+                                    <div class="form-group">
+                                        <label for="shift-repeat-interval">Repeat every</label>
+                                        <div class="recurrence-inline-input">
+                                            <input type="number" id="shift-repeat-interval" min="1" value="1">
+                                            <span>week(s)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Repeat on</label>
+                                    <div class="recurrence-weekday-group" id="shift-repeat-weekdays">
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="MO">Mon</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TU">Tue</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="WE">Wed</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TH">Thu</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="FR">Fri</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SA">Sat</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SU">Sun</button>
+                                    </div>
+                                    <p class="recurrence-helper">Selected days reuse the same shift time window.</p>
+                                </div>
+                                <div class="form-grid recurrence-grid">
+                                    <div class="form-group">
+                                        <label>Ends</label>
+                                        <div class="recurrence-end-options" id="shift-repeat-end-options">
+                                            <label class="recurrence-end-option">
+                                                <input type="radio" name="shift-repeat-end-mode" value="COUNT" checked>
+                                                <span>After</span>
+                                            </label>
+                                            <div class="recurrence-inline-input">
+                                                <input type="number" id="shift-repeat-count" min="1" value="4">
+                                                <span>occurrence(s)</span>
+                                            </div>
+                                            <div class="recurrence-end-date-group">
+                                                <label class="recurrence-end-option recurrence-end-option-date">
+                                                    <input type="radio" name="shift-repeat-end-mode" value="UNTIL">
+                                                    <span>On date</span>
+                                                </label>
+                                                <input type="date" id="shift-repeat-until" disabled>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card section-muted-card">
+                            <div class="card-header section-muted-header">
+                                <h3 class="section-muted-title">Roles/Positions for this Shift</h3>
                                 <button type="button" class="btn btn-secondary" id="add-role-btn">+ Add Role</button>
                             </div>
                             <div id="roles-container">
@@ -133,7 +451,7 @@
             </div>
 
             <div class="manage-shifts-subcontent" id="manage-shifts-subcontent-view">
-                <div class="card" id="edit-shift-card" style="display: none;">
+                <div class="card app-hidden" id="edit-shift-card">
                     <div class="card-header">
                         <h2 class="card-title">Edit Shift</h2>
                         <button type="button" class="btn btn-secondary" id="cancel-edit-shift-btn">Cancel Edit</button>
@@ -154,10 +472,71 @@
                                 <input type="datetime-local" id="edit-shift-end" name="end_time" required>
                             </div>
                         </div>
+                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC. Multi-day shifts are allowed and appear on the calendar starting on their first day.</div>
 
-                        <div class="card" style="background: #f7fafc; margin-bottom: 1rem;">
-                            <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
-                                <h3 style="font-size: 1rem; color: #4a5568;">Roles/Positions for this Shift</h3>
+                        <div id="edit-shift-recurrence-card" class="card section-muted-card recurrence-card app-hidden">
+                            <div class="card-header section-muted-header recurrence-card-header">
+                                <div>
+                                    <div class="recurrence-title-row">
+                                        <h3 class="section-muted-title">Recurring Series</h3>
+                                        <span class="recurrence-meta-badge">Series</span>
+                                    </div>
+                                    <p id="edit-shift-recurrence-summary" class="shift-view-copy recurrence-copy"></p>
+                                </div>
+                                <span class="status-badge recurrence-badge">Recurring</span>
+                            </div>
+                            <div class="account-note recurrence-note">Pattern changes apply only if you choose <b>This and following events</b> when saving.</div>
+                            <div id="edit-shift-recurrence-fields" class="recurrence-fields">
+                                <div class="form-grid recurrence-grid">
+                                    <div class="form-group">
+                                        <label for="edit-shift-repeat-interval">Repeat every</label>
+                                        <div class="recurrence-inline-input">
+                                            <input type="number" id="edit-shift-repeat-interval" min="1" value="1">
+                                            <span>week(s)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Repeat on</label>
+                                    <div class="recurrence-weekday-group" id="edit-shift-repeat-weekdays">
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="MO">Mon</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TU">Tue</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="WE">Wed</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TH">Thu</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="FR">Fri</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SA">Sat</button>
+                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SU">Sun</button>
+                                    </div>
+                                    <p class="recurrence-helper">Selected days reuse the same shift time window.</p>
+                                </div>
+                                <div class="form-grid recurrence-grid">
+                                    <div class="form-group">
+                                        <label>Ends</label>
+                                        <div class="recurrence-end-options">
+                                            <label class="recurrence-end-option">
+                                                <input type="radio" name="edit-shift-repeat-end-mode" value="COUNT" checked>
+                                                <span>After</span>
+                                            </label>
+                                            <div class="recurrence-inline-input">
+                                                <input type="number" id="edit-shift-repeat-count" min="1" value="1">
+                                                <span>occurrence(s)</span>
+                                            </div>
+                                            <div class="recurrence-end-date-group">
+                                                <label class="recurrence-end-option recurrence-end-option-date">
+                                                    <input type="radio" name="edit-shift-repeat-end-mode" value="UNTIL">
+                                                    <span>On date</span>
+                                                </label>
+                                                <input type="date" id="edit-shift-repeat-until" disabled>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card section-muted-card">
+                            <div class="card-header section-muted-header">
+                                <h3 class="section-muted-title">Roles/Positions for this Shift</h3>
                                 <button type="button" class="btn btn-secondary" id="add-edit-role-btn">+ Add Role</button>
                             </div>
                             <div id="edit-roles-container"></div>
@@ -167,97 +546,46 @@
                     </form>
                 </div>
 
-                <div class="shift-view-sections">
-                    <div class="card shift-view-section">
-                        <div class="card-header">
-                            <h2 class="card-title">Incoming Shifts</h2>
-                        </div>
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Shift Name</th>
-                                        <th>Date & Time</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shifts-incoming-table-body">
-                                    <tr>
-                                        <td colspan="4" style="text-align: center; color: #718096;">No incoming shifts.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                <div class="card shift-view-filter-card">
+                    <div class="card-header shift-view-header">
+                        <div>
+                            <h2 class="card-title">Shifts View</h2>
+                            <p class="shift-view-copy">Search by shift name and filter the pantry schedule by status.</p>
                         </div>
                     </div>
 
-                    <div class="card shift-view-section">
-                        <div class="card-header">
-                            <h2 class="card-title">Ongoing Shifts</h2>
+                    <div class="shift-view-toolbar">
+                        <div class="shift-view-search-group">
+                            <label for="manage-shifts-search-input">Search Shift Name</label>
+                            <input type="search" id="manage-shifts-search-input" placeholder="Search shifts by name">
                         </div>
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Shift Name</th>
-                                        <th>Date & Time</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shifts-ongoing-table-body">
-                                    <tr>
-                                        <td colspan="4" style="text-align: center; color: #718096;">No ongoing shifts.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+
+                        <div class="shift-view-filter-group" role="tablist" aria-label="Shift status filter">
+                            <button type="button" class="shift-status-filter active" data-shift-status-filter="incoming">Incoming</button>
+                            <button type="button" class="shift-status-filter" data-shift-status-filter="ongoing">Ongoing</button>
+                            <button type="button" class="shift-status-filter" data-shift-status-filter="past">Past</button>
+                            <button type="button" class="shift-status-filter" data-shift-status-filter="cancelled">Canceled</button>
                         </div>
                     </div>
 
-                    <div class="card shift-view-section">
-                        <div class="card-header">
-                            <h2 class="card-title">Past Shifts</h2>
-                        </div>
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Shift Name</th>
-                                        <th>Date & Time</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shifts-past-table-body">
-                                    <tr>
-                                        <td colspan="4" style="text-align: center; color: #718096;">No past shifts.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    <div id="manage-shifts-filter-summary" class="shift-view-summary">Showing incoming shifts.</div>
 
-                    <div class="card shift-view-section">
-                        <div class="card-header">
-                            <h2 class="card-title">Canceled Shifts</h2>
-                        </div>
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Shift Name</th>
-                                        <th>Date & Time</th>
-                                        <th>Roles</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="shifts-cancelled-table-body">
-                                    <tr>
-                                        <td colspan="4" style="text-align: center; color: #718096;">No canceled shifts.</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="table-container">
+                        <table class="responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>Shift Name</th>
+                                    <th>Date & Time</th>
+                                    <th>Roles</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="shifts-filtered-table-body">
+                                <tr>
+                                    <td colspan="4" class="table-empty-cell">No incoming shifts.</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -265,87 +593,214 @@
 
         <!-- Admin Panel Tab (Admin Only) -->
         <div class="tab-content" id="content-admin">
-            <!-- Create Pantry -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Create Pantry</h2>
+            <div class="admin-subtabs" id="admin-subtabs">
+                <button class="admin-subtab active" type="button" data-admin-subtab="pantries">Pantries</button>
+                <button class="admin-subtab" type="button" data-admin-subtab="users">Users</button>
+            </div>
+
+            <div class="admin-subcontent active" id="admin-subcontent-pantries">
+                <!-- Create Pantry -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Create Pantry</h2>
+                    </div>
+                    <div id="message-pantry" class="message"></div>
+                    <form id="create-pantry-form">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="pantry-name">Pantry Name *</label>
+                                <input type="text" id="pantry-name" name="name" placeholder="e.g., Downtown Food Pantry"
+                                    required>
+                            </div>
+                            <div class="form-group">
+                                <label for="pantry-address">Location Address *</label>
+                                <input type="text" id="pantry-address" name="location_address"
+                                    placeholder="123 Main St, City" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">+ Create Pantry</button>
+                    </form>
                 </div>
-                <div id="message-pantry" class="message"></div>
-                <form id="create-pantry-form">
+
+                <!-- Assign Pantry Leads -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Assign Pantry Leads</h2>
+                    </div>
+                    <div id="message-assign" class="message"></div>
                     <div class="form-grid">
                         <div class="form-group">
-                            <label for="pantry-name">Pantry Name *</label>
-                            <input type="text" id="pantry-name" name="name" placeholder="e.g., Downtown Food Pantry"
-                                required>
+                            <label for="assign-pantry-search">Search Pantry *</label>
+                            <div class="pantry-search-shell">
+                                <input type="search" id="assign-pantry-search" placeholder="Search by pantry name or address" autocomplete="off">
+                                <input type="hidden" id="assign-pantry">
+                                <div id="assign-pantry-selected" class="pantry-search-selected app-hidden"></div>
+                                <div id="assign-pantry-results" class="pantry-search-results app-hidden"></div>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label for="pantry-address">Location Address *</label>
-                            <input type="text" id="pantry-address" name="location_address"
-                                placeholder="123 Main St, City" required>
+                            <label for="assign-lead-search">Search Pantry Lead *</label>
+                            <div class="lead-search-shell">
+                                <input type="search" id="assign-lead-search" placeholder="Search by full name or email" autocomplete="off">
+                                <input type="hidden" id="assign-lead">
+                                <div id="assign-lead-selected" class="lead-search-selected app-hidden"></div>
+                                <div id="assign-lead-results" class="lead-search-results app-hidden"></div>
+                            </div>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">+ Create Pantry</button>
-                </form>
-            </div>
-
-            <!-- Assign Pantry Leads -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Assign Pantry Leads</h2>
-                </div>
-                <div id="message-assign" class="message"></div>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label for="assign-pantry">Select Pantry *</label>
-                        <select id="assign-pantry">
-                            <option value="">-- Select Pantry --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="assign-lead">Select Pantry Lead *</label>
-                        <select id="assign-lead">
-                            <option value="">-- Select Lead --</option>
-                        </select>
+                    <div class="form-action-row">
+                        <button class="btn btn-success" id="assign-lead-btn">✓ Assign Lead</button>
+                        <button class="btn btn-danger" id="remove-lead-btn">✗ Remove Lead</button>
                     </div>
                 </div>
-                <div style="display: flex; gap: 1rem;">
-                    <button class="btn btn-success" id="assign-lead-btn">✓ Assign Lead</button>
-                    <button class="btn btn-danger" id="remove-lead-btn">✗ Remove Lead</button>
+
+                <!-- Pantries and Leads Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Pantries & Their Leads</h2>
+                    </div>
+                    <div class="table-container">
+                        <table class="responsive-table">
+                            <thead>
+                                <tr>
+                                    <th>Pantry Name</th>
+                                    <th>Location</th>
+                                    <th>Assigned Leads</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pantries-table-body">
+                                <tr>
+                                    <td colspan="4" class="table-empty-cell">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
-            <!-- Pantries and Leads Table -->
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Pantries & Their Leads</h2>
+            <div class="admin-subcontent" id="admin-subcontent-users">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Search And Monitor Users</h2>
+                    </div>
+                    <div id="message-admin-users" class="message"></div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="admin-user-search">Search Users</label>
+                            <input type="text" id="admin-user-search" placeholder="Search by full name or email">
+                        </div>
+                        <div class="form-group">
+                            <label for="admin-user-role-filter">Filter By Role</label>
+                            <select id="admin-user-role-filter">
+                                <option value="">All roles</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary" id="admin-user-search-btn">Search Users</button>
                 </div>
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Pantry Name</th>
-                                <th>Location</th>
-                                <th>Assigned Leads</th>
-                            </tr>
-                        </thead>
-                        <tbody id="pantries-table-body">
-                            <tr>
-                                <td colspan="3" style="text-align: center; color: #718096;">Loading...</td>
-                            </tr>
-                        </tbody>
-                    </table>
+
+                <div class="admin-users-layout">
+                    <div class="card admin-users-list-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Users</h2>
+                        </div>
+                        <div class="table-container admin-users-table-container">
+                            <table class="responsive-table">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Contact</th>
+                                        <th>Access</th>
+                                        <th>Score</th>
+                                        <th>Open</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-users-table-body">
+                                    <tr>
+                                        <td colspan="5" class="table-empty-cell">Loading users...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card admin-user-profile-card">
+                        <div class="card-header">
+                            <h2 class="card-title">User Profile</h2>
+                        </div>
+                        <div id="admin-user-profile-panel">
+                            <p class="auth-empty">Select a user to view the full profile and manage roles.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Edit Pantry Modal -->
+        <div id="edit-pantry-modal" class="modal-overlay app-hidden">
+            <div class="modal-panel modal-panel-sm">
+                <h2 class="modal-title">Edit Pantry</h2>
+                <div id="message-edit-pantry" class="message"></div>
+                <input type="hidden" id="edit-pantry-id">
+                <div class="form-group modal-form-group">
+                    <label for="edit-pantry-name">Pantry Name *</label>
+                    <input type="text" id="edit-pantry-name" class="form-control" placeholder="Pantry name" required>
+                </div>
+                <div class="form-group modal-form-group modal-form-group-spacious">
+                    <label for="edit-pantry-address">Location Address *</label>
+                    <input type="text" id="edit-pantry-address" class="form-control" placeholder="123 Main St, City" required>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-primary" id="save-edit-pantry-btn">Save</button>
+                    <button class="btn btn-secondary" id="cancel-edit-pantry-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="calendar-shift-modal" class="modal-overlay app-hidden">
+            <div class="modal-panel modal-panel-calendar">
+                <button type="button" id="calendar-shift-modal-close" class="modal-close-button" aria-label="Close shift details">&times;</button>
+                <div id="calendar-shift-modal-body"></div>
+            </div>
+        </div>
+
+        <div id="recurring-scope-modal" class="modal-overlay app-hidden">
+            <div class="modal-panel modal-panel-sm">
+                <button type="button" id="recurring-scope-modal-close" class="modal-close-button" aria-label="Close recurring scope chooser">&times;</button>
+                <h2 id="recurring-scope-modal-title" class="modal-title">Choose scope</h2>
+                <p id="recurring-scope-modal-copy" class="recurring-scope-copy">Apply this change to just one event or the rest of the recurring series.</p>
+                <div class="recurring-scope-actions">
+                    <button type="button" class="btn btn-primary" data-recurring-scope-choice="single">This event only</button>
+                    <button type="button" class="btn btn-secondary" data-recurring-scope-choice="future">This and following events</button>
+                    <button type="button" class="btn btn-danger" data-recurring-scope-choice="cancel">Cancel</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Global Notification Modal -->
+    <div id="notification-modal" class="modal-overlay modal-overlay-notification app-hidden">
+        <div id="notification-modal-box" class="modal-panel modal-panel-notification">
+            <button id="notification-modal-close-btn" class="modal-close-button">&times;</button>
+            <div id="notification-modal-icon" class="notification-modal-icon"></div>
+            <p id="notification-modal-text" class="notification-modal-text"></p>
+        </div>
+    </div>
+
     <!-- Include JavaScript Modules -->
     <script src="{{ url_for('static', filename='js/api-helpers.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/timezone-helpers.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user-functions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/admin-functions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/lead-functions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/volunteer-functions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/calendar-functions.js') }}"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
 </body>
 
 </html>

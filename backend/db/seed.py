@@ -14,6 +14,8 @@ TABLES_INSERT_ORDER = [
     "user_roles",
     "pantries",
     "pantry_leads",
+    "pantry_subscriptions",
+    "shift_series",
     "shifts",
     "shift_roles",
     "shift_signups",
@@ -23,6 +25,8 @@ TABLES_TRUNCATE_ORDER = [
     "shift_signups",
     "shift_roles",
     "shifts",
+    "shift_series",
+    "pantry_subscriptions",
     "pantry_leads",
     "pantries",
     "user_roles",
@@ -90,18 +94,22 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     user_id,
                     full_name,
                     email,
-                    password_hash,
-                    is_active,
+                    phone_number,
+                    timezone,
+                    auth_provider,
+                    auth_uid,
                     attendance_score,
                     created_at,
                     updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     full_name = VALUES(full_name),
                     email = VALUES(email),
-                    password_hash = VALUES(password_hash),
-                    is_active = VALUES(is_active),
+                    phone_number = VALUES(phone_number),
+                    timezone = VALUES(timezone),
+                    auth_provider = VALUES(auth_provider),
+                    auth_uid = VALUES(auth_uid),
                     attendance_score = VALUES(attendance_score),
                     updated_at = VALUES(updated_at)
                 """,
@@ -109,8 +117,10 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     user["user_id"],
                     user["full_name"],
                     user["email"],
-                    user["password_hash"],
-                    1 if user.get("is_active", True) else 0,
+                    user.get("phone_number"),
+                    user.get("timezone"),
+                    user.get("auth_provider"),
+                    user.get("auth_uid"),
                     int(user.get("attendance_score", 100)),
                     parse_iso_to_dt(user.get("created_at")),
                     parse_iso_to_dt(user.get("updated_at") or user.get("created_at")),
@@ -156,12 +166,74 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                 (pantry_lead["pantry_id"], pantry_lead["user_id"]),
             )
 
+        for subscription in payload.get("pantry_subscriptions", []):
+            cursor.execute(
+                """
+                INSERT INTO pantry_subscriptions (pantry_id, user_id, created_at)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE created_at = VALUES(created_at)
+                """,
+                (
+                    subscription["pantry_id"],
+                    subscription["user_id"],
+                    parse_iso_to_dt(subscription.get("created_at")),
+                ),
+            )
+
+        for shift_series in payload.get("shift_series", []):
+            cursor.execute(
+                """
+                INSERT INTO shift_series (
+                    shift_series_id,
+                    pantry_id,
+                    created_by,
+                    timezone,
+                    frequency,
+                    interval_weeks,
+                    weekdays_csv,
+                    end_mode,
+                    occurrence_count,
+                    until_date,
+                    created_at,
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    pantry_id = VALUES(pantry_id),
+                    created_by = VALUES(created_by),
+                    timezone = VALUES(timezone),
+                    frequency = VALUES(frequency),
+                    interval_weeks = VALUES(interval_weeks),
+                    weekdays_csv = VALUES(weekdays_csv),
+                    end_mode = VALUES(end_mode),
+                    occurrence_count = VALUES(occurrence_count),
+                    until_date = VALUES(until_date),
+                    updated_at = VALUES(updated_at)
+                """,
+                (
+                    shift_series["shift_series_id"],
+                    shift_series["pantry_id"],
+                    shift_series.get("created_by"),
+                    shift_series["timezone"],
+                    shift_series.get("frequency", "WEEKLY"),
+                    int(shift_series.get("interval_weeks", 1)),
+                    shift_series["weekdays_csv"],
+                    shift_series["end_mode"],
+                    shift_series.get("occurrence_count"),
+                    shift_series.get("until_date"),
+                    parse_iso_to_dt(shift_series.get("created_at")),
+                    parse_iso_to_dt(shift_series.get("updated_at") or shift_series.get("created_at")),
+                ),
+            )
+
         for shift in payload.get("shifts", []):
             cursor.execute(
                 """
                 INSERT INTO shifts (
                     shift_id,
                     pantry_id,
+                    shift_series_id,
+                    series_position,
                     shift_name,
                     start_time,
                     end_time,
@@ -170,9 +242,11 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     created_at,
                     updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     pantry_id = VALUES(pantry_id),
+                    shift_series_id = VALUES(shift_series_id),
+                    series_position = VALUES(series_position),
                     shift_name = VALUES(shift_name),
                     start_time = VALUES(start_time),
                     end_time = VALUES(end_time),
@@ -183,6 +257,8 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                 (
                     shift["shift_id"],
                     shift["pantry_id"],
+                    shift.get("shift_series_id"),
+                    shift.get("series_position"),
                     shift["shift_name"],
                     parse_iso_to_dt(shift["start_time"]),
                     parse_iso_to_dt(shift["end_time"]),
@@ -230,13 +306,15 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     shift_role_id,
                     user_id,
                     signup_status,
+                    reservation_expires_at,
                     created_at
                 )
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE
                     shift_role_id = VALUES(shift_role_id),
                     user_id = VALUES(user_id),
                     signup_status = VALUES(signup_status),
+                    reservation_expires_at = VALUES(reservation_expires_at),
                     created_at = VALUES(created_at)
                 """,
                 (
@@ -244,6 +322,7 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                     signup["shift_role_id"],
                     signup["user_id"],
                     signup.get("signup_status", "CONFIRMED"),
+                    parse_iso_to_dt(signup.get("reservation_expires_at")) if signup.get("reservation_expires_at") else None,
                     parse_iso_to_dt(signup.get("created_at")),
                 ),
             )
