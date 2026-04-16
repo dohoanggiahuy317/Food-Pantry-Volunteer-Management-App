@@ -99,6 +99,26 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_pantry_subscriptions_for_user(self, user_id: int) -> list[int]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_user_subscribed_to_pantry(self, pantry_id: int, user_id: int) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def subscribe_user_to_pantry(self, pantry_id: int, user_id: int) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def unsubscribe_user_from_pantry(self, pantry_id: int, user_id: int) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_pantry_subscribers(self, pantry_id: int) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_shifts_by_pantry(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
         raise NotImplementedError
 

@@ -553,6 +553,65 @@ class MySQLBackend(StoreBackend):
             )
             conn.commit()
 
+    def list_pantry_subscriptions_for_user(self, user_id: int) -> list[int]:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT pantry_id
+                FROM pantry_subscriptions
+                WHERE user_id = %s
+                ORDER BY pantry_id
+                """,
+                (user_id,),
+            )
+            return [int(row["pantry_id"]) for row in cursor.fetchall()]
+
+    def is_user_subscribed_to_pantry(self, pantry_id: int, user_id: int) -> bool:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM pantry_subscriptions WHERE pantry_id = %s AND user_id = %s",
+                (pantry_id, user_id),
+            )
+            return cursor.fetchone() is not None
+
+    def subscribe_user_to_pantry(self, pantry_id: int, user_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT IGNORE INTO pantry_subscriptions (pantry_id, user_id, created_at)
+                VALUES (%s, %s, %s)
+                """,
+                (pantry_id, user_id, _now_utc_naive()),
+            )
+            conn.commit()
+
+    def unsubscribe_user_from_pantry(self, pantry_id: int, user_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM pantry_subscriptions WHERE pantry_id = %s AND user_id = %s",
+                (pantry_id, user_id),
+            )
+            conn.commit()
+
+    def list_pantry_subscribers(self, pantry_id: int) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT u.*
+                FROM pantry_subscriptions ps
+                JOIN users u ON u.user_id = ps.user_id
+                WHERE ps.pantry_id = %s
+                ORDER BY ps.created_at, u.user_id
+                """,
+                (pantry_id,),
+            )
+            return [_serialize_user(row) for row in cursor.fetchall()]
+
     def list_shifts_by_pantry(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)

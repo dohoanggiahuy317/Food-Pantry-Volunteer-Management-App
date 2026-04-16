@@ -51,6 +51,20 @@ CREATE TABLE IF NOT EXISTS pantry_leads (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS pantry_subscriptions (
+  pantry_id INT NOT NULL,
+  user_id INT NOT NULL,
+  created_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (pantry_id, user_id),
+  INDEX idx_pantry_subscriptions_user_id (user_id),
+  CONSTRAINT fk_pantry_subscriptions_pantry
+    FOREIGN KEY (pantry_id) REFERENCES pantries(pantry_id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_pantry_subscriptions_user
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS shift_series (
   shift_series_id INT AUTO_INCREMENT PRIMARY KEY,
   pantry_id INT NOT NULL,

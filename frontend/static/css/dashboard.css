@@ -2488,6 +2488,370 @@ table tr:hover {
     color: #64748b;
 }
 
+.volunteer-pantries-shell {
+    padding: 1.35rem;
+}
+
+.volunteer-pantries-header {
+    margin-bottom: 0.6rem;
+}
+
+.volunteer-pantries-toolbar {
+    display: flex;
+    gap: 1rem;
+    align-items: end;
+    flex-wrap: wrap;
+    margin-bottom: 0.85rem;
+}
+
+.volunteer-pantries-search-group,
+.volunteer-pantries-sort-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.volunteer-pantries-search-group {
+    flex: 1 1 320px;
+}
+
+.volunteer-pantries-sort-group {
+    flex: 0 0 180px;
+}
+
+.volunteer-pantries-search-group label,
+.volunteer-pantries-sort-group label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 0.5rem;
+}
+
+.volunteer-pantries-search-group input,
+.volunteer-pantries-sort-group select {
+    width: 100%;
+    padding: 0.8rem 0.9rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    background: #fff;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.volunteer-pantries-search-group input:focus,
+.volunteer-pantries-sort-group select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.12);
+}
+
+.volunteer-pantries-filter-row {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.volunteer-pantries-filter {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 999px;
+    padding: 0.55rem 0.9rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.volunteer-pantries-filter.active {
+    background: #edf2ff;
+    border-color: #667eea;
+    color: #3c56c7;
+}
+
+.volunteer-pantries-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1.05fr);
+    gap: 1rem;
+    align-items: start;
+    min-height: 0;
+}
+
+.volunteer-pantries-summary {
+    margin-bottom: 0.7rem;
+    color: #64748b;
+    font-size: 0.9rem;
+}
+
+.volunteer-pantries-list-column {
+    min-height: 0;
+}
+
+.volunteer-pantries-list-shell {
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+    padding: 0.8rem;
+}
+
+.volunteer-pantries-list {
+    display: grid;
+    gap: 0.8rem;
+    max-height: min(68vh, 760px);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+    scrollbar-width: thin;
+    padding-top: 5px;
+}
+
+.volunteer-pantries-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.volunteer-pantries-list::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 999px;
+}
+
+.volunteer-pantries-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.volunteer-pantry-list-entry {
+    display: grid;
+    gap: 0.65rem;
+    width: 100%;
+    min-width: 0;
+    border-radius: 22px;
+    transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.volunteer-pantry-list-entry.is-selected {
+    padding: 0.45rem;
+    border: 1px solid #c7d2fe;
+    background: linear-gradient(180deg, #f5f7ff 0%, #eef3ff 100%);
+    box-shadow: 0 14px 30px rgba(99, 102, 241, 0.12);
+}
+
+.volunteer-pantry-list-card,
+.volunteer-pantry-detail-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.volunteer-pantry-list-card {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    padding: 1rem 1.05rem;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.volunteer-pantry-list-card:hover,
+.volunteer-pantry-list-card.is-selected {
+    border-color: #667eea;
+    transform: translateY(-1px);
+    box-shadow: 0 16px 32px rgba(102, 126, 234, 0.12);
+}
+
+.volunteer-pantry-list-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.volunteer-pantry-list-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.volunteer-pantry-list-address,
+.volunteer-pantry-list-meta,
+.volunteer-pantry-preview-item-meta,
+.volunteer-pantry-preview-empty {
+    color: #64748b;
+}
+
+.volunteer-pantry-list-address {
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.volunteer-pantry-list-meta {
+    margin-top: 0.55rem;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.84rem;
+}
+
+.volunteer-pantry-list-hint {
+    margin-top: 0.65rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.volunteer-pantry-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0.28rem 0.7rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.volunteer-pantry-pill.is-subscribed {
+    background: #edfdf4;
+    border-color: #86efac;
+    color: #166534;
+}
+
+.volunteer-pantry-detail-card {
+    padding: 1.2rem;
+    position: sticky;
+    top: 1rem;
+    max-height: min(68vh, 760px);
+    overflow-y: auto;
+}
+
+.volunteer-pantry-detail-card-inline {
+    position: static;
+    top: auto;
+    width: 100%;
+    max-height: none;
+    margin-top: -0.05rem;
+    border-color: #c7d2fe;
+    background: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+    animation: volunteerPantryInlineSlide 0.24s ease-out;
+}
+
+.volunteer-pantry-detail-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: start;
+    margin-bottom: 1rem;
+}
+
+.volunteer-pantry-detail-title {
+    color: #111827;
+}
+
+.volunteer-pantry-detail-address {
+    margin-top: 0.3rem;
+    color: #64748b;
+}
+
+.volunteer-pantry-detail-section + .volunteer-pantry-detail-section {
+    margin-top: 1rem;
+}
+
+.volunteer-pantry-detail-section h3 {
+    color: #1f2937;
+    margin-bottom: 0.55rem;
+    font-size: 0.95rem;
+}
+
+.volunteer-pantry-leads {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.volunteer-pantry-lead-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #4338ca;
+    padding: 0.32rem 0.78rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.volunteer-pantry-preview-list {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.volunteer-pantry-preview-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 0.9rem;
+    background: #f8fafc;
+}
+
+.volunteer-pantry-preview-item-title {
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.volunteer-pantry-preview-item-time {
+    margin-top: 0.25rem;
+    color: #4338ca;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.volunteer-pantry-preview-item-meta {
+    margin-top: 0.28rem;
+    font-size: 0.84rem;
+}
+
+.volunteer-pantry-preview-more {
+    margin-top: 0.65rem;
+    color: #5b6b8c;
+    font-size: 0.83rem;
+    font-weight: 600;
+}
+
+@keyframes volunteerPantryInlineSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 1023px) {
+    .volunteer-pantries-layout {
+        display: block;
+    }
+
+    .volunteer-pantries-detail-column {
+        display: none;
+    }
+
+    .volunteer-pantries-list-shell {
+        padding: 0.7rem;
+    }
+
+    .volunteer-pantries-list {
+        max-height: none;
+        overflow-y: visible;
+        padding-right: 0;
+    }
+
+    .volunteer-pantry-detail-card {
+        position: static;
+    }
+}
+
 .role-input-group {
     margin-top: 1rem;
 }
@@ -3080,14 +3444,28 @@ table tr:hover {
     }
 
     .shift-view-toolbar,
-    .shift-view-filter-group {
+    .shift-view-filter-group,
+    .volunteer-pantries-toolbar {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .shift-view-search-group {
+    .shift-view-search-group,
+    .volunteer-pantries-search-group,
+    .volunteer-pantries-sort-group {
         flex: 1 1 auto;
         width: 100%;
+    }
+
+    .volunteer-pantry-list-head,
+    .volunteer-pantry-detail-head {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .volunteer-pantry-detail-head .btn {
+        width: 100%;
+        justify-content: center;
     }
 
     .recurrence-card-header {
