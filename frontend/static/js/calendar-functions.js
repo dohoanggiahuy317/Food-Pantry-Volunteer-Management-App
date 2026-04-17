@@ -10,433 +10,813 @@ const CALENDAR_COLOR_PALETTE = [
     { solid: '#ca8a04', soft: '#fef9c3', text: '#a16207' },
     { solid: '#4f46e5', soft: '#e0e7ff', text: '#4338ca' }
 ];
-
-const calendarState = {
-    initialized: false,
-    view: isPhoneViewport() ? 'week' : 'month',
-    hasUserChangedView: false,
-    selectedDate: startOfCalendarDay(new Date()),
-    miniDate: startOfCalendarMonth(new Date()),
-    shifts: [],
-    filteredShifts: [],
-    filters: {
-        pantryId: 'all',
-        search: '',
-        timeBucket: 'all'
-    },
-    activeShiftId: null,
-    loadingKey: '',
-    lastRangeKey: '',
-    lastViewportIsPhone: isPhoneViewport()
+const CALENDAR_NEUTRAL_PALETTE = {
+    solid: '#94a3b8',
+    soft: '#f1f5f9',
+    text: '#475569'
 };
 
+const calendarControllers = new Map();
+let calendarResizeHandlerBound = false;
+
+function createDefaultCalendarState() {
+    return {
+        initialized: false,
+        view: isPhoneViewport() ? 'week' : 'month',
+        hasUserChangedView: false,
+        selectedDate: startOfCalendarDay(new Date()),
+        miniDate: startOfCalendarMonth(new Date()),
+        sourceItems: [],
+        events: [],
+        filteredEvents: [],
+        filters: {
+            pantryId: 'all',
+            search: '',
+            timeBucket: 'all'
+        },
+        activeEventId: null,
+        loadingKey: '',
+        lastRangeKey: '',
+        lastViewportIsPhone: isPhoneViewport(),
+        hasLoaded: false
+    };
+}
+
 function initializeCalendarUi() {
-    if (calendarState.initialized) {
-        syncCalendarPantryOptions();
-        renderCalendarMiniPicker();
-        return;
-    }
-
-    calendarState.initialized = true;
-    renderCalendarMiniWeekdays();
-    bindCalendarUiEvents();
-    syncCalendarPantryOptions();
-    renderCalendarMiniPicker();
-    updateCalendarToolbarState();
-    updateCalendarFilterSummary();
-    window.addEventListener('resize', handleCalendarViewportResize);
+    ensureCalendarControllersRegistered();
+    calendarControllers.forEach((controller) => controller.initialize());
 }
 
-function bindCalendarUiEvents() {
-    document.getElementById('calendar-sidebar-toggle')?.addEventListener('click', openCalendarSidebar);
-    document.getElementById('calendar-sidebar-close')?.addEventListener('click', closeCalendarSidebar);
-    document.getElementById('calendar-sidebar-backdrop')?.addEventListener('click', closeCalendarSidebar);
-    document.getElementById('calendar-today-btn')?.addEventListener('click', async () => {
-        calendarState.selectedDate = startOfCalendarDay(new Date());
-        calendarState.miniDate = startOfCalendarMonth(calendarState.selectedDate);
-        await loadCalendarShifts(true);
-    });
-    document.getElementById('calendar-prev-btn')?.addEventListener('click', async () => {
-        shiftCalendarAnchor(-1);
-        await loadCalendarShifts(true);
-    });
-    document.getElementById('calendar-next-btn')?.addEventListener('click', async () => {
-        shiftCalendarAnchor(1);
-        await loadCalendarShifts(true);
-    });
-    document.getElementById('calendar-mini-prev')?.addEventListener('click', () => {
-        calendarState.miniDate = startOfCalendarMonth(addMonths(calendarState.miniDate, -1));
-        renderCalendarMiniPicker();
-    });
-    document.getElementById('calendar-mini-next')?.addEventListener('click', () => {
-        calendarState.miniDate = startOfCalendarMonth(addMonths(calendarState.miniDate, 1));
-        renderCalendarMiniPicker();
-    });
-    document.querySelectorAll('[data-calendar-view]').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const nextView = String(button.dataset.calendarView || 'month');
-            if (!['month', 'week', 'day'].includes(nextView)) {
-                return;
-            }
-            calendarState.view = nextView;
-            calendarState.hasUserChangedView = true;
-            await loadCalendarShifts(true);
+function ensureCalendarControllersRegistered() {
+    registerCalendarController('available', buildAvailableCalendarConfig());
+    registerCalendarController('my-shifts', buildMyShiftsCalendarConfig());
+
+    if (!calendarResizeHandlerBound) {
+        calendarResizeHandlerBound = true;
+        window.addEventListener('resize', () => {
+            calendarControllers.forEach((controller) => controller.handleViewportResize());
         });
-    });
-    document.getElementById('calendar-search-input')?.addEventListener('input', () => {
-        calendarState.filters.search = document.getElementById('calendar-search-input')?.value.trim() || '';
-        renderCalendar();
-    });
-    document.getElementById('calendar-pantry-filter')?.addEventListener('change', () => {
-        calendarState.filters.pantryId = document.getElementById('calendar-pantry-filter')?.value || 'all';
-        renderCalendar();
-    });
-    document.getElementById('calendar-time-filter')?.addEventListener('change', () => {
-        calendarState.filters.timeBucket = document.getElementById('calendar-time-filter')?.value || 'all';
-        renderCalendar();
-    });
-    document.getElementById('calendar-clear-filters-btn')?.addEventListener('click', () => {
-        calendarState.filters = { pantryId: 'all', search: '', timeBucket: 'all' };
-        const searchInput = document.getElementById('calendar-search-input');
-        const pantrySelect = document.getElementById('calendar-pantry-filter');
-        const timeSelect = document.getElementById('calendar-time-filter');
-        if (searchInput) searchInput.value = '';
-        if (pantrySelect) pantrySelect.value = 'all';
-        if (timeSelect) timeSelect.value = 'all';
-        renderCalendar();
-    });
-    document.getElementById('shifts-container')?.addEventListener('click', async (event) => {
-        const target = event.target instanceof HTMLElement ? event.target.closest('[data-calendar-shift-id], [data-calendar-more-day]') : null;
-        if (!(target instanceof HTMLElement)) {
-            return;
-        }
-
-        if (target.dataset.calendarMoreDay) {
-            calendarState.selectedDate = parseCalendarDateKey(target.dataset.calendarMoreDay) || calendarState.selectedDate;
-            calendarState.view = 'day';
-            calendarState.hasUserChangedView = true;
-            await loadCalendarShifts(true);
-            return;
-        }
-
-        if (target.dataset.calendarShiftId) {
-            openCalendarShiftModal(parseInt(target.dataset.calendarShiftId, 10));
-        }
-    });
-    document.getElementById('calendar-shift-modal-close')?.addEventListener('click', closeCalendarShiftModal);
-    document.getElementById('calendar-shift-modal')?.addEventListener('click', (event) => {
-        if (event.target === event.currentTarget) {
-            closeCalendarShiftModal();
-        }
-    });
-    document.getElementById('calendar-shift-modal-body')?.addEventListener('click', async (event) => {
-        const target = event.target instanceof HTMLElement ? event.target.closest('[data-calendar-role-signup]') : null;
-        if (!(target instanceof HTMLElement)) {
-            return;
-        }
-        const roleId = parseInt(target.dataset.calendarRoleSignup || '0', 10);
-        if (!roleId) {
-            return;
-        }
-        target.setAttribute('disabled', 'disabled');
-        const signedUp = await signupForRole(roleId);
-        target.removeAttribute('disabled');
-        if (signedUp) {
-            closeCalendarShiftModal();
-        }
-    });
+    }
 }
 
-function handleCalendarViewportResize() {
-    const nextIsPhone = isPhoneViewport();
-    if (nextIsPhone !== calendarState.lastViewportIsPhone && !calendarState.hasUserChangedView) {
-        calendarState.view = nextIsPhone ? 'week' : 'month';
+function registerCalendarController(key, config) {
+    const root = document.querySelector(`[data-calendar-root="${key}"]`);
+    if (!root) {
+        return null;
     }
-    calendarState.lastViewportIsPhone = nextIsPhone;
-    if (!nextIsPhone) {
-        closeCalendarSidebar();
+
+    const modal = document.querySelector(`[data-calendar-modal="${key}"]`);
+    const existing = calendarControllers.get(key);
+    if (existing) {
+        existing.root = root;
+        existing.modal = modal;
+        existing.config = config;
+        return existing;
     }
-    renderCalendar();
+
+    const controller = createCalendarController(key, root, modal, config);
+    calendarControllers.set(key, controller);
+    return controller;
 }
 
-function openCalendarSidebar() {
-    document.getElementById('calendar-sidebar')?.classList.add('open');
-    document.getElementById('calendar-sidebar-backdrop')?.classList.remove('app-hidden');
+function getCalendarController(key) {
+    ensureCalendarControllersRegistered();
+    return calendarControllers.get(key) || null;
 }
 
-function closeCalendarSidebar() {
-    document.getElementById('calendar-sidebar')?.classList.remove('open');
-    document.getElementById('calendar-sidebar-backdrop')?.classList.add('app-hidden');
-}
+function createCalendarController(key, root, modal, config) {
+    const controller = {
+        key,
+        root,
+        modal,
+        config,
+        state: createDefaultCalendarState(),
 
-function syncCalendarPantryOptions() {
-    const select = document.getElementById('calendar-pantry-filter');
-    if (!select) {
-        return;
-    }
-
-    const previousValue = calendarState.filters.pantryId || 'all';
-    const options = [
-        '<option value="all">All pantries</option>',
-        ...getCalendarPantryList().map((pantry) => `<option value="${pantry.pantry_id}">${escapeHtml(pantry.name || `Pantry ${pantry.pantry_id}`)}</option>`)
-    ];
-    select.innerHTML = options.join('');
-
-    const hasPreviousValue = previousValue === 'all' || getCalendarPantryList().some((pantry) => String(pantry.pantry_id) === String(previousValue));
-    calendarState.filters.pantryId = hasPreviousValue ? previousValue : 'all';
-    select.value = calendarState.filters.pantryId;
-    renderCalendarLegend();
-}
-
-function renderCalendarMiniWeekdays() {
-    const container = document.getElementById('calendar-mini-weekdays');
-    if (!container) {
-        return;
-    }
-    container.innerHTML = CALENDAR_WEEKDAY_LABELS.map((label) => `<span>${label.slice(0, 2)}</span>`).join('');
-}
-
-function renderCalendarMiniPicker() {
-    const label = document.getElementById('calendar-mini-label');
-    const grid = document.getElementById('calendar-mini-grid');
-    if (!label || !grid) {
-        return;
-    }
-
-    label.textContent = formatCalendarDateLabel(calendarState.miniDate, { month: 'long', year: 'numeric' });
-    const monthStart = startOfCalendarMonth(calendarState.miniDate);
-    const visibleStart = startOfCalendarWeek(monthStart);
-    const cells = [];
-    for (let index = 0; index < 42; index += 1) {
-        const cellDate = addDays(visibleStart, index);
-        const isCurrentMonth = cellDate.getMonth() === monthStart.getMonth();
-        const isToday = isSameCalendarDay(cellDate, new Date());
-        const isSelected = isSameCalendarDay(cellDate, calendarState.selectedDate);
-        cells.push(`
-            <button
-                type="button"
-                class="calendar-mini-day${isCurrentMonth ? '' : ' is-outside'}${isToday ? ' is-today' : ''}${isSelected ? ' is-selected' : ''}"
-                data-calendar-mini-date="${getCalendarDateKey(cellDate)}"
-            >${cellDate.getDate()}</button>
-        `);
-    }
-    grid.innerHTML = cells.join('');
-    grid.querySelectorAll('[data-calendar-mini-date]').forEach((button) => {
-        button.addEventListener('click', async () => {
-            const date = parseCalendarDateKey(button.dataset.calendarMiniDate);
-            if (!date) {
+        initialize() {
+            if (this.state.initialized) {
+                this.syncPantryOptions();
+                this.renderMiniPicker();
+                this.renderActiveModal();
                 return;
             }
-            calendarState.selectedDate = date;
-            calendarState.miniDate = startOfCalendarMonth(date);
-            await loadCalendarShifts(true);
+
+            this.state.initialized = true;
+            this.renderMiniWeekdays();
+            this.bindEvents();
+            this.syncPantryOptions();
+            this.renderMiniPicker();
+            this.updateToolbarState();
+            this.updateFilterSummary();
+            this.renderActiveModal();
+        },
+
+        bindEvents() {
+            this.part('sidebar-toggle')?.addEventListener('click', () => this.openSidebar());
+            this.part('sidebar-close')?.addEventListener('click', () => this.closeSidebar());
+            this.part('sidebar-backdrop')?.addEventListener('click', () => this.closeSidebar());
+
+            this.part('today-btn')?.addEventListener('click', async () => {
+                this.state.selectedDate = startOfCalendarDay(new Date());
+                this.state.miniDate = startOfCalendarMonth(this.state.selectedDate);
+                await this.load(true);
+            });
+
+            this.part('prev-btn')?.addEventListener('click', async () => {
+                shiftCalendarAnchorForController(this, -1);
+                await this.load(true);
+            });
+
+            this.part('next-btn')?.addEventListener('click', async () => {
+                shiftCalendarAnchorForController(this, 1);
+                await this.load(true);
+            });
+
+            this.part('mini-prev')?.addEventListener('click', () => {
+                this.state.miniDate = startOfCalendarMonth(addMonths(this.state.miniDate, -1));
+                this.renderMiniPicker();
+            });
+
+            this.part('mini-next')?.addEventListener('click', () => {
+                this.state.miniDate = startOfCalendarMonth(addMonths(this.state.miniDate, 1));
+                this.renderMiniPicker();
+            });
+
+            this.parts('view-button').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const nextView = String(button.dataset.calendarView || 'month');
+                    if (!['month', 'week', 'day'].includes(nextView)) {
+                        return;
+                    }
+                    this.state.view = nextView;
+                    this.state.hasUserChangedView = true;
+                    await this.load(true);
+                });
+            });
+
+            this.part('search-input')?.addEventListener('input', () => {
+                this.state.filters.search = this.part('search-input')?.value.trim() || '';
+                this.render();
+            });
+
+            this.part('pantry-filter')?.addEventListener('change', () => {
+                this.state.filters.pantryId = this.part('pantry-filter')?.value || 'all';
+                this.render();
+            });
+
+            this.part('time-filter')?.addEventListener('change', () => {
+                this.state.filters.timeBucket = this.part('time-filter')?.value || 'all';
+                this.render();
+            });
+
+            this.part('clear-filters')?.addEventListener('click', () => {
+                this.resetFilters();
+                this.render();
+            });
+
+            this.part('container')?.addEventListener('click', async (event) => {
+                const target = event.target instanceof HTMLElement
+                    ? event.target.closest('[data-calendar-event-id], [data-calendar-more-day]')
+                    : null;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+
+                if (target.dataset.calendarMoreDay) {
+                    this.state.selectedDate = parseCalendarDateKey(target.dataset.calendarMoreDay) || this.state.selectedDate;
+                    this.state.view = 'day';
+                    this.state.hasUserChangedView = true;
+                    await this.load(true);
+                    return;
+                }
+
+                if (target.dataset.calendarEventId) {
+                    this.openEventModal(parseInt(target.dataset.calendarEventId, 10));
+                }
+            });
+
+            this.modalPart('close')?.addEventListener('click', () => this.closeModal());
+            this.modal?.addEventListener('click', (event) => {
+                if (event.target === event.currentTarget) {
+                    this.closeModal();
+                }
+            });
+            this.modalPart('body')?.addEventListener('click', async (event) => {
+                const target = event.target instanceof HTMLElement
+                    ? event.target.closest('[data-calendar-action]')
+                    : null;
+                if (!(target instanceof HTMLElement) || typeof this.config.handleAction !== 'function') {
+                    return;
+                }
+
+                target.setAttribute('disabled', 'disabled');
+                const actionSucceeded = await this.config.handleAction(this, target);
+                target.removeAttribute('disabled');
+
+                if (actionSucceeded) {
+                    this.closeModal();
+                }
+            });
+        },
+
+        part(name) {
+            return this.root?.querySelector(`[data-calendar-part="${name}"]`) || null;
+        },
+
+        parts(name) {
+            return Array.from(this.root?.querySelectorAll(`[data-calendar-part="${name}"]`) || []);
+        },
+
+        modalPart(name) {
+            return this.modal?.querySelector(`[data-calendar-modal-part="${name}"]`) || null;
+        },
+
+        resetFilters() {
+            this.state.filters = { pantryId: 'all', search: '', timeBucket: 'all' };
+            const searchInput = this.part('search-input');
+            const pantrySelect = this.part('pantry-filter');
+            const timeSelect = this.part('time-filter');
+            if (searchInput) searchInput.value = '';
+            if (pantrySelect) pantrySelect.value = 'all';
+            if (timeSelect) timeSelect.value = 'all';
+        },
+
+        openSidebar() {
+            this.part('sidebar')?.classList.add('open');
+            this.part('sidebar-backdrop')?.classList.remove('app-hidden');
+        },
+
+        closeSidebar() {
+            this.part('sidebar')?.classList.remove('open');
+            this.part('sidebar-backdrop')?.classList.add('app-hidden');
+        },
+
+        handleViewportResize() {
+            const nextIsPhone = isPhoneViewport();
+            if (nextIsPhone !== this.state.lastViewportIsPhone && !this.state.hasUserChangedView) {
+                this.state.view = nextIsPhone ? 'week' : 'month';
+            }
+            this.state.lastViewportIsPhone = nextIsPhone;
+            if (!nextIsPhone) {
+                this.closeSidebar();
+            }
+            this.render();
+        },
+
+        syncPantryOptions() {
+            const select = this.part('pantry-filter');
+            if (!select) {
+                return;
+            }
+
+            const pantryList = this.getPantryList();
+            const previousValue = this.state.filters.pantryId || 'all';
+            const options = [
+                '<option value="all">All pantries</option>',
+                ...pantryList.map((pantry) => `<option value="${pantry.pantry_id}">${escapeHtml(pantry.name || `Pantry ${pantry.pantry_id}`)}</option>`)
+            ];
+            select.innerHTML = options.join('');
+
+            const hasPreviousValue = previousValue === 'all'
+                || pantryList.some((pantry) => String(pantry.pantry_id) === String(previousValue));
+            this.state.filters.pantryId = hasPreviousValue ? previousValue : 'all';
+            select.value = this.state.filters.pantryId;
+            this.renderLegend();
+        },
+
+        getPantryList() {
+            return typeof this.config.getPantries === 'function'
+                ? normalizeCalendarPantryList(this.config.getPantries(this))
+                : [];
+        },
+
+        renderMiniWeekdays() {
+            const container = this.part('mini-weekdays');
+            if (!container) {
+                return;
+            }
+            container.innerHTML = CALENDAR_WEEKDAY_LABELS.map((label) => `<span>${label.slice(0, 2)}</span>`).join('');
+        },
+
+        renderMiniPicker() {
+            const label = this.part('mini-label');
+            const grid = this.part('mini-grid');
+            if (!label || !grid) {
+                return;
+            }
+
+            label.textContent = formatCalendarDateLabel(this.state.miniDate, { month: 'long', year: 'numeric' });
+            const monthStart = startOfCalendarMonth(this.state.miniDate);
+            const visibleStart = startOfCalendarWeek(monthStart);
+            const cells = [];
+            for (let index = 0; index < 42; index += 1) {
+                const cellDate = addDays(visibleStart, index);
+                const isCurrentMonth = cellDate.getMonth() === monthStart.getMonth();
+                const isToday = isSameCalendarDay(cellDate, new Date());
+                const isSelected = isSameCalendarDay(cellDate, this.state.selectedDate);
+                cells.push(`
+                    <button
+                        type="button"
+                        class="calendar-mini-day${isCurrentMonth ? '' : ' is-outside'}${isToday ? ' is-today' : ''}${isSelected ? ' is-selected' : ''}"
+                        data-calendar-mini-date="${getCalendarDateKey(cellDate)}"
+                    >${cellDate.getDate()}</button>
+                `);
+            }
+            grid.innerHTML = cells.join('');
+            grid.querySelectorAll('[data-calendar-mini-date]').forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const date = parseCalendarDateKey(button.dataset.calendarMiniDate);
+                    if (!date) {
+                        return;
+                    }
+                    this.state.selectedDate = date;
+                    this.state.miniDate = startOfCalendarMonth(date);
+                    await this.load(true);
+                    if (isPhoneViewport()) {
+                        this.closeSidebar();
+                    }
+                });
+            });
+        },
+
+        renderLegend() {
+            const container = this.part('legend');
+            if (!container) {
+                return;
+            }
+
+            const pantries = this.getPantryList();
+            container.innerHTML = pantries.length > 0
+                ? pantries.map((pantry) => {
+                    const palette = getCalendarPantryPalette(pantry.pantry_id);
+                    return `
+                        <div class="calendar-legend-item">
+                            <span class="calendar-legend-swatch" style="background:${palette.solid}"></span>
+                            <span>${escapeHtml(pantry.name || `Pantry ${pantry.pantry_id}`)}</span>
+                        </div>
+                    `;
+                }).join('')
+                : '<p class="empty-state empty-state-compact">No pantries available.</p>';
+        },
+
+        showLoading(message) {
+            const container = this.part('container');
+            if (!container) {
+                return;
+            }
+            container.classList.add('loading');
+            container.innerHTML = `<div class="loading"><div class="spinner"></div><p>${escapeHtml(message)}</p></div>`;
+        },
+
+        showError(title, message) {
+            const container = this.part('container');
+            if (!container) {
+                return;
+            }
+            container.classList.remove('loading');
+            container.innerHTML = `<div class="error-state-card"><h3>${escapeHtml(title)}</h3><p><strong>${escapeHtml(message || 'Unknown error')}</strong></p></div>`;
+        },
+
+        async setSourceItems(items, forceReload = true) {
+            this.state.sourceItems = Array.isArray(items) ? items : [];
+            this.state.lastRangeKey = '';
+            await this.load(forceReload);
+        },
+
+        async load(forceReload = true) {
+            this.initialize();
+            if (!this.state.hasUserChangedView && isPhoneViewport()) {
+                this.state.view = 'week';
+            }
+
+            const visibleRange = getCalendarVisibleRangeForController(this);
+            const rangeKey = `${visibleRange.start.toISOString()}|${visibleRange.end.toISOString()}|${this.state.view}`;
+            this.state.miniDate = startOfCalendarMonth(this.state.selectedDate);
+            this.updateToolbarState();
+            this.renderMiniPicker();
+
+            if (!forceReload && this.state.lastRangeKey === rangeKey && this.state.hasLoaded) {
+                this.render();
+                return;
+            }
+
+            this.state.loadingKey = rangeKey;
+            this.state.lastRangeKey = rangeKey;
+            this.showLoading(this.config.loadingText || 'Loading shifts for this range...');
+
+            try {
+                const rawItems = await this.config.loadEvents({
+                    start: visibleRange.start,
+                    end: visibleRange.end,
+                    controller: this
+                });
+                if (this.state.loadingKey !== rangeKey) {
+                    return;
+                }
+
+                this.state.sourceItems = Array.isArray(rawItems) ? rawItems : [];
+                this.state.events = normalizeCalendarEvents(this, this.state.sourceItems);
+                this.state.hasLoaded = true;
+                this.syncPantryOptions();
+                this.render();
+            } catch (error) {
+                if (this.state.loadingKey !== rangeKey) {
+                    return;
+                }
+
+                this.showError(this.config.errorTitle || 'Failed to load calendar', error.message || 'Unknown error');
+            }
+        },
+
+        updateToolbarState() {
+            this.parts('view-button').forEach((button) => {
+                button.classList.toggle('active', button.dataset.calendarView === this.state.view);
+            });
+
+            const label = this.part('range-label');
+            if (label) {
+                label.textContent = getCalendarRangeLabel(this);
+            }
+        },
+
+        updateFilterSummary() {
+            const summary = this.part('filter-summary');
+            if (!summary) {
+                return;
+            }
+
+            const chips = [];
+            if (this.state.filters.pantryId !== 'all') {
+                chips.push(`Pantry: ${escapeHtml(getCalendarPantryNameById(this, Number(this.state.filters.pantryId)) || 'Selected pantry')}`);
+            }
+            if (this.state.filters.search) {
+                chips.push(`Search: ${escapeHtml(this.state.filters.search)}`);
+            }
+            if (this.state.filters.timeBucket !== 'all') {
+                chips.push(`Time: ${escapeHtml(capitalizeCalendarLabel(this.state.filters.timeBucket))}`);
+            }
+
+            const hintText = typeof this.config.filterHintText === 'function'
+                ? this.config.filterHintText(this)
+                : (this.config.filterHintText || 'Showing all shifts in the selected range.');
+
+            summary.innerHTML = chips.length > 0
+                ? chips.map((chip) => `<span class="calendar-filter-chip">${chip}</span>`).join('')
+                : `<span class="calendar-filter-hint">${escapeHtml(hintText)}</span>`;
+        },
+
+        render() {
+            const container = this.part('container');
+            if (!container) {
+                return;
+            }
+
+            this.updateToolbarState();
+            this.updateFilterSummary();
+            this.state.filteredEvents = filterCalendarEvents(this, this.state.events);
+            this.renderActiveModal();
+
+            container.classList.remove('loading');
             if (isPhoneViewport()) {
-                closeCalendarSidebar();
+                renderPhoneCalendarAgenda(this, container, this.state.filteredEvents);
+                return;
             }
-        });
-    });
+
+            if (this.state.view === 'week') {
+                renderDesktopWeekCalendar(this, container, this.state.filteredEvents);
+                return;
+            }
+            if (this.state.view === 'day') {
+                renderDesktopDayCalendar(this, container, this.state.filteredEvents);
+                return;
+            }
+            renderDesktopMonthCalendar(this, container, this.state.filteredEvents);
+        },
+
+        openEventModal(eventId) {
+            this.state.activeEventId = eventId;
+            this.renderActiveModal();
+            this.modal?.classList.remove('app-hidden');
+        },
+
+        closeModal() {
+            this.state.activeEventId = null;
+            this.modal?.classList.add('app-hidden');
+        },
+
+        renderActiveModal() {
+            const modalBody = this.modalPart('body');
+            if (!this.modal || !modalBody) {
+                return;
+            }
+
+            if (!this.state.activeEventId) {
+                this.modal.classList.add('app-hidden');
+                modalBody.innerHTML = '';
+                return;
+            }
+
+            const event = this.state.events.find((item) => intValue(item.id) === intValue(this.state.activeEventId));
+            if (!event) {
+                this.closeModal();
+                return;
+            }
+
+            modalBody.innerHTML = typeof this.config.renderModalBody === 'function'
+                ? this.config.renderModalBody(this, event)
+                : '';
+        }
+    };
+
+    return controller;
 }
 
-function renderCalendarLegend() {
-    const container = document.getElementById('calendar-pantry-legend');
-    if (!container) {
-        return;
-    }
-
-    const pantries = getCalendarPantryList();
-    container.innerHTML = pantries.length > 0
-        ? pantries.map((pantry) => {
-            const palette = getCalendarPantryPalette(pantry.pantry_id);
+function buildAvailableCalendarConfig() {
+    return {
+        loadingText: 'Loading shifts for this range...',
+        errorTitle: 'Failed to load calendar',
+        filterHintText: 'Showing all available shifts in the selected range.',
+        noEventsText: 'No available shifts in this range.',
+        noMatchesText: 'No available shifts match the selected range and filters.',
+        getPantries: () => getCalendarPantryList(),
+        loadEvents: async ({ start, end }) => {
+            const params = new URLSearchParams({
+                start: start.toISOString(),
+                end: end.toISOString()
+            });
+            return apiGet(`/api/calendar/shifts?${params.toString()}`);
+        },
+        normalizeEvents: normalizeAvailableCalendarEvents,
+        getDayCountText: (count) => `${count} shift${count === 1 ? '' : 's'} available`,
+        getEventMetaLines: (event, view) => {
+            if (view === 'week') {
+                return [event.pantry_name];
+            }
+            if (view === 'phone') {
+                return [renderCalendarRoleSummary(event.roles || [])];
+            }
+            if (view === 'day') {
+                return [
+                    `${event.pantry_name}${event.location ? ` • ${event.location}` : ''}`,
+                    renderCalendarRoleSummary(event.roles || [])
+                ];
+            }
+            return [];
+        },
+        renderModalBody: (_controller, event) => {
+            const palette = getCalendarEventPalette(event);
             return `
-                <div class="calendar-legend-item">
-                    <span class="calendar-legend-swatch" style="background:${palette.solid}"></span>
-                    <span>${escapeHtml(pantry.name || `Pantry ${pantry.pantry_id}`)}</span>
+                <div class="calendar-modal-header" style="border-top-color:${palette.solid}">
+                    <span class="calendar-modal-pantry-badge" style="background:${palette.soft}; color:${palette.text};">${escapeHtml(event.pantry_name)}</span>
+                    <h2 class="calendar-modal-title">${escapeHtml(event.title)}</h2>
+                    <p class="calendar-modal-time">${escapeHtml(formatLocalTimeRange(event.startDate, event.endDate))}</p>
+                    ${getCalendarSpanIndicator(event) ? `<p class="calendar-modal-span">${escapeHtml(getCalendarSpanIndicator(event))}</p>` : ''}
+                    <p class="calendar-modal-location">${escapeHtml(event.location || 'Location unavailable')}</p>
+                </div>
+                <div class="calendar-modal-section">
+                    <h3>Roles</h3>
+                    <div class="calendar-modal-role-list">
+                        ${(event.roles || []).map((role) => renderAvailableCalendarModalRole(role, event)).join('')}
+                    </div>
                 </div>
             `;
-        }).join('')
-        : '<p class="empty-state empty-state-compact">No pantries available.</p>';
+        },
+        handleAction: async (_controller, target) => {
+            if (target.dataset.calendarAction !== 'signup-role') {
+                return false;
+            }
+            const roleId = parseInt(target.dataset.roleId || '0', 10);
+            if (!roleId) {
+                return false;
+            }
+            return signupForRole(roleId);
+        }
+    };
 }
 
-async function loadCalendarShifts(forceReload = true) {
-    initializeCalendarUi();
-    if (!calendarState.hasUserChangedView && isPhoneViewport()) {
-        calendarState.view = 'week';
-    }
+function buildMyShiftsCalendarConfig() {
+    return {
+        loadingText: 'Loading your registered shifts...',
+        errorTitle: 'Failed to load registered shifts',
+        filterHintText: 'Showing all registered shifts in the selected range.',
+        noEventsText: 'You have no registered shifts yet.',
+        noMatchesText: 'No registered shifts match the selected range and filters.',
+        getPantries: (controller) => getCalendarPantriesFromEvents(controller.state.events),
+        loadEvents: async ({ controller }) => controller.state.sourceItems,
+        normalizeEvents: normalizeMyShiftCalendarEvents,
+        getDayCountText: (count) => `${count} registered shift${count === 1 ? '' : 's'}`,
+        getMonthSubtitle: (event) => event.role_title || '',
+        getEventBadgeText: (event) => getMyShiftCalendarBadgeText(event),
+        getEventMetaLines: (event, view) => {
+            const statusLine = `Signup: ${formatCalendarStatusLabel(event.signup_status)} • Shift: ${formatCalendarStatusLabel(event.shift_status)}`;
+            if (view === 'week') {
+                return [event.role_title || 'Unassigned role', statusLine];
+            }
+            if (view === 'phone') {
+                return [
+                    `Role: ${event.role_title || 'Unassigned role'}`,
+                    statusLine
+                ];
+            }
+            if (view === 'day') {
+                return [
+                    `${event.pantry_name}${event.location ? ` • ${event.location}` : ''}`,
+                    `Role: ${event.role_title || 'Unassigned role'}`,
+                    statusLine
+                ];
+            }
+            return [];
+        },
+        renderModalBody: (_controller, event) => {
+            const palette = getCalendarEventPalette(event);
+            const attendanceInfo = typeof getAttendanceInfo === 'function'
+                ? getAttendanceInfo(event.signup_status)
+                : { label: 'Pending Attendance', className: 'attendance-badge-pending', isMarked: false };
+            const showSignupBadge = !attendanceInfo.isMarked;
+            return `
+                <div class="calendar-modal-header" style="border-top-color:${palette.solid}">
+                    <span class="calendar-modal-pantry-badge" style="background:${palette.soft}; color:${palette.text};">${escapeHtml(event.pantry_name)}</span>
+                    <h2 class="calendar-modal-title">${escapeHtml(event.title)}</h2>
+                    <p class="calendar-modal-time">${escapeHtml(formatLocalTimeRange(event.startDate, event.endDate))}</p>
+                    ${getCalendarSpanIndicator(event) ? `<p class="calendar-modal-span">${escapeHtml(getCalendarSpanIndicator(event))}</p>` : ''}
+                    <p class="calendar-modal-location">${escapeHtml(event.location || 'Location unavailable')}</p>
+                    <div class="calendar-modal-status-row">
+                        <span class="status-badge attendance-badge ${attendanceInfo.className}">${escapeHtml(attendanceInfo.label)}</span>
+                        ${showSignupBadge
+                            ? `<span class="status-badge ${toStatusClass('signup-status', event.signup_status)}">${escapeHtml(formatCalendarStatusLabel(event.signup_status))}</span>`
+                            : ''}
+                        <span class="status-badge ${toStatusClass('shift-status', event.shift_status)}">${escapeHtml(formatCalendarStatusLabel(event.shift_status))}</span>
+                        ${event.isPast ? '<span class="status-badge calendar-status-badge-past">Past Shift</span>' : ''}
+                    </div>
+                </div>
+                <div class="calendar-modal-section">
+                    <h3>Registration Details</h3>
+                    <div class="calendar-modal-role-list">
+                        <div class="calendar-modal-role-item">
+                            <div class="calendar-modal-role-info">
+                                <div class="calendar-modal-role-title">${escapeHtml(event.role_title || 'Unassigned Role')}</div>
+                                <div class="calendar-modal-role-meta">${escapeHtml(event.pantry_name)}</div>
+                                ${event.reconfirm_reason ? `<div class="calendar-modal-role-meta">${escapeHtml(formatCalendarStatusLabel(event.reconfirm_reason))}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    ${renderMyShiftCalendarModalActions(event)}
+                </div>
+            `;
+        },
+        handleAction: async (_controller, target) => {
+            const action = target.dataset.calendarAction || '';
+            const signupId = parseInt(target.dataset.signupId || '0', 10);
+            if (!signupId) {
+                return false;
+            }
 
-    const container = document.getElementById('shifts-container');
-    if (!container) {
-        return;
-    }
-
-    const visibleRange = getCalendarVisibleRange();
-    const rangeKey = `${visibleRange.start.toISOString()}|${visibleRange.end.toISOString()}|${calendarState.view}`;
-    calendarState.miniDate = startOfCalendarMonth(calendarState.selectedDate);
-    updateCalendarToolbarState();
-    renderCalendarMiniPicker();
-
-    if (!forceReload && calendarState.lastRangeKey === rangeKey && Array.isArray(calendarState.shifts) && calendarState.shifts.length >= 0) {
-        renderCalendar();
-        return;
-    }
-
-    calendarState.loadingKey = rangeKey;
-    calendarState.lastRangeKey = rangeKey;
-    container.classList.add('loading');
-    container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading shifts for this range...</p></div>';
-
-    try {
-        const params = new URLSearchParams({
-            start: visibleRange.start.toISOString(),
-            end: visibleRange.end.toISOString()
-        });
-        const shifts = await apiGet(`/api/calendar/shifts?${params.toString()}`);
-        if (calendarState.loadingKey !== rangeKey) {
-            return;
+            if (action === 'cancel-signup') {
+                return cancelMySignup(signupId);
+            }
+            if (action === 'confirm-signup') {
+                return reconfirmMySignup(signupId, 'CONFIRM');
+            }
+            if (action === 'cancel-reconfirm-signup') {
+                return reconfirmMySignup(signupId, 'CANCEL');
+            }
+            return false;
         }
-        calendarState.shifts = normalizeCalendarShifts(shifts);
-        renderCalendar();
-    } catch (error) {
-        if (calendarState.loadingKey !== rangeKey) {
-            return;
-        }
-        container.classList.remove('loading');
-        container.innerHTML = `<div class="error-state-card"><h3>Failed to load calendar</h3><p><strong>${escapeHtml(error.message || 'Unknown error')}</strong></p></div>`;
-    }
+    };
 }
 
-function normalizeCalendarShifts(shifts) {
-    if (!Array.isArray(shifts)) {
+function normalizeAvailableCalendarEvents(items) {
+    if (!Array.isArray(items)) {
         return [];
     }
 
-    return shifts
+    return items
         .map((shift) => {
             const startDate = safeDateValue(shift.start_time);
             const endDate = safeDateValue(shift.end_time);
             if (!startDate || !endDate) {
                 return null;
             }
+
             const pantry = shift.pantry || {};
             const pantryId = Number(pantry.pantry_id || shift.pantry_id || 0);
-            const pantryName = pantry.name || getCalendarPantryNameById(pantryId) || 'Pantry';
-            const roleTitles = Array.isArray(shift.roles) ? shift.roles.map((role) => role.role_title || '').filter(Boolean) : [];
+            const pantryName = pantry.name || 'Pantry';
+            const location = pantry.location_address || '';
+            const roleTitles = Array.isArray(shift.roles)
+                ? shift.roles.map((role) => role.role_title || '').filter(Boolean)
+                : [];
+
             return {
                 ...shift,
+                id: intValue(shift.shift_id),
+                title: shift.shift_name || 'Untitled Shift',
                 pantry: {
                     pantry_id: pantryId,
                     name: pantryName,
-                    location_address: pantry.location_address || ''
+                    location_address: location
                 },
                 pantry_id: pantryId,
                 pantry_name: pantryName,
+                location,
                 startDate,
                 endDate,
                 searchBlob: [
                     shift.shift_name,
                     pantryName,
-                    pantry.location_address,
+                    location,
                     roleTitles.join(' ')
-                ].filter(Boolean).join(' ').toLowerCase()
+                ].filter(Boolean).join(' ').toLowerCase(),
+                isPast: false
             };
         })
         .filter(Boolean)
         .sort((left, right) => left.startDate.getTime() - right.startDate.getTime());
 }
 
-function renderCalendar() {
-    const container = document.getElementById('shifts-container');
-    if (!container) {
-        return;
+function normalizeMyShiftCalendarEvents(items) {
+    if (!Array.isArray(items)) {
+        return [];
     }
 
-    updateCalendarToolbarState();
-    updateCalendarFilterSummary();
-    calendarState.filteredShifts = filterCalendarShifts(calendarState.shifts);
-    renderActiveCalendarShiftModal();
+    return items
+        .map((signup) => {
+            const startDate = safeDateValue(signup.start_time);
+            const endDate = safeDateValue(signup.end_time);
+            if (!startDate || !endDate) {
+                return null;
+            }
 
-    container.classList.remove('loading');
-    if (isPhoneViewport()) {
-        renderPhoneCalendarAgenda(container, calendarState.filteredShifts);
-        return;
-    }
-
-    if (calendarState.view === 'week') {
-        renderDesktopWeekCalendar(container, calendarState.filteredShifts);
-        return;
-    }
-    if (calendarState.view === 'day') {
-        renderDesktopDayCalendar(container, calendarState.filteredShifts);
-        return;
-    }
-    renderDesktopMonthCalendar(container, calendarState.filteredShifts);
+            const bucket = classifyShiftBucket(signup, new Date());
+            return {
+                ...signup,
+                id: intValue(signup.signup_id),
+                title: signup.shift_name || 'Untitled Shift',
+                pantry: {
+                    pantry_id: intValue(signup.pantry_id),
+                    name: signup.pantry_name || 'Unknown Pantry',
+                    location_address: signup.pantry_location || ''
+                },
+                pantry_id: intValue(signup.pantry_id),
+                pantry_name: signup.pantry_name || 'Unknown Pantry',
+                location: signup.pantry_location || '',
+                role_title: signup.role_title || 'Unassigned',
+                startDate,
+                endDate,
+                searchBlob: [
+                    signup.shift_name,
+                    signup.pantry_name,
+                    signup.pantry_location,
+                    signup.role_title
+                ].filter(Boolean).join(' ').toLowerCase(),
+                isPast: bucket === 'past',
+                shift_id: intValue(signup.shift_id),
+                signup_id: intValue(signup.signup_id),
+                bucket
+            };
+        })
+        .filter(Boolean)
+        .sort((left, right) => left.startDate.getTime() - right.startDate.getTime());
 }
 
-function updateCalendarToolbarState() {
-    document.querySelectorAll('[data-calendar-view]').forEach((button) => {
-        button.classList.toggle('active', button.dataset.calendarView === calendarState.view);
-    });
-
-    const label = document.getElementById('calendar-range-label');
-    if (label) {
-        label.textContent = getCalendarRangeLabel();
-    }
+function normalizeCalendarEvents(controller, items) {
+    const normalize = typeof controller.config.normalizeEvents === 'function'
+        ? controller.config.normalizeEvents
+        : ((rows) => rows);
+    return normalize(items, controller);
 }
 
-function updateCalendarFilterSummary() {
-    const summary = document.getElementById('calendar-active-filter-summary');
-    if (!summary) {
-        return;
-    }
-
-    const chips = [];
-    if (calendarState.filters.pantryId !== 'all') {
-        chips.push(`Pantry: ${escapeHtml(getCalendarPantryNameById(Number(calendarState.filters.pantryId)) || 'Selected pantry')}`);
-    }
-    if (calendarState.filters.search) {
-        chips.push(`Search: ${escapeHtml(calendarState.filters.search)}`);
-    }
-    if (calendarState.filters.timeBucket !== 'all') {
-        chips.push(`Time: ${escapeHtml(capitalizeCalendarLabel(calendarState.filters.timeBucket))}`);
-    }
-
-    summary.innerHTML = chips.length > 0
-        ? chips.map((chip) => `<span class="calendar-filter-chip">${chip}</span>`).join('')
-        : '<span class="calendar-filter-hint">Showing all available shifts in the selected range.</span>';
-}
-
-function filterCalendarShifts(shifts) {
-    return shifts.filter((shift) => {
-        if (calendarState.filters.pantryId !== 'all' && String(shift.pantry_id) !== String(calendarState.filters.pantryId)) {
+function filterCalendarEvents(controller, events) {
+    return events.filter((event) => {
+        if (controller.state.filters.pantryId !== 'all' && String(event.pantry_id) !== String(controller.state.filters.pantryId)) {
             return false;
         }
-        if (calendarState.filters.search && !shift.searchBlob.includes(calendarState.filters.search.toLowerCase())) {
+        if (controller.state.filters.search && !String(event.searchBlob || '').includes(controller.state.filters.search.toLowerCase())) {
             return false;
         }
-        if (calendarState.filters.timeBucket !== 'all' && resolveCalendarTimeBucket(shift.startDate) !== calendarState.filters.timeBucket) {
+        if (controller.state.filters.timeBucket !== 'all' && resolveCalendarTimeBucket(event.startDate) !== controller.state.filters.timeBucket) {
             return false;
         }
-        return isShiftInVisibleCalendarRange(shift);
+        return isEventInVisibleCalendarRange(controller, event);
     });
 }
 
-function renderDesktopMonthCalendar(container, shifts) {
-    const monthStart = startOfCalendarMonth(calendarState.selectedDate);
+function renderDesktopMonthCalendar(controller, container, events) {
+    const monthStart = startOfCalendarMonth(controller.state.selectedDate);
     const visibleStart = startOfCalendarWeek(monthStart);
     const cells = [];
     for (let index = 0; index < 42; index += 1) {
         const cellDate = addDays(visibleStart, index);
         const dayKey = getCalendarDateKey(cellDate);
-        const dayShifts = shifts.filter((shift) => getCalendarDateKey(shift.startDate) === dayKey);
-        const visibleShifts = dayShifts.slice(0, 2);
-        const overflowCount = Math.max(0, dayShifts.length - visibleShifts.length);
+        const dayEvents = events.filter((event) => getCalendarDateKey(event.startDate) === dayKey);
+        const visibleEvents = dayEvents.slice(0, 2);
+        const overflowCount = Math.max(0, dayEvents.length - visibleEvents.length);
         const isCurrentMonth = cellDate.getMonth() === monthStart.getMonth();
         const isToday = isSameCalendarDay(cellDate, new Date());
-        const isSelected = isSameCalendarDay(cellDate, calendarState.selectedDate);
+        const isSelected = isSameCalendarDay(cellDate, controller.state.selectedDate);
         cells.push(`
             <div class="calendar-month-cell${isCurrentMonth ? '' : ' is-outside'}${isToday ? ' is-today' : ''}${isSelected ? ' is-selected' : ''}">
                 <button type="button" class="calendar-month-day-number" data-calendar-more-day="${dayKey}">${cellDate.getDate()}</button>
                 <div class="calendar-month-events">
-                    ${visibleShifts.map((shift) => renderCalendarMonthEvent(shift)).join('')}
+                    ${visibleEvents.map((event) => renderCalendarMonthEvent(controller, event)).join('')}
                     ${overflowCount > 0 ? `<button type="button" class="calendar-more-link" data-calendar-more-day="${dayKey}">+${overflowCount} more</button>` : ''}
                 </div>
             </div>
@@ -455,27 +835,34 @@ function renderDesktopMonthCalendar(container, shifts) {
     `;
 }
 
-function renderCalendarMonthEvent(shift) {
-    const palette = getCalendarPantryPalette(shift.pantry_id);
-    const spanIndicator = getCalendarSpanIndicator(shift);
+function renderCalendarMonthEvent(controller, event) {
+    const palette = getCalendarEventPalette(event);
+    const subtitle = typeof controller.config.getMonthSubtitle === 'function'
+        ? controller.config.getMonthSubtitle(event, controller)
+        : '';
+    const badgeText = getCalendarEventBadgeText(controller, event);
+    const spanIndicator = getCalendarSpanIndicator(event);
+
     return `
         <button
             type="button"
             class="calendar-month-event"
-            data-calendar-shift-id="${shift.shift_id}"
+            data-calendar-event-id="${event.id}"
             style="background:${palette.soft}; color:${palette.text}; border-left-color:${palette.solid};"
         >
-            <span class="calendar-month-event-time">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate, { includeDate: false }))}</span>
-            <span class="calendar-month-event-title">${escapeHtml(shift.shift_name)}</span>
+            <span class="calendar-month-event-time">${escapeHtml(formatLocalTimeRange(event.startDate, event.endDate, { includeDate: false }))}</span>
+            <span class="calendar-month-event-title">${escapeHtml(event.title)}</span>
+            ${subtitle ? `<span class="calendar-month-event-subtitle">${escapeHtml(subtitle)}</span>` : ''}
+            ${badgeText ? `<span class="calendar-month-event-badge">${escapeHtml(badgeText)}</span>` : ''}
             ${spanIndicator ? `<span class="calendar-month-event-span">${escapeHtml(spanIndicator)}</span>` : ''}
         </button>
     `;
 }
 
-function renderDesktopWeekCalendar(container, shifts) {
-    const weekStart = startOfCalendarWeek(calendarState.selectedDate);
+function renderDesktopWeekCalendar(controller, container, events) {
+    const weekStart = startOfCalendarWeek(controller.state.selectedDate);
     const dayColumns = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
-    const hourBounds = getCalendarHourBounds(shifts);
+    const hourBounds = getCalendarHourBounds(events);
     const slotHeight = 64;
     const totalHeight = (hourBounds.endHour - hourBounds.startHour) * slotHeight;
     const timeLabels = [];
@@ -489,7 +876,10 @@ function renderDesktopWeekCalendar(container, shifts) {
         `);
     }
 
-    const columnsHtml = dayColumns.map((dayDate) => renderWeekDayColumn(dayDate, shifts, hourBounds, slotHeight, totalHeight)).join('');
+    const columnsHtml = dayColumns
+        .map((dayDate) => renderWeekDayColumn(controller, dayDate, events, hourBounds, slotHeight, totalHeight))
+        .join('');
+
     container.innerHTML = `
         <div class="calendar-week-view">
             <div class="calendar-week-header">
@@ -517,8 +907,8 @@ function renderWeekDayHeader(dayDate) {
     `;
 }
 
-function renderWeekDayColumn(dayDate, shifts, hourBounds, slotHeight, totalHeight) {
-    const dayEvents = shifts.filter((shift) => isSameCalendarDay(shift.startDate, dayDate));
+function renderWeekDayColumn(controller, dayDate, events, hourBounds, slotHeight, totalHeight) {
+    const dayEvents = events.filter((event) => isSameCalendarDay(event.startDate, dayDate));
     const layouts = layoutWeekDayEvents(dayEvents);
     const hourLines = [];
     for (let hour = hourBounds.startHour; hour < hourBounds.endHour; hour += 1) {
@@ -529,7 +919,7 @@ function renderWeekDayColumn(dayDate, shifts, hourBounds, slotHeight, totalHeigh
         <div class="calendar-week-day-column">
             <div class="calendar-week-day-surface" style="height:${totalHeight}px">
                 ${hourLines.join('')}
-                ${layouts.map((entry) => renderWeekEventBlock(entry, hourBounds.startHour, slotHeight)).join('')}
+                ${layouts.map((entry) => renderWeekEventBlock(controller, entry, hourBounds.startHour, slotHeight)).join('')}
             </div>
         </div>
     `;
@@ -545,20 +935,20 @@ function layoutWeekDayEvents(dayEvents) {
     let currentGroup = [];
     let currentGroupEnd = null;
 
-    sorted.forEach((shift) => {
+    sorted.forEach((event) => {
         if (currentGroup.length === 0) {
-            currentGroup = [shift];
-            currentGroupEnd = shift.endDate.getTime();
+            currentGroup = [event];
+            currentGroupEnd = event.endDate.getTime();
             return;
         }
-        if (shift.startDate.getTime() < Number(currentGroupEnd)) {
-            currentGroup.push(shift);
-            currentGroupEnd = Math.max(Number(currentGroupEnd), shift.endDate.getTime());
+        if (event.startDate.getTime() < Number(currentGroupEnd)) {
+            currentGroup.push(event);
+            currentGroupEnd = Math.max(Number(currentGroupEnd), event.endDate.getTime());
             return;
         }
         groups.push(currentGroup);
-        currentGroup = [shift];
-        currentGroupEnd = shift.endDate.getTime();
+        currentGroup = [event];
+        currentGroupEnd = event.endDate.getTime();
     });
     if (currentGroup.length > 0) {
         groups.push(currentGroup);
@@ -567,24 +957,25 @@ function layoutWeekDayEvents(dayEvents) {
     const layouts = [];
     groups.forEach((group) => {
         const laneEndTimes = [];
-        group.forEach((shift) => {
-            const startMs = shift.startDate.getTime();
+        group.forEach((event) => {
+            const startMs = event.startDate.getTime();
             let laneIndex = laneEndTimes.findIndex((laneEnd) => laneEnd <= startMs);
             if (laneIndex === -1) {
                 laneIndex = laneEndTimes.length;
-                laneEndTimes.push(shift.endDate.getTime());
+                laneEndTimes.push(event.endDate.getTime());
             } else {
-                laneEndTimes[laneIndex] = shift.endDate.getTime();
+                laneEndTimes[laneIndex] = event.endDate.getTime();
             }
             layouts.push({
-                shift,
+                event,
                 laneIndex,
                 laneCount: 0
             });
         });
+
         const laneCount = Math.max(1, laneEndTimes.length);
         layouts.forEach((entry) => {
-            if (group.includes(entry.shift)) {
+            if (group.includes(entry.event)) {
                 entry.laneCount = laneCount;
             }
         });
@@ -593,42 +984,28 @@ function layoutWeekDayEvents(dayEvents) {
     return layouts;
 }
 
-function isCalendarMultiDayShift(shift) {
-    return getCalendarDateKey(shift.startDate) !== getCalendarDateKey(shift.endDate);
-}
-
-function getCalendarDisplayEndDate(shift) {
-    const endOfStartDay = endOfCalendarDay(shift.startDate);
-    return shift.endDate.getTime() > endOfStartDay.getTime() ? endOfStartDay : shift.endDate;
-}
-
-function getCalendarSpanIndicator(shift) {
-    if (!isCalendarMultiDayShift(shift)) {
-        return '';
-    }
-
-    const daySpan = Math.round(
-        (startOfCalendarDay(shift.endDate).getTime() - startOfCalendarDay(shift.startDate).getTime()) / (24 * 60 * 60 * 1000)
-    );
-    return daySpan > 1 ? 'Multi-day' : 'Continues next day';
-}
-
-function renderWeekEventBlock(entry, startHour, slotHeight) {
-    const shift = entry.shift;
-    const palette = getCalendarPantryPalette(shift.pantry_id);
-    const startDecimal = shift.startDate.getHours() + (shift.startDate.getMinutes() / 60);
-    const visualEnd = getCalendarDisplayEndDate(shift);
+function renderWeekEventBlock(controller, entry, startHour, slotHeight) {
+    const event = entry.event;
+    const palette = getCalendarEventPalette(event);
+    const startDecimal = event.startDate.getHours() + (event.startDate.getMinutes() / 60);
+    const visualEnd = getCalendarDisplayEndDate(event);
     const endDecimal = visualEnd.getHours() + (visualEnd.getMinutes() / 60) + (visualEnd.getSeconds() / 3600);
     const top = Math.max(0, (startDecimal - startHour) * slotHeight);
     const height = Math.max(32, (endDecimal - startDecimal) * slotHeight);
     const laneWidth = 100 / entry.laneCount;
     const left = laneWidth * entry.laneIndex;
-    const spanIndicator = getCalendarSpanIndicator(shift);
+    const subtitle = typeof controller.config.getMonthSubtitle === 'function'
+        ? controller.config.getMonthSubtitle(event, controller)
+        : '';
+    const badgeText = getCalendarEventBadgeText(controller, event);
+    const spanIndicator = getCalendarSpanIndicator(event);
+    const metaLines = getCalendarEventMetaLines(controller, event, 'week');
+
     return `
         <button
             type="button"
             class="calendar-week-event"
-            data-calendar-shift-id="${shift.shift_id}"
+            data-calendar-event-id="${event.id}"
             style="
                 top:${top}px;
                 height:${height}px;
@@ -639,93 +1016,104 @@ function renderWeekEventBlock(entry, startHour, slotHeight) {
                 border-left-color:${palette.solid};
             "
         >
-            <span class="calendar-week-event-title">${escapeHtml(shift.shift_name)}</span>
-            <span class="calendar-week-event-meta">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate, { includeDate: false }))}</span>
+            <span class="calendar-week-event-title">${escapeHtml(event.title)}</span>
+            ${subtitle ? `<span class="calendar-week-event-subtitle">${escapeHtml(subtitle)}</span>` : ''}
+            <span class="calendar-week-event-meta">${escapeHtml(formatLocalTimeRange(event.startDate, event.endDate, { includeDate: false }))}</span>
+            ${metaLines.map((line) => `<span class="calendar-week-event-meta">${escapeHtml(line)}</span>`).join('')}
+            ${badgeText ? `<span class="calendar-week-event-badge">${escapeHtml(badgeText)}</span>` : ''}
             ${spanIndicator ? `<span class="calendar-week-event-span">${escapeHtml(spanIndicator)}</span>` : ''}
-            <span class="calendar-week-event-meta">${escapeHtml(shift.pantry_name)}</span>
         </button>
     `;
 }
 
-function renderDesktopDayCalendar(container, shifts) {
-    const selectedDayKey = getCalendarDateKey(calendarState.selectedDate);
-    const dayEvents = shifts
-        .filter((shift) => getCalendarDateKey(shift.startDate) === selectedDayKey)
+function renderDesktopDayCalendar(controller, container, events) {
+    const selectedDayKey = getCalendarDateKey(controller.state.selectedDate);
+    const dayEvents = events
+        .filter((event) => getCalendarDateKey(event.startDate) === selectedDayKey)
         .sort((left, right) => left.startDate.getTime() - right.startDate.getTime());
 
     container.innerHTML = `
         <div class="calendar-day-view">
             <div class="calendar-day-header">
-                <h3>${escapeHtml(formatLocalDate(calendarState.selectedDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }))}</h3>
-                <p>${dayEvents.length} shift${dayEvents.length === 1 ? '' : 's'} available</p>
+                <h3>${escapeHtml(formatLocalDate(controller.state.selectedDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }))}</h3>
+                <p>${escapeHtml(controller.config.getDayCountText(dayEvents.length))}</p>
             </div>
             <div class="calendar-day-agenda">
                 ${dayEvents.length > 0
-                    ? dayEvents.map((shift) => renderCalendarDayAgendaCard(shift)).join('')
-                    : '<p class="empty-state">No available shifts for this day.</p>'}
+                    ? dayEvents.map((event) => renderCalendarDayAgendaCard(controller, event)).join('')
+                    : `<p class="empty-state">${escapeHtml(getCalendarEmptyText(controller))}</p>`}
             </div>
         </div>
     `;
 }
 
-function renderCalendarDayAgendaCard(shift) {
-    const palette = getCalendarPantryPalette(shift.pantry_id);
-    const spanIndicator = getCalendarSpanIndicator(shift);
+function renderCalendarDayAgendaCard(controller, event) {
+    const palette = getCalendarEventPalette(event);
+    const subtitle = typeof controller.config.getMonthSubtitle === 'function'
+        ? controller.config.getMonthSubtitle(event, controller)
+        : '';
+    const badgeText = getCalendarEventBadgeText(controller, event);
+    const spanIndicator = getCalendarSpanIndicator(event);
+    const metaLines = getCalendarEventMetaLines(controller, event, 'day');
+
     return `
         <button
             type="button"
             class="calendar-day-card"
-            data-calendar-shift-id="${shift.shift_id}"
+            data-calendar-event-id="${event.id}"
             style="border-left-color:${palette.solid}"
         >
-            <div class="calendar-day-card-time">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate, { includeDate: false }))}</div>
-            <div class="calendar-day-card-title">${escapeHtml(shift.shift_name)}</div>
+            <div class="calendar-day-card-time">${escapeHtml(formatLocalTimeRange(event.startDate, event.endDate, { includeDate: false }))}</div>
+            <div class="calendar-day-card-title">${escapeHtml(event.title)}</div>
+            ${subtitle ? `<div class="calendar-day-card-subtitle">${escapeHtml(subtitle)}</div>` : ''}
+            ${badgeText ? `<div class="calendar-day-card-badge">${escapeHtml(badgeText)}</div>` : ''}
             ${spanIndicator ? `<div class="calendar-day-card-span">${escapeHtml(spanIndicator)}</div>` : ''}
-            <div class="calendar-day-card-meta">${escapeHtml(shift.pantry_name)}${shift.pantry.location_address ? ` • ${escapeHtml(shift.pantry.location_address)}` : ''}</div>
-            <div class="calendar-day-card-meta">${escapeHtml(renderCalendarRoleSummary(shift.roles || []))}</div>
+            ${metaLines.map((line) => `<div class="calendar-day-card-meta">${escapeHtml(line)}</div>`).join('')}
         </button>
     `;
 }
 
-function renderPhoneCalendarAgenda(container, shifts) {
-    const grouped = groupPhoneAgendaShifts(shifts);
-    const phoneViewName = capitalizeCalendarLabel(calendarState.view);
+function renderPhoneCalendarAgenda(controller, container, events) {
+    const grouped = groupPhoneAgendaEvents(events);
+    const phoneViewName = capitalizeCalendarLabel(controller.state.view);
+    const emptyText = getCalendarEmptyText(controller);
 
     container.innerHTML = `
         <div class="calendar-phone-view">
             <div class="calendar-phone-summary">
                 <h3>${phoneViewName} Agenda</h3>
-                <p>${escapeHtml(getCalendarRangeLabel())}</p>
+                <p>${escapeHtml(getCalendarRangeLabel(controller))}</p>
             </div>
             ${grouped.length > 0
-                ? grouped.map((section) => renderPhoneAgendaSection(section)).join('')
-                : '<p class="empty-state">No available shifts match the selected range and filters.</p>'}
+                ? grouped.map((section) => renderPhoneAgendaSection(controller, section)).join('')
+                : `<p class="empty-state">${escapeHtml(emptyText)}</p>`}
         </div>
     `;
 }
 
-function groupPhoneAgendaShifts(shifts) {
+function groupPhoneAgendaEvents(events) {
     const byPantry = new Map();
-    shifts.forEach((shift) => {
-        const pantryKey = String(shift.pantry_id);
+    events.forEach((event) => {
+        const pantryKey = String(event.pantry_id);
         if (!byPantry.has(pantryKey)) {
             byPantry.set(pantryKey, {
-                pantryId: shift.pantry_id,
-                pantryName: shift.pantry_name,
-                location: shift.pantry.location_address || '',
+                pantryId: event.pantry_id,
+                pantryName: event.pantry_name,
+                location: event.location || '',
                 days: new Map()
             });
         }
+
         const pantrySection = byPantry.get(pantryKey);
-        const dayKey = getCalendarDateKey(shift.startDate);
+        const dayKey = getCalendarDateKey(event.startDate);
         if (!pantrySection.days.has(dayKey)) {
             pantrySection.days.set(dayKey, {
                 dayKey,
-                label: formatLocalDate(shift.startDate, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
-                shifts: []
+                label: formatLocalDate(event.startDate, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' }),
+                events: []
             });
         }
-        pantrySection.days.get(dayKey).shifts.push(shift);
+        pantrySection.days.get(dayKey).events.push(event);
     });
 
     return [...byPantry.values()]
@@ -736,7 +1124,7 @@ function groupPhoneAgendaShifts(shifts) {
         }));
 }
 
-function renderPhoneAgendaSection(section) {
+function renderPhoneAgendaSection(controller, section) {
     const palette = getCalendarPantryPalette(section.pantryId);
     return `
         <section class="calendar-phone-pantry-section">
@@ -749,9 +1137,9 @@ function renderPhoneAgendaSection(section) {
                     <div class="calendar-phone-day-group">
                         <div class="calendar-phone-day-title">${escapeHtml(dayGroup.label)}</div>
                         <div class="calendar-phone-event-list">
-                            ${dayGroup.shifts
+                            ${dayGroup.events
                                 .sort((left, right) => left.startDate.getTime() - right.startDate.getTime())
-                                .map((shift) => renderPhoneAgendaEvent(shift, palette))
+                                .map((event) => renderPhoneAgendaEvent(controller, event))
                                 .join('')}
                         </div>
                     </div>
@@ -761,77 +1149,41 @@ function renderPhoneAgendaSection(section) {
     `;
 }
 
-function renderPhoneAgendaEvent(shift, palette) {
-    const spanIndicator = getCalendarSpanIndicator(shift);
+function renderPhoneAgendaEvent(controller, event) {
+    const palette = getCalendarEventPalette(event);
+    const subtitle = typeof controller.config.getMonthSubtitle === 'function'
+        ? controller.config.getMonthSubtitle(event, controller)
+        : '';
+    const badgeText = getCalendarEventBadgeText(controller, event);
+    const spanIndicator = getCalendarSpanIndicator(event);
+    const metaLines = getCalendarEventMetaLines(controller, event, 'phone');
+
     return `
         <button
             type="button"
             class="calendar-phone-event"
-            data-calendar-shift-id="${shift.shift_id}"
+            data-calendar-event-id="${event.id}"
             style="border-left-color:${palette.solid}; background:${palette.soft}; color:${palette.text};"
         >
-            <span class="calendar-phone-event-time">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate, { includeDate: false }))}</span>
-            <span class="calendar-phone-event-title">${escapeHtml(shift.shift_name)}</span>
+            <span class="calendar-phone-event-time">${escapeHtml(formatLocalTimeRange(event.startDate, event.endDate, { includeDate: false }))}</span>
+            <span class="calendar-phone-event-title">${escapeHtml(event.title)}</span>
+            ${subtitle ? `<span class="calendar-phone-event-subtitle">${escapeHtml(subtitle)}</span>` : ''}
+            ${badgeText ? `<span class="calendar-phone-event-badge">${escapeHtml(badgeText)}</span>` : ''}
             ${spanIndicator ? `<span class="calendar-phone-event-span">${escapeHtml(spanIndicator)}</span>` : ''}
-            <span class="calendar-phone-event-meta">${escapeHtml(renderCalendarRoleSummary(shift.roles || []))}</span>
+            ${metaLines.map((line) => `<span class="calendar-phone-event-meta">${escapeHtml(line)}</span>`).join('')}
         </button>
     `;
 }
 
-function openCalendarShiftModal(shiftId) {
-    calendarState.activeShiftId = shiftId;
-    renderActiveCalendarShiftModal();
-    document.getElementById('calendar-shift-modal')?.classList.remove('app-hidden');
-}
-
-function closeCalendarShiftModal() {
-    calendarState.activeShiftId = null;
-    document.getElementById('calendar-shift-modal')?.classList.add('app-hidden');
-}
-
-function renderActiveCalendarShiftModal() {
-    const modal = document.getElementById('calendar-shift-modal');
-    const body = document.getElementById('calendar-shift-modal-body');
-    if (!modal || !body) {
-        return;
-    }
-    if (!calendarState.activeShiftId) {
-        modal.classList.add('app-hidden');
-        body.innerHTML = '';
-        return;
-    }
-
-    const shift = calendarState.shifts.find((item) => intValue(item.shift_id) === intValue(calendarState.activeShiftId));
-    if (!shift) {
-        closeCalendarShiftModal();
-        return;
-    }
-
-    const palette = getCalendarPantryPalette(shift.pantry_id);
-    body.innerHTML = `
-        <div class="calendar-modal-header" style="border-top-color:${palette.solid}">
-            <span class="calendar-modal-pantry-badge" style="background:${palette.soft}; color:${palette.text};">${escapeHtml(shift.pantry_name)}</span>
-            <h2 class="calendar-modal-title">${escapeHtml(shift.shift_name)}</h2>
-            <p class="calendar-modal-time">${escapeHtml(formatLocalTimeRange(shift.startDate, shift.endDate))}</p>
-            ${getCalendarSpanIndicator(shift) ? `<p class="calendar-modal-span">${escapeHtml(getCalendarSpanIndicator(shift))}</p>` : ''}
-            <p class="calendar-modal-location">${escapeHtml(shift.pantry.location_address || 'Location unavailable')}</p>
-        </div>
-        <div class="calendar-modal-section">
-            <h3>Roles</h3>
-            <div class="calendar-modal-role-list">
-                ${(shift.roles || []).map((role) => renderCalendarModalRole(role, shift)).join('')}
-            </div>
-        </div>
-    `;
-}
-
-function renderCalendarModalRole(role, shift) {
+function renderAvailableCalendarModalRole(role, event) {
     const filled = Number(role.filled_count || 0);
     const required = Number(role.required_count || 0);
     const isFull = required > 0 && filled >= required;
-    const isCancelled = String(role.status || 'OPEN').toUpperCase() === 'CANCELLED' || String(shift.status || 'OPEN').toUpperCase() === 'CANCELLED';
+    const isCancelled = String(role.status || 'OPEN').toUpperCase() === 'CANCELLED'
+        || String(event.status || 'OPEN').toUpperCase() === 'CANCELLED';
     const capacityPercent = getCalendarRoleCapacityPercent(filled, required);
     const canVolunteerSignup = currentUserHasRole('VOLUNTEER');
+
     let buttonLabel = 'Sign Up';
     let disabled = false;
     if (!canVolunteerSignup) {
@@ -863,11 +1215,45 @@ function renderCalendarModalRole(role, shift) {
             <button
                 type="button"
                 class="btn ${disabled ? 'btn-secondary' : 'btn-success'} btn-sm"
-                data-calendar-role-signup="${disabled ? '' : role.shift_role_id}"
+                data-calendar-action="${disabled ? '' : 'signup-role'}"
+                data-role-id="${disabled ? '' : role.shift_role_id}"
                 ${disabled ? 'disabled' : ''}
             >${buttonLabel}</button>
         </div>
     `;
+}
+
+function renderMyShiftCalendarModalActions(event) {
+    const signupStatus = String(event.signup_status || 'UNKNOWN').toUpperCase();
+    const shiftStatus = String(event.shift_status || 'OPEN').toUpperCase();
+    const showCancelByTime = canCancelSignup(event, new Date());
+    const nonActionableStatuses = new Set(['CANCELLED', 'WAITLISTED']);
+    const showCancel = showCancelByTime
+        && !nonActionableStatuses.has(signupStatus)
+        && shiftStatus !== 'CANCELLED';
+    const isPendingReconfirm = signupStatus === 'PENDING_CONFIRMATION';
+    const reconfirmAvailable = Boolean(event.reconfirm_available);
+
+    if (isPendingReconfirm) {
+        return `
+            <div class="calendar-modal-actions">
+                ${reconfirmAvailable
+                    ? `<button type="button" class="btn btn-success" data-calendar-action="confirm-signup" data-signup-id="${event.signup_id}">Confirm</button>`
+                    : '<span class="reconfirm-note">Role is full or unavailable for reconfirmation.</span>'}
+                <button type="button" class="btn btn-danger" data-calendar-action="cancel-reconfirm-signup" data-signup-id="${event.signup_id}">Cancel</button>
+            </div>
+        `;
+    }
+
+    if (showCancel) {
+        return `
+            <div class="calendar-modal-actions">
+                <button type="button" class="btn btn-danger" data-calendar-action="cancel-signup" data-signup-id="${event.signup_id}">Cancel Signup</button>
+            </div>
+        `;
+    }
+
+    return '<div class="calendar-modal-actions"><span class="calendar-modal-action-note">No actions available for this shift.</span></div>';
 }
 
 function getCalendarRoleCapacityPercent(filled, required) {
@@ -891,42 +1277,42 @@ function getCalendarRoleCapacityLabel(filled, required, isCancelled) {
     return `${remaining} spot${remaining === 1 ? '' : 's'} left`;
 }
 
-function getCalendarVisibleRange() {
-    if (calendarState.view === 'day') {
+function getCalendarVisibleRangeForController(controller) {
+    if (controller.state.view === 'day') {
         return {
-            start: startOfCalendarDay(calendarState.selectedDate),
-            end: endOfCalendarDay(calendarState.selectedDate)
+            start: startOfCalendarDay(controller.state.selectedDate),
+            end: endOfCalendarDay(controller.state.selectedDate)
         };
     }
-    if (calendarState.view === 'week') {
-        const start = startOfCalendarWeek(calendarState.selectedDate);
+    if (controller.state.view === 'week') {
+        const start = startOfCalendarWeek(controller.state.selectedDate);
         return {
             start,
             end: endOfCalendarDay(addDays(start, 6))
         };
     }
 
-    const monthStart = startOfCalendarMonth(calendarState.selectedDate);
+    const monthStart = startOfCalendarMonth(controller.state.selectedDate);
     const start = startOfCalendarWeek(monthStart);
     const end = endOfCalendarDay(addDays(start, 41));
     return { start, end };
 }
 
-function isShiftInVisibleCalendarRange(shift) {
-    const visibleRange = getCalendarVisibleRange();
-    return shift.endDate >= visibleRange.start && shift.startDate <= visibleRange.end;
+function isEventInVisibleCalendarRange(controller, event) {
+    const visibleRange = getCalendarVisibleRangeForController(controller);
+    return event.endDate >= visibleRange.start && event.startDate <= visibleRange.end;
 }
 
-function getCalendarRangeLabel() {
-    if (calendarState.view === 'day') {
-        return formatCalendarDateLabel(calendarState.selectedDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+function getCalendarRangeLabel(controller) {
+    if (controller.state.view === 'day') {
+        return formatCalendarDateLabel(controller.state.selectedDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
     }
-    if (calendarState.view === 'week') {
-        const weekStart = startOfCalendarWeek(calendarState.selectedDate);
+    if (controller.state.view === 'week') {
+        const weekStart = startOfCalendarWeek(controller.state.selectedDate);
         const weekEnd = addDays(weekStart, 6);
         return formatCalendarWeekRangeLabel(weekStart, weekEnd);
     }
-    return formatCalendarDateLabel(calendarState.selectedDate, { month: 'long', year: 'numeric' });
+    return formatCalendarDateLabel(controller.state.selectedDate, { month: 'long', year: 'numeric' });
 }
 
 function formatCalendarWeekRangeLabel(weekStart, weekEnd) {
@@ -946,31 +1332,31 @@ function formatCalendarWeekRangeLabel(weekStart, weekEnd) {
     return `${startLabel} - ${endLabel}`;
 }
 
-function shiftCalendarAnchor(direction) {
-    if (calendarState.view === 'day') {
-        calendarState.selectedDate = addDays(calendarState.selectedDate, direction);
-        calendarState.miniDate = startOfCalendarMonth(calendarState.selectedDate);
+function shiftCalendarAnchorForController(controller, direction) {
+    if (controller.state.view === 'day') {
+        controller.state.selectedDate = addDays(controller.state.selectedDate, direction);
+        controller.state.miniDate = startOfCalendarMonth(controller.state.selectedDate);
         return;
     }
-    if (calendarState.view === 'week') {
-        calendarState.selectedDate = addDays(calendarState.selectedDate, direction * 7);
-        calendarState.miniDate = startOfCalendarMonth(calendarState.selectedDate);
+    if (controller.state.view === 'week') {
+        controller.state.selectedDate = addDays(controller.state.selectedDate, direction * 7);
+        controller.state.miniDate = startOfCalendarMonth(controller.state.selectedDate);
         return;
     }
-    calendarState.selectedDate = addMonths(calendarState.selectedDate, direction);
-    calendarState.miniDate = startOfCalendarMonth(calendarState.selectedDate);
+    controller.state.selectedDate = addMonths(controller.state.selectedDate, direction);
+    controller.state.miniDate = startOfCalendarMonth(controller.state.selectedDate);
 }
 
-function getCalendarHourBounds(shifts) {
-    if (!shifts || shifts.length === 0) {
+function getCalendarHourBounds(events) {
+    if (!events || events.length === 0) {
         return { startHour: 8, endHour: 18 };
     }
 
     let minHour = 23;
     let maxHour = 0;
-    shifts.forEach((shift) => {
-        const startHour = shift.startDate.getHours() + (shift.startDate.getMinutes() / 60);
-        const visualEnd = getCalendarDisplayEndDate(shift);
+    events.forEach((event) => {
+        const startHour = event.startDate.getHours() + (event.startDate.getMinutes() / 60);
+        const visualEnd = getCalendarDisplayEndDate(event);
         const endHour = visualEnd.getHours() + (visualEnd.getMinutes() / 60) + (visualEnd.getSeconds() / 3600);
         minHour = Math.min(minHour, Math.floor(startHour));
         maxHour = Math.max(maxHour, Math.ceil(endHour));
@@ -982,6 +1368,109 @@ function getCalendarHourBounds(shifts) {
         maxHour = Math.min(24, minHour + 8);
     }
     return { startHour: minHour, endHour: maxHour };
+}
+
+function getCalendarPantryList() {
+    return normalizeCalendarPantryList(allPublicPantries);
+}
+
+function getCalendarPantriesFromEvents(events) {
+    const byPantry = new Map();
+    (Array.isArray(events) ? events : []).forEach((event) => {
+        if (!event || event.pantry_id === undefined || event.pantry_id === null) {
+            return;
+        }
+        const pantryKey = String(event.pantry_id);
+        if (!byPantry.has(pantryKey)) {
+            byPantry.set(pantryKey, {
+                pantry_id: intValue(event.pantry_id),
+                name: event.pantry_name || `Pantry ${event.pantry_id}`
+            });
+        }
+    });
+    return normalizeCalendarPantryList([...byPantry.values()]);
+}
+
+function normalizeCalendarPantryList(items) {
+    return Array.isArray(items)
+        ? [...items]
+            .filter(Boolean)
+            .map((pantry) => ({
+                pantry_id: intValue(pantry.pantry_id),
+                name: pantry.name || `Pantry ${pantry.pantry_id}`
+            }))
+            .sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
+        : [];
+}
+
+function getCalendarPantryNameById(controller, pantryId) {
+    const pantry = controller.getPantryList().find((item) => intValue(item.pantry_id) === intValue(pantryId));
+    return pantry ? pantry.name : '';
+}
+
+function getCalendarPantryPalette(pantryId) {
+    const normalizedId = Math.abs(intValue(pantryId));
+    return CALENDAR_COLOR_PALETTE[normalizedId % CALENDAR_COLOR_PALETTE.length];
+}
+
+function getCalendarEventPalette(event) {
+    if (event && event.isPast) {
+        return CALENDAR_NEUTRAL_PALETTE;
+    }
+    return getCalendarPantryPalette(event?.pantry_id);
+}
+
+function getCalendarEventBadgeText(controller, event) {
+    return typeof controller.config.getEventBadgeText === 'function'
+        ? controller.config.getEventBadgeText(event, controller)
+        : '';
+}
+
+function getCalendarEventMetaLines(controller, event, view) {
+    return typeof controller.config.getEventMetaLines === 'function'
+        ? controller.config.getEventMetaLines(event, view, controller) || []
+        : [];
+}
+
+function getCalendarEmptyText(controller) {
+    return controller.state.events.length === 0
+        ? (controller.config.noEventsText || 'No shifts available.')
+        : (controller.config.noMatchesText || 'No shifts match the selected range and filters.');
+}
+
+function getMyShiftCalendarBadgeText(event) {
+    const signupStatus = String(event.signup_status || '').toUpperCase();
+    const shiftStatus = String(event.shift_status || '').toUpperCase();
+    if (shiftStatus === 'CANCELLED') {
+        return 'Shift Cancelled';
+    }
+    if (signupStatus === 'PENDING_CONFIRMATION') {
+        return 'Needs Reconfirm';
+    }
+    if (signupStatus === 'SHOW_UP') {
+        return 'Attended';
+    }
+    if (signupStatus === 'NO_SHOW') {
+        return 'Missed';
+    }
+    if (signupStatus === 'WAITLISTED') {
+        return 'Waitlisted';
+    }
+    if (event.isPast) {
+        return 'Past';
+    }
+    return formatCalendarStatusLabel(signupStatus || 'CONFIRMED');
+}
+
+function formatCalendarStatusLabel(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) {
+        return '';
+    }
+    return normalized
+        .toLowerCase()
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function renderCalendarRoleSummary(roles) {
@@ -1002,20 +1491,24 @@ function resolveCalendarTimeBucket(date) {
     return 'evening';
 }
 
-function getCalendarPantryList() {
-    return Array.isArray(allPublicPantries)
-        ? [...allPublicPantries].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
-        : [];
+function isCalendarMultiDayEvent(event) {
+    return getCalendarDateKey(event.startDate) !== getCalendarDateKey(event.endDate);
 }
 
-function getCalendarPantryNameById(pantryId) {
-    const pantry = getCalendarPantryList().find((item) => intValue(item.pantry_id) === intValue(pantryId));
-    return pantry ? pantry.name : '';
+function getCalendarDisplayEndDate(event) {
+    const endOfStartDay = endOfCalendarDay(event.startDate);
+    return event.endDate.getTime() > endOfStartDay.getTime() ? endOfStartDay : event.endDate;
 }
 
-function getCalendarPantryPalette(pantryId) {
-    const normalizedId = Math.abs(intValue(pantryId));
-    return CALENDAR_COLOR_PALETTE[normalizedId % CALENDAR_COLOR_PALETTE.length];
+function getCalendarSpanIndicator(event) {
+    if (!isCalendarMultiDayEvent(event)) {
+        return '';
+    }
+
+    const daySpan = Math.round(
+        (startOfCalendarDay(event.endDate).getTime() - startOfCalendarDay(event.startDate).getTime()) / (24 * 60 * 60 * 1000)
+    );
+    return daySpan > 1 ? 'Multi-day' : 'Continues next day';
 }
 
 function capitalizeCalendarLabel(value) {
@@ -1115,6 +1608,23 @@ function formatCalendarHourLabel(value) {
     }).format(date);
 }
 
+function loadCalendarShifts(forceReload = true) {
+    const controller = getCalendarController('available');
+    return controller ? controller.load(forceReload) : Promise.resolve();
+}
+
+function syncCalendarPantryOptions() {
+    ensureCalendarControllersRegistered();
+    calendarControllers.forEach((controller) => controller.syncPantryOptions());
+}
+
+function setMyShiftsCalendarItems(items, forceReload = true) {
+    const controller = getCalendarController('my-shifts');
+    return controller ? controller.setSourceItems(items, forceReload) : Promise.resolve();
+}
+
+window.getCalendarController = getCalendarController;
 window.initializeCalendarUi = initializeCalendarUi;
 window.loadCalendarShifts = loadCalendarShifts;
 window.syncCalendarPantryOptions = syncCalendarPantryOptions;
+window.setMyShiftsCalendarItems = setMyShiftsCalendarItems;
