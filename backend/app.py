@@ -2569,6 +2569,19 @@ def create_signup(shift_role_id: int) -> Any:
 
     now_utc = datetime.now(timezone.utc)
     signups_by_user = backend.list_signups_by_user(user_id)
+
+    # Check 1: Prevent signing up for multiple roles in the same shift
+    shift_id = int(shift.get("shift_id"))
+    already_in_shift = any(
+        signup_row_blocks_overlap(signup_row, now_utc)
+        and int(signup_row.get("shift_id", 0)) == shift_id
+        and int(signup_row.get("shift_role_id", 0)) != shift_role_id
+        for signup_row in signups_by_user
+    )
+    if already_in_shift:
+        return jsonify({"error": "You are already signed up for a role in this shift"}), 400
+
+    # Check 2: Prevent signing up for overlapping shifts
     has_conflict = any(
         signup_row_blocks_overlap(signup_row, now_utc)
         and signup_row_overlaps_shift(signup_row, shift, shift_role_id)
