@@ -16,7 +16,7 @@ volunteer_managing/
 │   ├── .env                        # Runtime config (DB credentials, backend type)
 │   ├── notifications/
 │   │   ├── __init__.py             # Notification package exports
-│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation + structured results
+│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation/subscriber notifications + timezone-aware shift windows
 │   │
 │   ├── backends/
 │   │   ├── base.py                 # Abstract interface: StoreBackend (ABC)
@@ -27,12 +27,13 @@ volunteer_managing/
 │   ├── db/
 │   │   ├── mysql.py                # Connection pool management (get_connection)
 │   │   ├── init_schema.py          # Runs all SQL files in db/migrations idempotently on startup
-│   │   ├── seed.py                 # Seeds DB from backend/data/db.json if empty
+│   │   ├── seed.py                 # Seeds MySQL from backend/data/mysql.json if empty
 │   │   └── migrations/
-│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. signup reservations)
+│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. users.timezone, pantry_subscriptions, and recurring shift series)
 │   │
 │   └── data/
-│       └── db.json                 # Sample seed data (users, pantries, shifts)
+│       ├── mysql.json              # MySQL seed data, including pantry subscriptions, recurring series, and a larger future mock shift set
+│       └── in_memory.json          # In-memory backend seed data
 │
 └── frontend/
     ├── templates/
@@ -42,11 +43,12 @@ volunteer_managing/
         │   └── dashboard.css
         └── js/
             ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiPut/apiDelete
+            ├── timezone-helpers.js # Browser timezone detection + shared local time formatting
             ├── user-functions.js   # getCurrentUser(), userHasRole(), createUser()
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
-            ├── lead-functions.js   # getShifts(), createShift(), updateShift(), updateFullShift(), markAttendance()
-            ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup()
-            └── dashboard.js        # App entry point: boot sequence, UI state, event handlers
+            ├── lead-functions.js   # getShifts(), createFullShift(), updateShift(), updateFullShift(), cancelShiftWithScope(), markAttendance()
+            ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup(), pantry subscription helpers
+            └── dashboard.js        # App entry point: boot sequence, tab state, event handlers, volunteer pantry directory UI
 ```
 
 ---
@@ -56,62 +58,122 @@ volunteer_managing/
 All tables are created from SQL files in [backend/db/migrations/](backend/db/migrations/) via `init_schema()` on every Flask startup (idempotent — uses `CREATE TABLE IF NOT EXISTS` for the schema baseline).
 
 ```
-roles               users
-─────               ─────
-role_id (PK)        user_id (PK)
-role_name           full_name
-                    email
-                    phone_number
-                    auth_provider
-                    auth_uid
-                    attendance_score
-                    created_at / updated_at
-         │
-    user_roles (join table)
-    ─────────────────────────
-    user_id (FK → users)
-    role_id (FK → roles)
-         │
-         │         pantries
-         │         ────────
-         │         pantry_id (PK)
-         │         name
-         │         location_address
-         │
-    pantry_leads (join table)
-    ─────────────────────────
-    pantry_id (FK → pantries)
-    user_id   (FK → users)
-         │
-       shifts
-       ──────
-       shift_id (PK)
-       pantry_id  (FK → pantries, CASCADE DELETE)
-       shift_name
-       start_time / end_time
-       status          ← OPEN | FULL | CANCELLED
-       created_by (nullable FK → users)
-         │
-    shift_roles
-    ───────────
-    shift_role_id (PK)
-    shift_id    (FK → shifts, CASCADE DELETE)
-    role_title
-    required_count
-    filled_count    ← kept in sync by recalculate_shift_role_capacity()
-    status          ← OPEN | FULL | CANCELLED
-         │
-    shift_signups
-    ─────────────
-    signup_id (PK)
-    shift_role_id (FK → shift_roles, CASCADE DELETE)
-    user_id       (FK → users, CASCADE DELETE)
-    signup_status ← CONFIRMED | PENDING_CONFIRMATION | WAITLISTED | CANCELLED | SHOW_UP | NO_SHOW
-    reservation_expires_at ← nullable UTC datetime used for 48h reserved spots after shift edits
-    UNIQUE (shift_role_id, user_id)  ← prevents double signup
+roles
+─────
+role_id (PK, INT)
+role_name (UNIQUE)
+
+users
+─────
+user_id (PK, AUTO_INCREMENT)
+full_name
+email (UNIQUE)
+phone_number (nullable)
+timezone (nullable)
+auth_provider (nullable)
+auth_uid (nullable, UNIQUE)
+attendance_score (default 100)
+created_at
+updated_at
+
+user_roles
+──────────
+PRIMARY KEY (user_id, role_id)
+user_id (FK → users.user_id, ON DELETE CASCADE)
+role_id (FK → roles.role_id, ON DELETE RESTRICT)
+INDEX idx_user_roles_user_id (user_id)
+
+pantries
+────────
+pantry_id (PK, AUTO_INCREMENT)
+name
+location_address
+created_at
+updated_at
+
+pantry_leads
+────────────
+PRIMARY KEY (pantry_id, user_id)
+pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+user_id (FK → users.user_id, ON DELETE CASCADE)
+INDEX idx_pantry_leads_user_id (user_id)
+
+pantry_subscriptions
+───────────────────
+PRIMARY KEY (pantry_id, user_id)
+pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+user_id (FK → users.user_id, ON DELETE CASCADE)
+created_at
+INDEX idx_pantry_subscriptions_user_id (user_id)
+
+shifts
+──────
+shift_id (PK, AUTO_INCREMENT)
+pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+shift_series_id (nullable FK → shift_series.shift_series_id, ON DELETE SET NULL)
+series_position (nullable)
+shift_name
+start_time
+end_time
+status (default OPEN)
+created_by (nullable FK → users.user_id, ON DELETE SET NULL)
+created_at
+updated_at
+INDEX idx_shifts_pantry_id (pantry_id)
+INDEX idx_shifts_shift_series_id (shift_series_id)
+
+shift_series
+────────────
+shift_series_id (PK, AUTO_INCREMENT)
+pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
+created_by (nullable FK → users.user_id, ON DELETE SET NULL)
+timezone
+frequency
+interval_weeks
+weekdays_csv
+end_mode
+occurrence_count (nullable)
+until_date (nullable)
+created_at
+updated_at
+INDEX idx_shift_series_pantry_id (pantry_id)
+
+shift_roles
+───────────
+shift_role_id (PK, AUTO_INCREMENT)
+shift_id (FK → shifts.shift_id, ON DELETE CASCADE)
+role_title
+required_count
+filled_count (default 0)
+status (default OPEN)
+INDEX idx_shift_roles_shift_id (shift_id)
+
+shift_signups
+─────────────
+signup_id (PK, AUTO_INCREMENT)
+shift_role_id (FK → shift_roles.shift_role_id, ON DELETE CASCADE)
+user_id (FK → users.user_id, ON DELETE CASCADE)
+signup_status (default CONFIRMED)
+reservation_expires_at (nullable)
+created_at
+UNIQUE KEY uq_shift_signups_role_user (shift_role_id, user_id)
+INDEX idx_shift_signups_shift_role_id (shift_role_id)
+INDEX idx_shift_signups_user_id (user_id)
+INDEX idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at)
 ```
 
-**Cascade rules:** Deleting a pantry cascades to shifts → shift_roles → shift_signups. Deleting a user cascades out of signups and pantry leads, and any `shifts.created_by` references are set to `NULL`.
+Relationship summary:
+
+- Deleting a pantry cascades to its shifts, then to shift roles, then to shift signups.
+- Recurring schedules live in `shift_series`, while each actual occurrence still lives as a normal row in `shifts`.
+- `shifts.shift_series_id` links each occurrence back to its series and `series_position` preserves order inside the recurring slice.
+- Deleting a user cascades out of `user_roles`, `pantry_leads`, and `shift_signups`.
+- Deleting a pantry or user also cascades through `pantry_subscriptions`.
+- Deleting a user does not block on shifts they created because `shifts.created_by` uses `ON DELETE SET NULL`.
+- Role rows in `roles` cannot be deleted while referenced from `user_roles` because that foreign key uses `ON DELETE RESTRICT`.
+- Duplicate signup to the same role is blocked by `uq_shift_signups_role_user (shift_role_id, user_id)`.
+- Duplicate pantry subscription is blocked by the composite primary key `(pantry_id, user_id)`.
+- Reservation-aware capacity checks are supported by `idx_shift_signups_role_status_reservation`.
 
 ---
 
@@ -130,11 +192,11 @@ app.py
     │      apply_sql(*.sql in migrations/)   ← CREATE TABLE IF NOT EXISTS baseline schema
     │    MySQLBackend()  [mysql_backend.py]
     │    backend.is_empty()?
-    │      YES → seed_mysql_from_json("data/db.json")
+    │      YES → seed_mysql_from_json("data/mysql.json")
     │    return MySQLBackend instance
     └─ NO  → return MemoryBackend instance
   backend = <chosen instance>            ← module-level singleton used by all routes
-  notifications.send_*()               ← called for confirmed signups, shift updates, and shift cancellations
+  notifications.send_*()               ← called for confirmed signups, shift updates, shift cancellations, and pantry-subscriber new-shift emails
   app.run(port=5000)
 ```
 
@@ -175,6 +237,7 @@ The notification module is intentionally separate from Flask route handlers:
 
 - Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
 - Normalizes shift/pantry/user data into an email payload
+- Resolves the recipient timezone from `users.timezone`, falling back to `America/New_York`
 - Sends the email through Resend for:
   - confirmed signups
   - shift updates that require reconfirmation
@@ -189,6 +252,26 @@ The notification module is intentionally separate from Flask route handlers:
 
 `app.py` consumes that result in dedicated route helpers and logs warning details when delivery is skipped or fails.
 
+### Recurring shift flow (`app.py`)
+
+Recurring shifts are stored as concrete shift rows linked by a shared `shift_series` record, so volunteer signup, capacity, notifications, calendar rendering, and attendance still operate on normal shift/role/signup rows.
+
+- `normalize_recurrence_payload(...)`
+  - validates weekly recurrence input from the manager UI
+  - supports custom weekdays, weekly interval, and finite end rules (`COUNT` or `UNTIL`)
+- `generate_weekly_occurrences(...)`
+  - builds concrete occurrences in the series timezone first, then converts them to UTC
+  - prevents DST drift across recurring weekly shifts
+- `POST /api/pantries/<id>/shifts/full-create`
+  - creates one one-off shift when `recurrence` is omitted
+  - creates one `shift_series` row plus many concrete `shifts` and `shift_roles` rows when `recurrence` is present
+- `PUT /api/shifts/<id>/full-update`
+  - `apply_scope: "single"` updates one occurrence
+  - `apply_scope: "future"` updates the clicked occurrence and later occurrences in the recurring slice
+- `POST /api/shifts/<id>/cancel`
+  - `apply_scope: "single"` cancels one occurrence
+  - `apply_scope: "future"` cancels the clicked occurrence and later occurrences
+
 ---
 
 ## 4. Data Serialization Path
@@ -200,11 +283,11 @@ MySQL row (cursor.fetchone())
   → raw dict: { "shift_id": 1, "start_time": datetime(2025,6,1,9,0), ... }
 
 mysql_backend.py: _serialize_shift(row)
-  → clean dict: { "shift_id": 1, "start_time": "2025-06-01T09:00:00Z", ... }
+  → clean dict: { "shift_id": 1, "shift_series_id": 3, "series_position": 2, "start_time": "2025-06-01T09:00:00Z", ... }
      (datetimes converted to ISO-8601 strings by _to_iso_z())
 
 app.py: route handler attaches related data
-  → enriched dict: { ..., "roles": [ {shift_role_id, role_title, ...}, ... ] }
+  → enriched dict: { ..., "is_recurring": true/false, "recurrence": {...}, "roles": [ {shift_role_id, role_title, ...}, ... ] }
 
 app.py: jsonify(shift)
   → Flask serializes dict to JSON string, sets Content-Type: application/json
@@ -212,8 +295,12 @@ app.py: jsonify(shift)
 Browser: fetch() resolves → response.json()
   → JavaScript object: { shift_id: 1, start_time: "2025-06-01T09:00:00Z", roles: [...] }
 
+timezone-helpers.js:
+  getBrowserTimeZone()                        ← Intl.DateTimeFormat().resolvedOptions().timeZone
+  formatLocalDateTime(...) / formatLocalTimeRange(...)
+
 lead-functions.js / volunteer-functions.js:
-  formatDateTimeForDisplay(shift.start_time)  ← new Date(string) → locale string
+  formatDateTimeForDisplay(shift.start_time)  ← timezone-helpers.js → browser-local string
   classifyShiftBucket(shift)                  ← compares start/end to new Date()
   getCapacityStatus(role)                     ← filled_count vs required_count → 'full'|'almost-full'|'available'
 ```
@@ -246,10 +333,10 @@ if (typeof getCurrentUser === 'undefined') {
 ```
 dashboard.js  →  user-functions.js:     getCurrentUser(), userHasRole()
 dashboard.js  →  admin-functions.js:    getPantries(), createPantry(), addPantryLead(), removePantryLead()
-dashboard.js  →  lead-functions.js:     getShifts(), getActiveShifts(), createShift(), updateShift(),
-                                        updateFullShift(), deleteShift(), createShiftRole(),
-                                        updateShiftRole(), deleteShiftRole(), getShiftRegistrations(),
-                                        markAttendance()
+dashboard.js  →  lead-functions.js:     getShifts(), getActiveShifts(), createFullShift(), updateShift(),
+                                        updateFullShift(), cancelShiftWithScope(), deleteShift(),
+                                        createShiftRole(), updateShiftRole(), deleteShiftRole(),
+                                        getShiftRegistrations(), markAttendance()
 dashboard.js  →  volunteer-functions.js: signupForShift(), cancelSignup(), reconfirmSignup(),
                                          getUserSignups(), classifyShiftBucket(), formatShiftDate(),
                                          formatShiftTime(), getCapacityStatus()
@@ -269,11 +356,17 @@ window 'load' event fires
   │
   ├─ 1. getCurrentUser()          [user-functions.js]
   │       apiGet('/api/me')        [api-helpers.js → fetch]
-  │       ← { user_id, email, roles: ["ADMIN" | "SUPER_ADMIN" | ...] }
+  │       ← { user_id, email, roles: ["ADMIN" | "SUPER_ADMIN" | ...], timezone }
   │       sets module-level: currentUser
   │       writes email/roles to #user-email, #user-role in DOM
   │
-  ├─ 2. setupRoleBasedUI()        [dashboard.js:60]
+  ├─ 2. syncCurrentUserTimezoneIfNeeded() [dashboard.js]
+  │       getBrowserTimeZone()     [timezone-helpers.js]
+  │       compare browser timezone vs currentUser.timezone
+  │       if missing or changed → PATCH /api/me { timezone }
+  │       updates module-level currentUser
+  │
+  ├─ 3. setupRoleBasedUI()        [dashboard.js:60]
   │       reads currentUser.roles
   │       shows/hides nav tabs:
   │         VOLUNTEER  → shows "My Shifts" tab
@@ -281,24 +374,35 @@ window 'load' event fires
   │         ADMIN or SUPER_ADMIN → shows "Admin Panel" tab
   │       returns the default tab name to activate
   │
-  ├─ 3. loadPantries()            [dashboard.js:121]
+  ├─ 4. loadPantries()            [dashboard.js:121]
   │       getAllPantries()         [admin-functions.js]
   │         apiGet('/api/all_pantries')
   │         ← [ {pantry_id, name, ...}, ... ]
   │       sets module-level: allPublicPantries
-  │       populates #pantry-select dropdown
-  │       populates #assign-pantry dropdown (admin)
+  │       syncs the shared Manage Shifts pantry search picker
+  │         #pantry-select-search + hidden #pantry-select
+  │       syncs the Admin pantry assignment search picker
+  │         #assign-pantry-search + hidden #assign-pantry
   │
-  ├─ 4. setupEventListeners()     [dashboard.js:1152]
+  ├─ 5. setupEventListeners()     [dashboard.js:1152]
   │       attaches click handlers to nav tabs → activateTab()
   │       attaches click handlers to Admin subtabs → setAdminSubtab() + loadAdminTab()
-  │       attaches submit to #create-shift-form → createShift() + createShiftRole() loop
+  │       attaches submit to #create-shift-form → createFullShift()
+  │       attaches recurring-shift UI handlers:
+  │         #shift-repeat-toggle
+  │         weekday chips
+  │         finite end controls
+  │       attaches recurring edit/cancel scope modal handlers
   │       attaches submit to #create-pantry-form → createPantry()
   │       attaches click to #assign-lead-btn → addPantryLead()
+  │       attaches search/result handlers for:
+  │         #pantry-select-search
+  │         #assign-pantry-search
+  │         #assign-lead-search
+  │       attaches Manage Shifts search + status filter handlers
   │       attaches Admin Users search/filter/profile/role-save handlers
-  │       attaches change to #pantry-select → reloads shifts for selected pantry
   │
-  └─ 5. activateTab(defaultTab)   [dashboard.js:91]
+  └─ 6. activateTab(defaultTab)   [dashboard.js:91]
           shows the target tab's content div
           calls the appropriate loader:
             'calendar'   → loadCalendarShifts()
@@ -315,16 +419,16 @@ Every single API request from the browser follows this exact path:
 
 ```
 dashboard.js calls a domain function
-  e.g. createShift(pantryId, data)
+  e.g. createFullShift(pantryId, data)
         │
         ▼
-lead-functions.js: createShift()
-  apiPost(`/api/pantries/${pantryId}/shifts`, data)
+lead-functions.js: createFullShift()
+  apiPost(`/api/pantries/${pantryId}/shifts/full-create`, data)
         │
         ▼
 api-helpers.js: apiCall(path, options)
   reads window.location.search               ← preserves ?user_id=X
-  fullPath = '/api/pantries/1/shifts?user_id=4'
+  fullPath = '/api/pantries/1/shifts/full-create?user_id=4'
   fetch(fullPath, { method:'POST', body: JSON.stringify(data) })
         │
         ▼  HTTP POST over localhost
@@ -351,13 +455,14 @@ mysql_backend.py: create_shift()
   with get_connection() as conn:            ← borrows from pool
     cursor.execute("INSERT INTO shifts ...")
     conn.commit()
-    cursor.execute("SELECT * FROM shifts WHERE shift_id = LAST_INSERT_ID()")
-    row = cursor.fetchone()
-  return _serialize_shift(row)              ← datetimes → ISO strings
+    if recurrence omitted:
+      create one shift row + related role rows
+    else:
+      create one shift_series row + many concrete shift rows + role clones
+  return JSON summary                        ← created_shift_count, first_shift, shift_series_id
         │
         ▼  back in app.py
-shift["roles"] = []
-return jsonify(shift), 201                  ← Flask serializes to JSON, HTTP 201
+return jsonify(summary), 201                ← Flask serializes to JSON, HTTP 201
         │
         ▼  HTTP 201 JSON response
         │
@@ -366,11 +471,11 @@ api-helpers.js: apiCall()
   return response.json()                    ← parsed JS object
         │
         ▼
-lead-functions.js: createShift() returns shift
+lead-functions.js: createFullShift() returns summary
         │
         ▼
-dashboard.js: receives shift object
-  DOM update — appends shift card / refreshes table
+dashboard.js: receives creation summary
+  DOM update — refreshes manager table + calendar
   (no page reload)
 ```
 
@@ -409,7 +514,38 @@ Protected route requests:
   route handlers use the local session-backed user
 ```
 
-`/api/me` now powers the `My Account` tab. It returns current profile fields, roles, attendance score, auth metadata, and timestamps.
+`/api/me` now powers the `My Account` tab. It returns current profile fields, roles, saved timezone, attendance score, auth metadata, and timestamps.
+
+Timezone persistence flow:
+
+```
+Browser loads dashboard
+  timezone-helpers.js
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  dashboard.js
+    getCurrentUser() → /api/me
+    compare browser timezone with currentUser.timezone
+    if different:
+      PATCH /api/me { timezone: "America/Chicago" }
+    My Account note shows:
+      browser timezone for web rendering
+      saved timezone for emails
+
+Google signup flow
+  auth.js
+    POST /api/auth/signup/google
+      {
+        id_token,
+        full_name,
+        phone_number,
+        timezone
+      }
+
+Email notifications
+  notifications.py
+    ZoneInfo(saved_user_timezone or "America/New_York")
+    localized email shift window
+```
 
 Sensitive account actions:
 

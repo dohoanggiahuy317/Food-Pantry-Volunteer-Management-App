@@ -4,9 +4,21 @@
  * Core API call function
  */
 async function apiCall(path, options = {}) {
+    const headers = new Headers(options.headers || {});
+    if (typeof getBrowserTimeZone === 'function') {
+        const browserTimeZone = getBrowserTimeZone();
+        if (browserTimeZone && !headers.has('X-Client-Timezone')) {
+            headers.set('X-Client-Timezone', browserTimeZone);
+        }
+    }
+
+    const requestOptions = { ...options };
+    delete requestOptions.headers;
+
     const response = await fetch(path, {
         credentials: 'same-origin',
-        ...options
+        ...requestOptions,
+        headers
     });
 
     if (!response.ok) {

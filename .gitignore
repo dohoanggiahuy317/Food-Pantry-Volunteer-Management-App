@@ -151,3 +151,4 @@ yarn-error.log*
 
 
 firebase_private_key.json
+tests/
