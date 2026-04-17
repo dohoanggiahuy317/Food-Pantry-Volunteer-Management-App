@@ -40,6 +40,7 @@ class StoreBackend(ABC):
         email: str,
         phone_number: str | None,
         roles: list[str],
+        timezone: str | None = None,
         auth_provider: str | None = None,
         auth_uid: str | None = None,
     ) -> dict[str, Any]:
@@ -98,6 +99,26 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_pantry_subscriptions_for_user(self, user_id: int) -> list[int]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def is_user_subscribed_to_pantry(self, pantry_id: int, user_id: int) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def subscribe_user_to_pantry(self, pantry_id: int, user_id: int) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def unsubscribe_user_from_pantry(self, pantry_id: int, user_id: int) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_pantry_subscribers(self, pantry_id: int) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_shifts_by_pantry(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
         raise NotImplementedError
 
@@ -110,7 +131,32 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_non_expired_shifts_in_range(
+        self,
+        start_time: str,
+        end_time: str,
+        include_cancelled: bool = True,
+    ) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def get_shift_by_id(self, shift_id: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_shifts_by_series(self, shift_series_id: int) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_shift_series_by_id(self, shift_series_id: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_shift_series(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_shift_series(self, shift_series_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -122,6 +168,8 @@ class StoreBackend(ABC):
         end_time: str,
         status: str,
         created_by: int,
+        shift_series_id: int | None = None,
+        series_position: int | None = None,
     ) -> dict[str, Any]:
         raise NotImplementedError
 

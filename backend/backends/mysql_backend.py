@@ -40,6 +40,7 @@ def _serialize_user(row: dict[str, Any]) -> dict[str, Any]:
         "full_name": row["full_name"],
         "email": row["email"],
         "phone_number": row.get("phone_number"),
+        "timezone": row.get("timezone"),
         "auth_provider": row.get("auth_provider"),
         "auth_uid": row.get("auth_uid"),
         "attendance_score": int(row.get("attendance_score", 100)),
@@ -62,11 +63,30 @@ def _serialize_shift(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "shift_id": row["shift_id"],
         "pantry_id": row["pantry_id"],
+        "shift_series_id": row.get("shift_series_id"),
+        "series_position": int(row["series_position"]) if row.get("series_position") is not None else None,
         "shift_name": row["shift_name"],
         "start_time": _to_iso_z(row["start_time"]),
         "end_time": _to_iso_z(row["end_time"]),
         "status": row["status"],
         "created_by": row["created_by"],
+        "created_at": _to_iso_z(row["created_at"]),
+        "updated_at": _to_iso_z(row["updated_at"]),
+    }
+
+
+def _serialize_shift_series(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "shift_series_id": row["shift_series_id"],
+        "pantry_id": row["pantry_id"],
+        "created_by": row.get("created_by"),
+        "timezone": row["timezone"],
+        "frequency": row["frequency"],
+        "interval_weeks": int(row["interval_weeks"]),
+        "weekdays_csv": row["weekdays_csv"],
+        "end_mode": row["end_mode"],
+        "occurrence_count": int(row["occurrence_count"]) if row.get("occurrence_count") is not None else None,
+        "until_date": row["until_date"].isoformat() if row.get("until_date") else None,
         "created_at": _to_iso_z(row["created_at"]),
         "updated_at": _to_iso_z(row["updated_at"]),
     }
@@ -236,12 +256,15 @@ class MySQLBackend(StoreBackend):
         email: str,
         phone_number: str | None,
         roles: list[str],
+        timezone: str | None = None,
         auth_provider: str | None = None,
         auth_uid: str | None = None,
     ) -> dict[str, Any]:
         normalized_email = str(email).strip().lower()
+        normalized_timezone = str(timezone).strip() if timezone is not None else ""
         normalized_auth_provider = str(auth_provider).strip() if auth_provider is not None else ""
         normalized_auth_uid = str(auth_uid).strip() if auth_uid is not None else ""
+        normalized_timezone = normalized_timezone or None
         normalized_auth_provider = normalized_auth_provider or None
         normalized_auth_uid = normalized_auth_uid or None
         timestamp = _now_utc_naive()
@@ -254,18 +277,20 @@ class MySQLBackend(StoreBackend):
                         full_name,
                         email,
                         phone_number,
+                        timezone,
                         auth_provider,
                         auth_uid,
                         attendance_score,
                         created_at,
                         updated_at
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         full_name,
                         normalized_email,
                         phone_number,
+                        normalized_timezone,
                         normalized_auth_provider,
                         normalized_auth_uid,
                         100,
@@ -300,6 +325,7 @@ class MySQLBackend(StoreBackend):
                 "full_name": full_name,
                 "email": normalized_email,
                 "phone_number": phone_number,
+                "timezone": normalized_timezone,
                 "auth_provider": normalized_auth_provider,
                 "auth_uid": normalized_auth_uid,
                 "attendance_score": 100,
@@ -325,6 +351,10 @@ class MySQLBackend(StoreBackend):
         if "phone_number" in payload:
             updates.append("phone_number = %s")
             values.append(payload["phone_number"])
+        if "timezone" in payload:
+            updates.append("timezone = %s")
+            normalized_timezone = str(payload["timezone"]).strip() if payload["timezone"] is not None else ""
+            values.append(normalized_timezone or None)
         if "auth_provider" in payload:
             updates.append("auth_provider = %s")
             normalized_auth_provider = str(payload["auth_provider"]).strip() if payload["auth_provider"] is not None else ""
@@ -523,6 +553,65 @@ class MySQLBackend(StoreBackend):
             )
             conn.commit()
 
+    def list_pantry_subscriptions_for_user(self, user_id: int) -> list[int]:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT pantry_id
+                FROM pantry_subscriptions
+                WHERE user_id = %s
+                ORDER BY pantry_id
+                """,
+                (user_id,),
+            )
+            return [int(row["pantry_id"]) for row in cursor.fetchall()]
+
+    def is_user_subscribed_to_pantry(self, pantry_id: int, user_id: int) -> bool:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM pantry_subscriptions WHERE pantry_id = %s AND user_id = %s",
+                (pantry_id, user_id),
+            )
+            return cursor.fetchone() is not None
+
+    def subscribe_user_to_pantry(self, pantry_id: int, user_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT IGNORE INTO pantry_subscriptions (pantry_id, user_id, created_at)
+                VALUES (%s, %s, %s)
+                """,
+                (pantry_id, user_id, _now_utc_naive()),
+            )
+            conn.commit()
+
+    def unsubscribe_user_from_pantry(self, pantry_id: int, user_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM pantry_subscriptions WHERE pantry_id = %s AND user_id = %s",
+                (pantry_id, user_id),
+            )
+            conn.commit()
+
+    def list_pantry_subscribers(self, pantry_id: int) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT u.*
+                FROM pantry_subscriptions ps
+                JOIN users u ON u.user_id = ps.user_id
+                WHERE ps.pantry_id = %s
+                ORDER BY ps.created_at, u.user_id
+                """,
+                (pantry_id,),
+            )
+            return [_serialize_user(row) for row in cursor.fetchall()]
+
     def list_shifts_by_pantry(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -545,6 +634,100 @@ class MySQLBackend(StoreBackend):
             row = cursor.fetchone()
             return _serialize_shift(row) if row else None
 
+    def list_shifts_by_series(self, shift_series_id: int) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT * FROM shifts WHERE shift_series_id = %s ORDER BY start_time, shift_id",
+                (shift_series_id,),
+            )
+            return [_serialize_shift(row) for row in cursor.fetchall()]
+
+    def get_shift_series_by_id(self, shift_series_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM shift_series WHERE shift_series_id = %s", (shift_series_id,))
+            row = cursor.fetchone()
+            return _serialize_shift_series(row) if row else None
+
+    def create_shift_series(self, payload: dict[str, Any]) -> dict[str, Any]:
+        timestamp = _now_utc_naive()
+        until_date = payload.get("until_date")
+        until_dt = datetime.fromisoformat(until_date).date() if until_date else None
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO shift_series (
+                    pantry_id,
+                    created_by,
+                    timezone,
+                    frequency,
+                    interval_weeks,
+                    weekdays_csv,
+                    end_mode,
+                    occurrence_count,
+                    until_date,
+                    created_at,
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    int(payload["pantry_id"]),
+                    payload.get("created_by"),
+                    payload["timezone"],
+                    payload.get("frequency", "WEEKLY"),
+                    int(payload.get("interval_weeks", 1)),
+                    payload["weekdays_csv"],
+                    payload["end_mode"],
+                    payload.get("occurrence_count"),
+                    until_dt,
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            shift_series_id = int(cursor.lastrowid)
+            conn.commit()
+        created = self.get_shift_series_by_id(shift_series_id)
+        if not created:
+            raise RuntimeError("Failed to create shift series")
+        return created
+
+    def update_shift_series(self, shift_series_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        existing = self.get_shift_series_by_id(shift_series_id)
+        if not existing:
+            return None
+
+        updates: list[str] = []
+        values: list[Any] = []
+        for key in ["timezone", "frequency", "weekdays_csv", "end_mode"]:
+            if key in payload:
+                updates.append(f"{key} = %s")
+                values.append(payload[key])
+        if "interval_weeks" in payload:
+            updates.append("interval_weeks = %s")
+            values.append(int(payload["interval_weeks"]))
+        if "occurrence_count" in payload:
+            updates.append("occurrence_count = %s")
+            values.append(payload["occurrence_count"])
+        if "until_date" in payload:
+            updates.append("until_date = %s")
+            values.append(datetime.fromisoformat(payload["until_date"]).date() if payload["until_date"] else None)
+        if not updates:
+            return existing
+        updates.append("updated_at = %s")
+        values.append(_now_utc_naive())
+        values.append(shift_series_id)
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE shift_series SET {', '.join(updates)} WHERE shift_series_id = %s",
+                tuple(values),
+            )
+            conn.commit()
+        return self.get_shift_series_by_id(shift_series_id)
+
     def list_non_expired_shifts_by_pantry(
         self,
         pantry_id: int,
@@ -559,6 +742,29 @@ class MySQLBackend(StoreBackend):
             cursor.execute(query, (pantry_id,))
             return [_serialize_shift(row) for row in cursor.fetchall()]
 
+    def list_non_expired_shifts_in_range(
+        self,
+        start_time: str,
+        end_time: str,
+        include_cancelled: bool = True,
+    ) -> list[dict[str, Any]]:
+        start_dt = _parse_iso_to_dt(start_time)
+        end_dt = _parse_iso_to_dt(end_time)
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            query = """
+                SELECT *
+                FROM shifts
+                WHERE end_time >= UTC_TIMESTAMP()
+                  AND end_time >= %s
+                  AND start_time <= %s
+            """
+            if not include_cancelled:
+                query += " AND status != 'CANCELLED'"
+            query += " ORDER BY start_time, shift_id"
+            cursor.execute(query, (start_dt, end_dt))
+            return [_serialize_shift(row) for row in cursor.fetchall()]
+
     def create_shift(
         self,
         pantry_id: int,
@@ -567,6 +773,8 @@ class MySQLBackend(StoreBackend):
         end_time: str,
         status: str,
         created_by: int,
+        shift_series_id: int | None = None,
+        series_position: int | None = None,
     ) -> dict[str, Any]:
         timestamp = _now_utc_naive()
         start_dt = _parse_iso_to_dt(start_time)
@@ -578,6 +786,8 @@ class MySQLBackend(StoreBackend):
                 """
                 INSERT INTO shifts (
                     pantry_id,
+                    shift_series_id,
+                    series_position,
                     shift_name,
                     start_time,
                     end_time,
@@ -586,9 +796,20 @@ class MySQLBackend(StoreBackend):
                     created_at,
                     updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-                (pantry_id, shift_name, start_dt, end_dt, status, created_by, timestamp, timestamp),
+                (
+                    pantry_id,
+                    shift_series_id,
+                    series_position,
+                    shift_name,
+                    start_dt,
+                    end_dt,
+                    status,
+                    created_by,
+                    timestamp,
+                    timestamp,
+                ),
             )
             shift_id = int(cursor.lastrowid)
             conn.commit()
@@ -608,6 +829,12 @@ class MySQLBackend(StoreBackend):
         if "shift_name" in payload:
             updates.append("shift_name = %s")
             values.append(payload["shift_name"])
+        if "shift_series_id" in payload:
+            updates.append("shift_series_id = %s")
+            values.append(payload["shift_series_id"])
+        if "series_position" in payload:
+            updates.append("series_position = %s")
+            values.append(payload["series_position"])
         if "start_time" in payload:
             updates.append("start_time = %s")
             values.append(_parse_iso_to_dt(payload["start_time"]))
@@ -692,6 +919,12 @@ class MySQLBackend(StoreBackend):
             if "shift_name" in shift_payload:
                 updates.append("shift_name = %s")
                 values.append(shift_payload["shift_name"])
+            if "shift_series_id" in shift_payload:
+                updates.append("shift_series_id = %s")
+                values.append(shift_payload["shift_series_id"])
+            if "series_position" in shift_payload:
+                updates.append("series_position = %s")
+                values.append(shift_payload["series_position"])
             if "start_time" in shift_payload:
                 updates.append("start_time = %s")
                 values.append(_parse_iso_to_dt(shift_payload["start_time"]))

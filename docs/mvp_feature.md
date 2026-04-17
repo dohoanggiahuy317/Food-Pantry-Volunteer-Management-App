@@ -116,7 +116,7 @@ Use:
 - SMS/email delivery tracking: sent, delivered (if provider supports), failed
 - Retry strategy for transient failures
 - Idempotent endpoints for confirm/cancel links
-- Current repo implementation includes Resend email delivery for signup confirmations, shift updates that require reconfirmation, and shift cancellations; sender setup still requires a verified domain/subdomain before production sending
+- Current repo implementation includes Resend email delivery for signup confirmations, shift updates that require reconfirmation, and shift cancellations; shift times in those emails are localized with each user's saved timezone when available, with `America/New_York` as the fallback; sender setup still requires a verified domain/subdomain before production sending
 
 ### 4.2. Security & privacy
 - Magic-link tokens for volunteer actions (no passwords for volunteers)
@@ -164,6 +164,7 @@ Use:
 ### Volunteer stories
 - As a Volunteer, I can view available shifts on my phone so I can pick one quickly.
 - As a Volunteer, I can sign up with my name/phone/email so I receive reminders.
+- As a Volunteer, I can see shift times in my browser's local timezone and receive emails in my saved account timezone.
 - As a Volunteer, I can confirm via a link so the pantry knows I’m coming.
 - As a Volunteer, I can cancel via a link so the slot opens for someone else.
 - As a Volunteer, I can opt into on-call so I can help when emergencies happen.
