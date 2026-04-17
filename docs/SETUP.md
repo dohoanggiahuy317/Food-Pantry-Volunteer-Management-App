@@ -123,6 +123,31 @@ python app.py
 
 ---
 
+## Running Tests
+
+Install the backend dependencies first if you have not already:
+
+```bash
+cd backend
+pip install -r requirements.txt
+cd ..
+```
+
+Run tests from the repository root so `pytest` discovers the repository-level `tests/` directory:
+
+```bash
+pytest tests
+```
+
+Run an individual file when you only want a focused check:
+
+```bash
+pytest tests/test_signup_rate_limit.py
+pytest tests/test_notifications.py
+```
+
+---
+
 ## Step 4: Accessing the App & Mock Authentication
 
 **Open the app in your browser:**

@@ -33,6 +33,12 @@ The data layer uses an abstract `StoreBackend` interface with two concrete imple
 
 The active backend is selected at startup via the `DATA_BACKEND` environment variable (defaults to `mysql`). Swapping backends requires no changes to `app.py`.
 
+### Test Layout
+
+- Automated tests live in the repository-level `tests/` directory.
+- `tests/conftest.py` adds `backend/` to the Python import path so tests can still import `app`, `backends`, and `notifications` while being run from the repo root.
+- Current test files include `tests/test_notifications.py` and `tests/test_signup_rate_limit.py`.
+
 ### Auth Provider Switch
 
 Authentication is configured separately from data storage:
@@ -160,6 +166,29 @@ Set up Firebase Authentication and Resend email for the full experience, or use 
 If you want real email delivery in development or production, configure Resend in `backend/.env` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Resend’s official docs say sending uses a domain you own and recommend a subdomain such as `updates.yourdomain.com`; if your team does not already own a domain, register one first, then follow the Resend domain setup docs and DNS provider guide before using that sender address.
 
 For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes, including `users.timezone`, pantry subscriptions, and recurring-shift tables/columns such as `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`, apply cleanly.
+
+### Running Tests
+
+Install backend dependencies first:
+
+```bash
+cd backend
+pip install -r requirements.txt
+cd ..
+```
+
+Run the full suite from the repository root:
+
+```bash
+pytest tests
+```
+
+Run a specific test file:
+
+```bash
+pytest tests/test_signup_rate_limit.py
+pytest tests/test_notifications.py
+```
 
 ---
 
