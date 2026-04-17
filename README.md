@@ -140,7 +140,7 @@ The app now shows an auth gate before the dashboard.
 - Can view volunteer registrations and mark attendance.
 
 ### Volunteer
-- Can browse open, non-expired shifts.
+- Can browse open, non-expired shifts in the shared `Calendar` tab with pantry, search, and time-bucket filters plus month/week/day navigation.
 - Can use the `Pantries` tab to search pantries by name/address, sort by name, and filter by `All`, `Subscribed`, or `Unsubscribed`.
 - Can open a pantry detail view to see pantry leads and the next incoming shift preview.
 - Can subscribe or unsubscribe from a pantry to receive email when that pantry creates a new one-off shift or recurring series.
@@ -148,6 +148,9 @@ The app now shows an auth gate before the dashboard.
 - Shift edits move existing signups to `PENDING_CONFIRMATION` with a 48-hour reservation window.
 - Can reconfirm after shift edits.
 - If they cancel during reconfirmation, the signup row is removed (same as normal cancel), so they can sign up again later if capacity is available.
+- The `My Shifts` tab now defaults to a calendar view and can toggle back to the original list view.
+- `My Shifts` calendar supports pantry/search/time-bucket filters, month/week/day navigation, responsive phone agenda rendering, and cancel/reconfirm actions from the shift detail modal.
+- `My Shifts` list view supports volunteer-facing search and filters by pantry and time bucket while preserving the incoming/ongoing/past grouping.
 - Can manage their own profile from `My Account`, including verified Firebase email changes and full account deletion.
 - Sees shift times in the browser's local timezone and receives notification emails in the saved account timezone once it has been synced.
 - Receives email notifications when Resend is configured
