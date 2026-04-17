@@ -2570,17 +2570,9 @@ def create_signup(shift_role_id: int) -> Any:
     now_utc = datetime.now(timezone.utc)
     signups_by_user = backend.list_signups_by_user(user_id)
 
-    shift_date = parse_iso_datetime_to_utc(shift.get("start_time"))
-    if shift_date:
-        shift_day = shift_date.date()
-        signups_that_day = [
-            s for s in signups_by_user
-            if signup_row_blocks_overlap(s, now_utc)
-            and parse_iso_datetime_to_utc(s.get("start_time")) is not None
-            and parse_iso_datetime_to_utc(s.get("start_time")).date() == shift_day
-        ]
-        if len(signups_that_day) >= 10:
-            return jsonify({"error": "You have reached the maximum of 10 shift registrations for this day"}), 400
+    active_signups = [s for s in signups_by_user if signup_row_blocks_overlap(s, now_utc)]
+    if len(active_signups) >= 5:
+        return jsonify({"error": "You have reached the maximum of 5 active shift registrations"}), 400
 
     has_conflict = any(
         signup_row_blocks_overlap(signup_row, now_utc)
