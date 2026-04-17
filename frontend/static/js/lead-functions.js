@@ -68,6 +68,19 @@ async function createShift(pantryId, shiftData) {
 }
 
 /**
+ * Create a shift and its roles atomically, optionally as a recurring series.
+ */
+async function createFullShift(pantryId, shiftData) {
+    try {
+        const response = await apiPost(`/api/pantries/${pantryId}/shifts/full-create`, shiftData);
+        return response;
+    } catch (error) {
+        console.error('Failed to fully create shift:', error);
+        throw error;
+    }
+}
+
+/**
  * Update shift information
  */
 async function updateShift(shiftId, shiftData) {
@@ -102,6 +115,19 @@ async function deleteShift(shiftId) {
         return data;
     } catch (error) {
         console.error('Failed to delete shift:', error);
+        throw error;
+    }
+}
+
+/**
+ * Cancel a shift with scope support for recurring series.
+ */
+async function cancelShiftWithScope(shiftId, applyScope = 'single') {
+    try {
+        const data = await apiPost(`/api/shifts/${shiftId}/cancel`, { apply_scope: applyScope });
+        return data;
+    } catch (error) {
+        console.error('Failed to cancel shift:', error);
         throw error;
     }
 }
@@ -176,25 +202,14 @@ async function deleteShiftRole(roleId) {
  * Format datetime for input field (YYYY-MM-DDTHH:MM)
  */
 function formatDateTimeForInput(dateString) {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toISOString().slice(0, 16);
+    return formatDateTimeForLocalInput(dateString);
 }
 
 /**
  * Format datetime for display
  */
 function formatDateTimeForDisplay(dateString) {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
+    return formatLocalDateTime(dateString);
 }
 
 /**

@@ -44,10 +44,13 @@ class MemoryBackend(StoreBackend):
             "user_roles": [],
             "pantries": [],
             "pantry_leads": [],
+            "pantry_subscriptions": [],
+            "shift_series": [],
             "shifts": [],
             "shift_roles": [],
             "shift_signups": [],
         }
+        self.next_shift_series_id = 1
         self.next_shift_id = 1
         self.next_shift_role_id = 1
         self.next_signup_id = 1
@@ -117,14 +120,19 @@ class MemoryBackend(StoreBackend):
             "user_roles": list(data.get("user_roles", [])),
             "pantries": list(data.get("pantries", [])),
             "pantry_leads": list(data.get("pantry_leads", [])),
+            "pantry_subscriptions": list(data.get("pantry_subscriptions", [])),
+            "shift_series": list(data.get("shift_series", [])),
             "shifts": list(data.get("shifts", [])),
             "shift_roles": list(data.get("shift_roles", [])),
             "shift_signups": list(data.get("shift_signups", [])),
         }
         for user in self.store["users"]:
             user.setdefault("updated_at", user.get("created_at"))
+            user.setdefault("timezone", None)
             user.setdefault("auth_provider", None)
             user.setdefault("auth_uid", None)
+        if self.store["shift_series"]:
+            self.next_shift_series_id = max(ss.get("shift_series_id", 0) for ss in self.store["shift_series"]) + 1
         if self.store["shifts"]:
             self.next_shift_id = max(s.get("shift_id", 0) for s in self.store["shifts"]) + 1
         if self.store["shift_roles"]:
@@ -194,6 +202,7 @@ class MemoryBackend(StoreBackend):
         email: str,
         phone_number: str | None,
         roles: list[str],
+        timezone: str | None = None,
         auth_provider: str | None = None,
         auth_uid: str | None = None,
     ) -> dict[str, Any]:
@@ -214,6 +223,7 @@ class MemoryBackend(StoreBackend):
             "full_name": full_name,
             "email": normalized_email,
             "phone_number": phone_number,
+            "timezone": str(timezone).strip() or None if timezone is not None else None,
             "attendance_score": 100,
             "created_at": timestamp,
             "updated_at": timestamp,
@@ -242,7 +252,7 @@ class MemoryBackend(StoreBackend):
         if not user:
             return None
 
-        allowed_keys = {"full_name", "email", "phone_number", "auth_provider", "auth_uid"}
+        allowed_keys = {"full_name", "email", "phone_number", "timezone", "auth_provider", "auth_uid"}
         updates = {key: value for key, value in payload.items() if key in allowed_keys}
         if not updates:
             return dict(user)
@@ -271,6 +281,10 @@ class MemoryBackend(StoreBackend):
         if "auth_provider" in updates:
             normalized_auth_provider = str(updates["auth_provider"]).strip() if updates["auth_provider"] is not None else ""
             updates["auth_provider"] = normalized_auth_provider or None
+
+        if "timezone" in updates:
+            normalized_timezone = str(updates["timezone"]).strip() if updates["timezone"] is not None else ""
+            updates["timezone"] = normalized_timezone or None
 
         for key, value in updates.items():
             user[key] = value
@@ -313,6 +327,9 @@ class MemoryBackend(StoreBackend):
         self.store["users"] = [user for user in self.store["users"] if int(user.get("user_id", 0)) != user_id]
         self.store["user_roles"] = [row for row in self.store["user_roles"] if int(row.get("user_id", 0)) != user_id]
         self.store["pantry_leads"] = [row for row in self.store["pantry_leads"] if int(row.get("user_id", 0)) != user_id]
+        self.store["pantry_subscriptions"] = [
+            row for row in self.store["pantry_subscriptions"] if int(row.get("user_id", 0)) != user_id
+        ]
         self.store["shift_signups"] = [row for row in self.store["shift_signups"] if int(row.get("user_id", 0)) != user_id]
         for shift in self.store["shifts"]:
             if int(shift.get("created_by", 0)) == user_id:
@@ -409,6 +426,11 @@ class MemoryBackend(StoreBackend):
             for pantry_lead in self.store["pantry_leads"]
             if pantry_lead.get("pantry_id") != pantry_id
         ]
+        self.store["pantry_subscriptions"] = [
+            row
+            for row in self.store["pantry_subscriptions"]
+            if int(row.get("pantry_id", 0)) != pantry_id
+        ]
         self.store["pantries"] = [
             pantry
             for pantry in self.store["pantries"]
@@ -426,6 +448,48 @@ class MemoryBackend(StoreBackend):
             for pl in self.store["pantry_leads"]
             if not (pl.get("pantry_id") == pantry_id and pl.get("user_id") == user_id)
         ]
+
+    def list_pantry_subscriptions_for_user(self, user_id: int) -> list[int]:
+        return sorted(
+            {
+                int(row.get("pantry_id", 0))
+                for row in self.store["pantry_subscriptions"]
+                if int(row.get("user_id", 0)) == user_id
+            }
+        )
+
+    def is_user_subscribed_to_pantry(self, pantry_id: int, user_id: int) -> bool:
+        return any(
+            int(row.get("pantry_id", 0)) == pantry_id and int(row.get("user_id", 0)) == user_id
+            for row in self.store["pantry_subscriptions"]
+        )
+
+    def subscribe_user_to_pantry(self, pantry_id: int, user_id: int) -> None:
+        if self.is_user_subscribed_to_pantry(pantry_id, user_id):
+            return
+        self.store["pantry_subscriptions"].append(
+            {
+                "pantry_id": pantry_id,
+                "user_id": user_id,
+                "created_at": _utc_now_iso(),
+            }
+        )
+
+    def unsubscribe_user_from_pantry(self, pantry_id: int, user_id: int) -> None:
+        self.store["pantry_subscriptions"] = [
+            row
+            for row in self.store["pantry_subscriptions"]
+            if not (int(row.get("pantry_id", 0)) == pantry_id and int(row.get("user_id", 0)) == user_id)
+        ]
+
+    def list_pantry_subscribers(self, pantry_id: int) -> list[dict[str, Any]]:
+        user_ids = [
+            int(row.get("user_id", 0))
+            for row in self.store["pantry_subscriptions"]
+            if int(row.get("pantry_id", 0)) == pantry_id
+        ]
+        users_by_id = {int(user.get("user_id", 0)): dict(user) for user in self.store["users"]}
+        return [users_by_id[user_id] for user_id in user_ids if user_id in users_by_id]
 
     def list_shifts_by_pantry(self, pantry_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
         shifts = [dict(s) for s in self.store["shifts"] if s.get("pantry_id") == pantry_id]
@@ -445,8 +509,79 @@ class MemoryBackend(StoreBackend):
             shifts = [s for s in shifts if str(s.get("status", "")).upper() != "CANCELLED"]
         return shifts
 
+    def list_non_expired_shifts_in_range(
+        self,
+        start_time: str,
+        end_time: str,
+        include_cancelled: bool = True,
+    ) -> list[dict[str, Any]]:
+        range_start = _parse_iso_to_utc(start_time)
+        range_end = _parse_iso_to_utc(end_time)
+        if not range_start or not range_end:
+            return []
+
+        now_utc = datetime.now(timezone.utc)
+        shifts: list[dict[str, Any]] = []
+        for shift in self.store["shifts"]:
+            shift_start = _parse_iso_to_utc(shift.get("start_time"))
+            shift_end = _parse_iso_to_utc(shift.get("end_time"))
+            if not shift_start or not shift_end:
+                continue
+            if shift_end < now_utc:
+                continue
+            if shift_end < range_start or shift_start > range_end:
+                continue
+            if not include_cancelled and str(shift.get("status", "")).upper() == "CANCELLED":
+                continue
+            shifts.append(dict(shift))
+
+        return sorted(shifts, key=lambda item: (str(item.get("start_time") or ""), int(item.get("shift_id") or 0)))
+
     def get_shift_by_id(self, shift_id: int) -> dict[str, Any] | None:
         return self._copy(next((s for s in self.store["shifts"] if s.get("shift_id") == shift_id), None))
+
+    def list_shifts_by_series(self, shift_series_id: int) -> list[dict[str, Any]]:
+        shifts = [
+            dict(shift)
+            for shift in self.store["shifts"]
+            if int(shift.get("shift_series_id") or 0) == shift_series_id
+        ]
+        return sorted(shifts, key=lambda item: (str(item.get("start_time") or ""), int(item.get("shift_id") or 0)))
+
+    def get_shift_series_by_id(self, shift_series_id: int) -> dict[str, Any] | None:
+        return self._copy(next((row for row in self.store["shift_series"] if row.get("shift_series_id") == shift_series_id), None))
+
+    def create_shift_series(self, payload: dict[str, Any]) -> dict[str, Any]:
+        timestamp = _utc_now_iso()
+        series = {
+            "shift_series_id": self.next_shift_series_id,
+            "pantry_id": int(payload["pantry_id"]),
+            "created_by": payload.get("created_by"),
+            "timezone": payload["timezone"],
+            "frequency": payload.get("frequency", "WEEKLY"),
+            "interval_weeks": int(payload.get("interval_weeks", 1)),
+            "weekdays_csv": payload["weekdays_csv"],
+            "end_mode": payload["end_mode"],
+            "occurrence_count": payload.get("occurrence_count"),
+            "until_date": payload.get("until_date"),
+            "created_at": timestamp,
+            "updated_at": timestamp,
+        }
+        self.next_shift_series_id += 1
+        self.store["shift_series"].append(series)
+        return dict(series)
+
+    def update_shift_series(self, shift_series_id: int, payload: dict[str, Any]) -> dict[str, Any] | None:
+        series = next((row for row in self.store["shift_series"] if row.get("shift_series_id") == shift_series_id), None)
+        if not series:
+            return None
+        for key in ["timezone", "frequency", "weekdays_csv", "end_mode", "occurrence_count", "until_date"]:
+            if key in payload:
+                series[key] = payload[key]
+        if "interval_weeks" in payload:
+            series["interval_weeks"] = int(payload["interval_weeks"])
+        series["updated_at"] = _utc_now_iso()
+        return dict(series)
 
     def create_shift(
         self,
@@ -456,11 +591,15 @@ class MemoryBackend(StoreBackend):
         end_time: str,
         status: str,
         created_by: int,
+        shift_series_id: int | None = None,
+        series_position: int | None = None,
     ) -> dict[str, Any]:
         timestamp = _utc_now_iso()
         shift = {
             "shift_id": self.next_shift_id,
             "pantry_id": pantry_id,
+            "shift_series_id": shift_series_id,
+            "series_position": series_position,
             "shift_name": shift_name,
             "start_time": start_time,
             "end_time": end_time,
@@ -477,7 +616,7 @@ class MemoryBackend(StoreBackend):
         shift = next((s for s in self.store["shifts"] if s.get("shift_id") == shift_id), None)
         if not shift:
             return None
-        for key in ["shift_name", "start_time", "end_time", "status"]:
+        for key in ["shift_name", "start_time", "end_time", "status", "shift_series_id", "series_position"]:
             if key in payload:
                 shift[key] = payload[key]
         shift["updated_at"] = _utc_now_iso()
@@ -528,7 +667,7 @@ class MemoryBackend(StoreBackend):
                 "required_count": required_count,
             })
 
-        for key in ["shift_name", "start_time", "end_time", "status"]:
+        for key in ["shift_name", "start_time", "end_time", "status", "shift_series_id", "series_position"]:
             if key in shift_payload:
                 shift[key] = shift_payload[key]
         shift["updated_at"] = _utc_now_iso()

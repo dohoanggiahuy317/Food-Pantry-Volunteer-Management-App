@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import os
 from pathlib import Path
 import re
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
 from flask import Flask, g, jsonify, render_template, request, session
@@ -14,6 +15,8 @@ from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
 from backends.factory import create_backend
 from notifications import (
+    send_new_shift_series_subscriber_notification,
+    send_new_shift_subscriber_notification,
     send_shift_cancellation_notification,
     send_shift_update_notification,
     send_signup_confirmation,
@@ -45,9 +48,18 @@ PAST_SHIFT_LOCK_CODE = "PAST_SHIFT_LOCKED"
 ACTIVE_SIGNUP_STATUSES = {SIGNUP_STATUS_CONFIRMED, "SHOW_UP", "NO_SHOW"}
 LEAD_VISIBLE_SIGNUP_STATUSES = ACTIVE_SIGNUP_STATUSES
 RESERVATION_WINDOW_HOURS = 48
+MAX_SIGNUPS_PER_24_HOURS = 5
+SIGNUP_RATE_LIMIT_WINDOW = timedelta(hours=24)
 ADMIN_ROLE_NAME = "ADMIN"
 SUPER_ADMIN_ROLE_NAME = "SUPER_ADMIN"
 PROTECTED_SUPER_ADMIN_USER_ID = 1
+RECURRING_FREQUENCY_WEEKLY = "WEEKLY"
+RECURRING_END_MODE_COUNT = "COUNT"
+RECURRING_END_MODE_UNTIL = "UNTIL"
+WEEKDAY_CODES = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
+WEEKDAY_TO_INDEX = {code: index for index, code in enumerate(WEEKDAY_CODES)}
+INDEX_TO_WEEKDAY = {index: code for code, index in WEEKDAY_TO_INDEX.items()}
+MAX_RECURRING_OCCURRENCES = 260
 AUTH_EXEMPT_API_PATHS = {
     "/api/auth/config",
     "/api/auth/login/google",
@@ -103,7 +115,35 @@ def current_user() -> dict[str, Any] | None:
     user_id = getattr(g, "current_user_id", None)
     if user_id is None:
         return None
-    return find_user_by_id(user_id)
+    user = find_user_by_id(user_id)
+    if not user:
+        return None
+    return sync_user_timezone_from_request(user)
+
+
+def normalized_timezone_name(value: Any) -> str | None:
+    timezone_name = str(value or "").strip()
+    if not timezone_name:
+        return None
+    try:
+        ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return None
+    return timezone_name
+
+
+def sync_user_timezone_from_request(user: dict[str, Any]) -> dict[str, Any]:
+    request_timezone = normalized_timezone_name(request.headers.get("X-Client-Timezone"))
+    if not request_timezone:
+        return user
+    if str(user.get("timezone") or "").strip() == request_timezone:
+        return user
+
+    try:
+        updated = backend.update_user(int(user.get("user_id")), {"timezone": request_timezone})
+    except ValueError:
+        return user
+    return updated or user
 
 
 def serialize_user_for_client(user: dict[str, Any] | None, include_roles: bool = False) -> dict[str, Any] | None:
@@ -116,6 +156,7 @@ def serialize_user_for_client(user: dict[str, Any] | None, include_roles: bool =
         "full_name": user.get("full_name"),
         "email": user.get("email"),
         "phone_number": user.get("phone_number"),
+        "timezone": user.get("timezone"),
         "auth_mode": auth_service.mode,
         "auth_provider": linked_auth_provider,
         "auth_uid": user.get("auth_uid"),
@@ -271,6 +312,51 @@ def get_pantry_leads(pantry_id: int) -> list[dict[str, Any]]:
     return backend.get_pantry_leads(pantry_id)
 
 
+def user_can_manage_pantry(pantry_id: int, user_id: int) -> bool:
+    return is_admin_capable(user_id) or backend.is_pantry_lead(pantry_id, user_id)
+
+
+def volunteer_user_required() -> tuple[dict[str, Any] | None, Any | None]:
+    user = current_user()
+    if not user:
+        return None, (jsonify({"error": "Forbidden"}), 403)
+
+    user_id = int(user.get("user_id"))
+    if not user_has_role(user_id, "VOLUNTEER"):
+        return None, (jsonify({"error": "Volunteer role required"}), 403)
+    return user, None
+
+
+def upcoming_shifts_for_pantry_preview(pantry_id: int, limit: int = 3) -> list[dict[str, Any]]:
+    shifts = backend.list_non_expired_shifts_by_pantry(pantry_id, include_cancelled=False)
+    serialized: list[dict[str, Any]] = []
+    for shift in shifts:
+        payload = attach_shift_recurrence_metadata(shift)
+        payload["roles"] = get_shift_roles(int(shift.get("shift_id")), include_cancelled=False)
+        serialized.append(payload)
+
+    serialized.sort(
+        key=lambda item: (
+            parse_iso_datetime_to_utc(item.get("start_time")) or datetime.max.replace(tzinfo=timezone.utc),
+            int(item.get("shift_id") or 0),
+        )
+    )
+    return serialized[:limit]
+
+
+def volunteer_pantry_payload(pantry: dict[str, Any], subscriber_pantry_ids: set[int]) -> dict[str, Any]:
+    pantry_id = int(pantry.get("pantry_id"))
+    preview_shifts = upcoming_shifts_for_pantry_preview(pantry_id, limit=3)
+    payload = dict(pantry)
+    payload["leads"] = get_pantry_leads(pantry_id)
+    payload["is_subscribed"] = pantry_id in subscriber_pantry_ids
+    payload["preview_shifts"] = preview_shifts
+    payload["upcoming_shift_count"] = len(
+        backend.list_non_expired_shifts_by_pantry(pantry_id, include_cancelled=False)
+    )
+    return payload
+
+
 def get_shift_roles(shift_id: int, include_cancelled: bool = True) -> list[dict[str, Any]]:
     roles = backend.list_shift_roles(shift_id)
     if include_cancelled:
@@ -313,8 +399,269 @@ def parse_iso_datetime_to_utc(value: Any) -> datetime | None:
     return dt.astimezone(timezone.utc)
 
 
+def parse_iso_date(value: Any) -> date | None:
+    if not value:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def localize_shift_datetime(value: Any, timezone_name: str) -> datetime | None:
+    utc_value = parse_iso_datetime_to_utc(value)
+    normalized_timezone = normalized_timezone_name(timezone_name)
+    if not utc_value or not normalized_timezone:
+        return None
+    return utc_value.astimezone(ZoneInfo(normalized_timezone))
+
+
+def local_date_for_shift(value: Any, timezone_name: str) -> date | None:
+    local_value = localize_shift_datetime(value, timezone_name)
+    return local_value.date() if local_value else None
+
+
+def recurrence_for_client(series: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not series:
+        return None
+    weekdays_csv = str(series.get("weekdays_csv") or "")
+    weekdays = [code for code in weekdays_csv.split(",") if code]
+    return {
+        "shift_series_id": series.get("shift_series_id"),
+        "timezone": series.get("timezone"),
+        "frequency": series.get("frequency", RECURRING_FREQUENCY_WEEKLY),
+        "interval_weeks": int(series.get("interval_weeks", 1)),
+        "weekdays": weekdays,
+        "end_mode": series.get("end_mode"),
+        "occurrence_count": series.get("occurrence_count"),
+        "until_date": series.get("until_date"),
+    }
+
+
+def recurrence_for_shift_scope(shift: dict[str, Any], series: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    shift_series_id = shift.get("shift_series_id")
+    if shift_series_id is None:
+        return None
+
+    resolved_series = series or backend.get_shift_series_by_id(int(shift_series_id))
+    recurrence = recurrence_for_client(resolved_series)
+    if not recurrence:
+        return None
+
+    if recurrence.get("end_mode") == RECURRING_END_MODE_COUNT and recurrence.get("occurrence_count") is not None:
+        series_position = int(shift.get("series_position") or 1)
+        recurrence["occurrence_count"] = max(1, int(recurrence["occurrence_count"]) - series_position + 1)
+    return recurrence
+
+
+def attach_shift_recurrence_metadata(shift: dict[str, Any], include_recurrence: bool = False) -> dict[str, Any]:
+    payload = dict(shift)
+    shift_series_id = payload.get("shift_series_id")
+    payload["shift_series_id"] = int(shift_series_id) if shift_series_id is not None else None
+    payload["series_position"] = int(payload.get("series_position")) if payload.get("series_position") is not None else None
+    payload["is_recurring"] = payload["shift_series_id"] is not None
+    if include_recurrence and payload["shift_series_id"] is not None:
+        payload["recurrence"] = recurrence_for_shift_scope(payload)
+    return payload
+
+
+def normalize_recurrence_payload(payload: Any, start_time: str | None = None) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    if not isinstance(payload, dict):
+        raise ValueError("recurrence must be an object")
+
+    timezone_name = normalized_timezone_name(payload.get("timezone"))
+    if not timezone_name:
+        raise ValueError("recurrence.timezone must be a valid IANA timezone")
+
+    frequency = str(payload.get("frequency", RECURRING_FREQUENCY_WEEKLY)).strip().upper()
+    if frequency != RECURRING_FREQUENCY_WEEKLY:
+        raise ValueError("Only WEEKLY recurrence is supported")
+
+    try:
+        interval_weeks = int(payload.get("interval_weeks", 1))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("recurrence.interval_weeks must be >= 1") from exc
+    if interval_weeks < 1:
+        raise ValueError("recurrence.interval_weeks must be >= 1")
+
+    weekdays_raw = payload.get("weekdays")
+    if not isinstance(weekdays_raw, list) or not weekdays_raw:
+        raise ValueError("recurrence.weekdays must be a non-empty array")
+
+    normalized_weekdays: list[str] = []
+    seen_weekdays: set[str] = set()
+    for raw_weekday in weekdays_raw:
+        weekday = str(raw_weekday or "").strip().upper()
+        if weekday not in WEEKDAY_TO_INDEX:
+            raise ValueError("recurrence.weekdays contains an invalid weekday")
+        if weekday in seen_weekdays:
+            continue
+        seen_weekdays.add(weekday)
+        normalized_weekdays.append(weekday)
+    normalized_weekdays.sort(key=lambda code: WEEKDAY_TO_INDEX[code])
+
+    end_mode = str(payload.get("end_mode", "")).strip().upper()
+    occurrence_count: int | None = None
+    until_date: date | None = None
+    if end_mode == RECURRING_END_MODE_COUNT:
+        try:
+            occurrence_count = int(payload.get("occurrence_count"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("recurrence.occurrence_count must be >= 1") from exc
+        if occurrence_count < 1 or occurrence_count > MAX_RECURRING_OCCURRENCES:
+            raise ValueError(f"recurrence.occurrence_count must be between 1 and {MAX_RECURRING_OCCURRENCES}")
+    elif end_mode == RECURRING_END_MODE_UNTIL:
+        until_date = parse_iso_date(payload.get("until_date"))
+        if not until_date:
+            raise ValueError("recurrence.until_date must be a valid ISO date")
+    else:
+        raise ValueError("recurrence.end_mode must be COUNT or UNTIL")
+
+    if start_time:
+        start_local = localize_shift_datetime(start_time, timezone_name)
+        if not start_local:
+            raise ValueError("Shift start time is invalid")
+        expected_weekday = INDEX_TO_WEEKDAY[start_local.weekday()]
+        if expected_weekday not in normalized_weekdays:
+            raise ValueError("Selected recurrence weekdays must include the shift start weekday")
+        if until_date and until_date < start_local.date():
+            raise ValueError("recurrence.until_date must be on or after the first occurrence date")
+
+    return {
+        "timezone": timezone_name,
+        "frequency": frequency,
+        "interval_weeks": interval_weeks,
+        "weekdays": normalized_weekdays,
+        "weekdays_csv": ",".join(normalized_weekdays),
+        "end_mode": end_mode,
+        "occurrence_count": occurrence_count,
+        "until_date": until_date.isoformat() if until_date else None,
+    }
+
+
+def generate_weekly_occurrences(
+    start_time: str,
+    end_time: str,
+    recurrence: dict[str, Any],
+) -> list[dict[str, str]]:
+    timezone_name = recurrence["timezone"]
+    tz = ZoneInfo(timezone_name)
+    start_utc = parse_iso_datetime_to_utc(start_time)
+    end_utc = parse_iso_datetime_to_utc(end_time)
+    if not start_utc or not end_utc or end_utc <= start_utc:
+        raise ValueError("Shift time range is invalid")
+
+    start_local = start_utc.astimezone(tz)
+    end_local = end_utc.astimezone(tz)
+    duration = end_utc - start_utc
+    anchor_date = start_local.date()
+    anchor_week_start = anchor_date - timedelta(days=anchor_date.weekday())
+    selected_weekdays = {WEEKDAY_TO_INDEX[code] for code in recurrence["weekdays"]}
+    interval_weeks = int(recurrence["interval_weeks"])
+    end_mode = recurrence["end_mode"]
+    occurrence_target = int(recurrence["occurrence_count"]) if recurrence.get("occurrence_count") else None
+    until_date = parse_iso_date(recurrence.get("until_date"))
+
+    occurrences: list[dict[str, str]] = []
+    candidate_date = anchor_date
+    iteration_guard = 0
+    while len(occurrences) < MAX_RECURRING_OCCURRENCES and iteration_guard < 3660:
+        iteration_guard += 1
+        if candidate_date >= anchor_date:
+            candidate_week_start = candidate_date - timedelta(days=candidate_date.weekday())
+            weeks_since_anchor = (candidate_week_start - anchor_week_start).days // 7
+            if weeks_since_anchor >= 0 and weeks_since_anchor % interval_weeks == 0 and candidate_date.weekday() in selected_weekdays:
+                local_occurrence_start = datetime(
+                    candidate_date.year,
+                    candidate_date.month,
+                    candidate_date.day,
+                    start_local.hour,
+                    start_local.minute,
+                    start_local.second,
+                    start_local.microsecond,
+                    tzinfo=tz,
+                )
+                local_occurrence_end = local_occurrence_start + duration
+                if until_date and local_occurrence_start.date() > until_date:
+                    break
+                occurrences.append(
+                    {
+                        "start_time": local_occurrence_start.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                        "end_time": local_occurrence_end.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    }
+                )
+                if end_mode == RECURRING_END_MODE_COUNT and occurrence_target and len(occurrences) >= occurrence_target:
+                    break
+
+        candidate_date += timedelta(days=1)
+        if end_mode == RECURRING_END_MODE_UNTIL and until_date and candidate_date > until_date:
+            break
+
+    if not occurrences:
+        raise ValueError("Recurrence rule did not generate any occurrences")
+    if end_mode == RECURRING_END_MODE_COUNT and occurrence_target and len(occurrences) != occurrence_target:
+        raise ValueError("Recurrence rule could not generate the requested number of occurrences")
+    return occurrences
+
+
+def recurrence_payload_for_series_create(
+    pantry_id: int,
+    created_by: int,
+    recurrence: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "pantry_id": pantry_id,
+        "created_by": created_by,
+        "timezone": recurrence["timezone"],
+        "frequency": recurrence["frequency"],
+        "interval_weeks": recurrence["interval_weeks"],
+        "weekdays_csv": recurrence["weekdays_csv"],
+        "end_mode": recurrence["end_mode"],
+        "occurrence_count": recurrence.get("occurrence_count"),
+        "until_date": recurrence.get("until_date"),
+    }
+
+
+def recurrence_signature(recurrence: dict[str, Any] | None) -> tuple[Any, ...] | None:
+    if not recurrence:
+        return None
+    return (
+        recurrence.get("timezone"),
+        recurrence.get("frequency"),
+        int(recurrence.get("interval_weeks", 1)),
+        tuple(recurrence.get("weekdays", [])),
+        recurrence.get("end_mode"),
+        recurrence.get("occurrence_count"),
+        recurrence.get("until_date"),
+    )
+
+
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def signup_rate_limit_cooldown_ends_at(
+    signup_rows: list[dict[str, Any]],
+    now_utc: datetime | None = None,
+) -> datetime | None:
+    now_utc = now_utc or datetime.now(timezone.utc)
+    window_start = now_utc - SIGNUP_RATE_LIMIT_WINDOW
+    recent_signup_times = sorted(
+        created_at
+        for signup_row in signup_rows
+        if (created_at := parse_iso_datetime_to_utc(signup_row.get("created_at"))) is not None
+        and created_at > window_start
+    )
+
+    if len(recent_signup_times) < MAX_SIGNUPS_PER_24_HOURS:
+        return None
+
+    cooldown_anchor_index = len(recent_signup_times) - MAX_SIGNUPS_PER_24_HOURS
+    return recent_signup_times[cooldown_anchor_index] + SIGNUP_RATE_LIMIT_WINDOW
 
 
 def signup_row_blocks_overlap(signup_row: dict[str, Any], now_utc: datetime | None = None) -> bool:
@@ -603,6 +950,361 @@ def send_shift_notifications_if_configured(
             )
 
 
+def send_new_shift_notifications_to_subscribers_if_configured(
+    *,
+    pantry: dict[str, Any],
+    shift: dict[str, Any],
+    roles: list[dict[str, Any]],
+    recurrence: dict[str, Any] | None = None,
+    created_shift_count: int = 1,
+    preview_occurrences: list[dict[str, Any]] | None = None,
+) -> None:
+    pantry_id = pantry.get("pantry_id")
+    if pantry_id is None:
+        return
+
+    subscribers = backend.list_pantry_subscribers(int(pantry_id))
+    if not subscribers:
+        return
+
+    preview = preview_occurrences or [shift]
+    for recipient in subscribers:
+        try:
+            if recurrence:
+                result = send_new_shift_series_subscriber_notification(
+                    recipient=recipient,
+                    pantry=pantry,
+                    shift=shift,
+                    roles=roles,
+                    recurrence=recurrence,
+                    created_shift_count=created_shift_count,
+                    preview_occurrences=preview,
+                )
+            else:
+                result = send_new_shift_subscriber_notification(
+                    recipient=recipient,
+                    pantry=pantry,
+                    shift=shift,
+                    roles=roles,
+                )
+
+            if not result["ok"]:
+                app.logger.warning(
+                    "Subscriber notification not sent for pantry_id=%s user_id=%s code=%s message=%s",
+                    pantry_id,
+                    recipient.get("user_id"),
+                    result["code"],
+                    result["message"],
+                )
+        except Exception:
+            app.logger.exception(
+                "Failed to send subscriber notification for pantry_id=%s user_id=%s",
+                pantry_id,
+                recipient.get("user_id"),
+            )
+
+
+def normalize_shift_roles_payload(payload: Any) -> list[dict[str, Any]]:
+    if not isinstance(payload, list):
+        raise ValueError("roles must be an array")
+
+    normalized_roles: list[dict[str, Any]] = []
+    seen_role_ids: set[int] = set()
+    for role_payload in payload:
+        if not isinstance(role_payload, dict):
+            raise ValueError("Each role must be an object")
+
+        role_title = str(role_payload.get("role_title") or "").strip()
+        if not role_title:
+            raise ValueError("role_title is required")
+
+        try:
+            required_count = int(role_payload.get("required_count"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("required_count must be >= 1") from exc
+        if required_count < 1:
+            raise ValueError("required_count must be >= 1")
+
+        normalized_role: dict[str, Any] = {
+            "role_title": role_title,
+            "required_count": required_count,
+        }
+        raw_role_id = role_payload.get("shift_role_id")
+        if raw_role_id is not None:
+            role_id = int(raw_role_id)
+            if role_id in seen_role_ids:
+                raise ValueError("Duplicate shift_role_id in roles payload")
+            seen_role_ids.add(role_id)
+            normalized_role["shift_role_id"] = role_id
+        normalized_roles.append(normalized_role)
+
+    if not normalized_roles:
+        raise ValueError("Shift must include at least one role")
+    return normalized_roles
+
+
+def hydrate_shift_for_manager(
+    shift_id: int,
+    *,
+    include_cancelled: bool = True,
+    include_recurrence: bool = False,
+) -> dict[str, Any] | None:
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift:
+        return None
+    payload = attach_shift_recurrence_metadata(shift, include_recurrence=include_recurrence)
+    payload["roles"] = get_shift_roles(shift_id, include_cancelled=include_cancelled)
+    return payload
+
+
+def create_shift_with_roles(
+    *,
+    pantry_id: int,
+    created_by: int,
+    shift_name: str,
+    start_time: str,
+    end_time: str,
+    roles_payload: list[dict[str, Any]],
+    status: str = "OPEN",
+    shift_series_id: int | None = None,
+    series_position: int | None = None,
+) -> dict[str, Any]:
+    shift = backend.create_shift(
+        pantry_id=pantry_id,
+        shift_name=shift_name,
+        start_time=start_time,
+        end_time=end_time,
+        status=status,
+        created_by=created_by,
+        shift_series_id=shift_series_id,
+        series_position=series_position,
+    )
+    for role_payload in roles_payload:
+        backend.create_shift_role(
+            shift_id=int(shift.get("shift_id")),
+            role_title=role_payload["role_title"],
+            required_count=int(role_payload["required_count"]),
+        )
+    return hydrate_shift_for_manager(int(shift.get("shift_id")), include_cancelled=True, include_recurrence=True) or shift
+
+
+def empty_affected_summary() -> dict[str, Any]:
+    return {
+        "affected_signup_count": 0,
+        "affected_volunteer_contacts": [],
+        "affected_signups": [],
+    }
+
+
+def merge_affected_summary(current: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
+    merged = {
+        "affected_signup_count": int(current.get("affected_signup_count", 0)) + int(incoming.get("affected_signup_count", 0)),
+        "affected_volunteer_contacts": [],
+        "affected_signups": list(current.get("affected_signups", [])),
+    }
+
+    seen_contacts: set[str] = set()
+    for contact in list(current.get("affected_volunteer_contacts", [])) + list(incoming.get("affected_volunteer_contacts", [])):
+        email = str(contact.get("email") or "").strip().lower()
+        if not email or email in seen_contacts:
+            continue
+        seen_contacts.add(email)
+        merged["affected_volunteer_contacts"].append(contact)
+
+    seen_signup_ids = {
+        int(signup.get("signup_id"))
+        for signup in merged["affected_signups"]
+        if signup.get("signup_id") is not None
+    }
+    for signup in incoming.get("affected_signups", []):
+        signup_id = signup.get("signup_id")
+        normalized_signup_id = int(signup_id) if signup_id is not None else None
+        if normalized_signup_id is not None and normalized_signup_id in seen_signup_ids:
+            continue
+        if normalized_signup_id is not None:
+            seen_signup_ids.add(normalized_signup_id)
+        merged["affected_signups"].append(signup)
+    return merged
+
+
+def apply_single_shift_update_with_roles(
+    shift_id: int,
+    shift_payload: dict[str, Any],
+    roles_payload: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    updated = backend.replace_shift_and_roles(
+        shift_id=shift_id,
+        shift_payload=shift_payload,
+        roles_payload=roles_payload,
+    )
+    if not updated:
+        return None
+
+    affected = mark_shift_signups_pending(shift_id)
+    notification_signups = affected.pop("affected_signups", [])
+    recalculate_shift_capacities(shift_id)
+    response = hydrate_shift_for_manager(shift_id, include_cancelled=True, include_recurrence=True) or updated
+    response.update(affected)
+    if affected["affected_signup_count"] > 0:
+        send_shift_notifications_if_configured(
+            notification_type="update",
+            shift=response,
+            signups=notification_signups,
+        )
+    return response
+
+
+def cancel_single_shift_for_manager(shift_id: int) -> dict[str, Any] | None:
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift:
+        return None
+
+    previous_status = str(shift.get("status", "OPEN")).upper()
+    updated_shift = backend.update_shift(shift_id, {"status": "CANCELLED"})
+    if not updated_shift:
+        return None
+
+    affected = mark_shift_signups_pending(shift_id)
+    notification_signups = affected.pop("affected_signups", [])
+    recalculate_shift_capacities(shift_id)
+    response = hydrate_shift_for_manager(shift_id, include_cancelled=True, include_recurrence=True) or updated_shift
+    response.update(affected)
+    if previous_status != "CANCELLED" and affected["affected_signup_count"] > 0:
+        send_shift_notifications_if_configured(
+            notification_type="cancel",
+            shift=response,
+            signups=notification_signups,
+        )
+    return response
+
+
+def sorted_series_shifts(shift_series_id: int) -> list[dict[str, Any]]:
+    shifts = backend.list_shifts_by_series(shift_series_id)
+    return sorted(
+        shifts,
+        key=lambda item: (
+            int(item.get("series_position")) if item.get("series_position") is not None else 999999,
+            str(item.get("start_time") or ""),
+            int(item.get("shift_id", 0)),
+        ),
+    )
+
+
+def future_series_shifts_from(shift: dict[str, Any]) -> list[dict[str, Any]]:
+    shift_series_id = shift.get("shift_series_id")
+    if shift_series_id is None:
+        return []
+    current_shift_id = int(shift.get("shift_id"))
+    current_position = int(shift.get("series_position") or 0)
+    shifts = sorted_series_shifts(int(shift_series_id))
+    if current_position:
+        return [row for row in shifts if int(row.get("series_position") or 0) >= current_position]
+
+    found_current = False
+    selected: list[dict[str, Any]] = []
+    for row in shifts:
+        if int(row.get("shift_id", 0)) == current_shift_id:
+            found_current = True
+        if found_current:
+            selected.append(row)
+    return selected
+
+
+def split_series_update_targets(
+    *,
+    current_shift: dict[str, Any],
+    shift_payload: dict[str, Any],
+    roles_payload: list[dict[str, Any]],
+    recurrence: dict[str, Any] | None,
+    actor_user_id: int,
+) -> dict[str, Any]:
+    existing_segment_recurrence = recurrence_for_shift_scope(current_shift)
+    effective_recurrence = recurrence or existing_segment_recurrence
+    if not effective_recurrence:
+        raise ValueError("Recurring metadata is missing for this shift")
+
+    current_start_time = shift_payload.get("start_time", current_shift.get("start_time"))
+    current_end_time = shift_payload.get("end_time", current_shift.get("end_time"))
+    occurrences = generate_weekly_occurrences(current_start_time, current_end_time, effective_recurrence)
+    target_shifts = future_series_shifts_from(current_shift)
+    target_series_id = int(current_shift.get("shift_series_id"))
+
+    rule_changed = recurrence_signature(effective_recurrence) != recurrence_signature(existing_segment_recurrence)
+    if rule_changed:
+        new_series = backend.create_shift_series(
+            recurrence_payload_for_series_create(
+                pantry_id=int(current_shift.get("pantry_id")),
+                created_by=actor_user_id,
+                recurrence=effective_recurrence,
+            )
+        )
+        target_series_id = int(new_series.get("shift_series_id"))
+
+    summary = empty_affected_summary()
+    paired_count = min(len(target_shifts), len(occurrences))
+    cancelled_occurrence_count = 0
+    created_occurrence_count = 0
+
+    for index in range(paired_count):
+        target_shift = target_shifts[index]
+        occurrence = occurrences[index]
+        paired_shift_payload = dict(shift_payload)
+        paired_shift_payload["start_time"] = occurrence["start_time"]
+        paired_shift_payload["end_time"] = occurrence["end_time"]
+        paired_shift_payload["shift_series_id"] = target_series_id
+        paired_shift_payload["series_position"] = index + 1 if rule_changed else int(target_shift.get("series_position") or (index + 1))
+        updated = apply_single_shift_update_with_roles(int(target_shift.get("shift_id")), paired_shift_payload, roles_payload)
+        if updated:
+            summary = merge_affected_summary(summary, updated)
+
+    for index in range(paired_count, len(target_shifts)):
+        target_shift = target_shifts[index]
+        cancelled = cancel_single_shift_for_manager(int(target_shift.get("shift_id")))
+        if cancelled:
+            summary = merge_affected_summary(summary, cancelled)
+        cancelled_occurrence_count += 1
+
+    for index in range(paired_count, len(occurrences)):
+        occurrence = occurrences[index]
+        create_shift_with_roles(
+            pantry_id=int(current_shift.get("pantry_id")),
+            created_by=actor_user_id,
+            shift_name=shift_payload.get("shift_name", current_shift.get("shift_name")),
+            start_time=occurrence["start_time"],
+            end_time=occurrence["end_time"],
+            status=str(shift_payload.get("status", current_shift.get("status", "OPEN"))).upper(),
+            roles_payload=roles_payload,
+            shift_series_id=target_series_id,
+            series_position=index + 1,
+        )
+        created_occurrence_count += 1
+
+    response = hydrate_shift_for_manager(int(current_shift.get("shift_id")), include_cancelled=True, include_recurrence=True) or dict(current_shift)
+    response.update(summary)
+    response["updated_occurrence_count"] = paired_count
+    response["cancelled_occurrence_count"] = cancelled_occurrence_count
+    response["created_occurrence_count"] = created_occurrence_count
+    response["apply_scope"] = "future"
+    return response
+
+
+def cancel_future_series_from(shift: dict[str, Any]) -> dict[str, Any]:
+    target_shifts = future_series_shifts_from(shift)
+    summary = empty_affected_summary()
+    cancelled_occurrence_count = 0
+    for target_shift in target_shifts:
+        cancelled = cancel_single_shift_for_manager(int(target_shift.get("shift_id")))
+        if cancelled:
+            summary = merge_affected_summary(summary, cancelled)
+        cancelled_occurrence_count += 1
+
+    response = hydrate_shift_for_manager(int(shift.get("shift_id")), include_cancelled=True, include_recurrence=True) or dict(shift)
+    response.update(summary)
+    response["cancelled_occurrence_count"] = cancelled_occurrence_count
+    response["apply_scope"] = "future"
+    return response
+
+
 def expire_pending_signups_if_started(shift_id: int) -> int:
     expired = backend.expire_pending_signups(shift_id, utc_now_iso())
     if expired > 0:
@@ -775,6 +1477,7 @@ def signup_google() -> Any:
     payload = request.get_json(silent=True) or {}
     full_name = str(payload.get("full_name", "")).strip()
     phone_number = str(payload.get("phone_number", "")).strip()
+    timezone_name = str(payload.get("timezone", "")).strip() or None
     if not full_name or not phone_number:
         return jsonify({"error": "Missing: full_name, phone_number"}), 400
 
@@ -792,6 +1495,7 @@ def signup_google() -> Any:
             email=identity.email,
             phone_number=phone_number,
             roles=["VOLUNTEER"],
+            timezone=timezone_name,
             auth_provider=identity.provider,
             auth_uid=identity.uid,
         )
@@ -835,6 +1539,10 @@ def update_current_user_profile() -> Any:
     if "phone_number" in payload:
         phone_number = str(payload.get("phone_number", "")).strip()
         updates["phone_number"] = phone_number or None
+
+    if "timezone" in payload:
+        timezone_name = str(payload.get("timezone", "")).strip()
+        updates["timezone"] = timezone_name or None
 
     if not updates:
         return jsonify({"error": "No valid fields to update"}), 400
@@ -979,6 +1687,7 @@ def create_user() -> Any:
             email=payload["email"],
             phone_number=payload.get("phone_number"),
             roles=requested_roles,
+            timezone=(str(payload.get("timezone", "")).strip() or None),
         )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
@@ -1062,6 +1771,62 @@ def list_all_pantries() -> Any:
     for pantry in pantries:
         pantry["leads"] = get_pantry_leads(int(pantry.get("pantry_id")))
     return jsonify(pantries)
+
+
+@app.get("/api/volunteer/pantries")
+def list_volunteer_pantries() -> Any:
+    user, error_response = volunteer_user_required()
+    if error_response:
+        return error_response
+
+    assert user is not None
+    subscriber_pantry_ids = set(backend.list_pantry_subscriptions_for_user(int(user.get("user_id"))))
+    pantries = backend.list_pantries()
+    payload = [volunteer_pantry_payload(pantry, subscriber_pantry_ids) for pantry in pantries]
+    payload.sort(key=lambda item: str(item.get("name") or "").lower())
+    return jsonify(payload)
+
+
+@app.post("/api/pantries/<int:pantry_id>/subscribe")
+def subscribe_to_pantry(pantry_id: int) -> Any:
+    user, error_response = volunteer_user_required()
+    if error_response:
+        return error_response
+
+    pantry = find_pantry_by_id(pantry_id)
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    assert user is not None
+    user_id = int(user.get("user_id"))
+    backend.subscribe_user_to_pantry(pantry_id, user_id)
+    return jsonify(
+        {
+            "pantry_id": pantry_id,
+            "is_subscribed": True,
+        }
+    ), 200
+
+
+@app.delete("/api/pantries/<int:pantry_id>/subscribe")
+def unsubscribe_from_pantry(pantry_id: int) -> Any:
+    user, error_response = volunteer_user_required()
+    if error_response:
+        return error_response
+
+    pantry = find_pantry_by_id(pantry_id)
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    assert user is not None
+    user_id = int(user.get("user_id"))
+    backend.unsubscribe_user_from_pantry(pantry_id, user_id)
+    return jsonify(
+        {
+            "pantry_id": pantry_id,
+            "is_subscribed": False,
+        }
+    ), 200
 
 
 
@@ -1201,20 +1966,58 @@ def get_shifts(pantry_id: int) -> Any:
     include_cancelled = should_include_cancelled_shift_data(user, pantry_id)
     shifts = backend.list_shifts_by_pantry(pantry_id, include_cancelled=include_cancelled)
 
+    serialized: list[dict[str, Any]] = []
     for shift in shifts:
         shift_id = int(shift.get("shift_id"))
         expire_pending_signups_if_started(shift_id)
-        shift["roles"] = get_shift_roles(shift_id, include_cancelled=include_cancelled)
-    return jsonify(shifts)
+        payload = attach_shift_recurrence_metadata(shift)
+        payload["roles"] = get_shift_roles(shift_id, include_cancelled=include_cancelled)
+        serialized.append(payload)
+    return jsonify(serialized)
 
 @app.get("/api/pantries/<int:pantry_id>/active-shifts")
 def get_active_shifts(pantry_id: int) -> Any:
     """Get non-expired shifts for volunteer/public views."""
     shifts = backend.list_non_expired_shifts_by_pantry(pantry_id, include_cancelled=False)
+    serialized: list[dict[str, Any]] = []
     for shift in shifts:
-        shift["roles"] = get_shift_roles(int(shift.get("shift_id")), include_cancelled=False)
+        payload = attach_shift_recurrence_metadata(shift)
+        payload["roles"] = get_shift_roles(int(shift.get("shift_id")), include_cancelled=False)
+        serialized.append(payload)
 
-    return jsonify(shifts)
+    return jsonify(serialized)
+
+
+@app.get("/api/calendar/shifts")
+def get_calendar_shifts() -> Any:
+    start_param = request.args.get("start")
+    end_param = request.args.get("end")
+    start_time = parse_iso_datetime_to_utc(start_param)
+    end_time = parse_iso_datetime_to_utc(end_param)
+    if not start_time or not end_time:
+        return jsonify({"error": "start and end query params are required ISO datetimes"}), 400
+    if end_time < start_time:
+        return jsonify({"error": "end must be greater than or equal to start"}), 400
+
+    shifts = backend.list_non_expired_shifts_in_range(
+        start_time=start_time.isoformat().replace("+00:00", "Z"),
+        end_time=end_time.isoformat().replace("+00:00", "Z"),
+        include_cancelled=False,
+    )
+    serialized: list[dict[str, Any]] = []
+    for shift in shifts:
+        shift_id = int(shift.get("shift_id"))
+        expire_pending_signups_if_started(shift_id)
+        pantry = find_pantry_by_id(int(shift.get("pantry_id")))
+        shift["roles"] = get_shift_roles(shift_id, include_cancelled=False)
+        shift["pantry"] = {
+            "pantry_id": pantry.get("pantry_id") if pantry else shift.get("pantry_id"),
+            "name": pantry.get("name") if pantry else "Unknown Pantry",
+            "location_address": pantry.get("location_address") if pantry else "",
+        }
+        serialized.append(attach_shift_recurrence_metadata(shift))
+
+    return jsonify(serialized)
 
 
 @app.post("/api/pantries/<int:pantry_id>/shifts")
@@ -1253,7 +2056,115 @@ def create_shift(pantry_id: int) -> Any:
         created_by=user_id,
     )
     shift["roles"] = []
+    send_new_shift_notifications_to_subscribers_if_configured(
+        pantry=pantry,
+        shift=shift,
+        roles=[],
+    )
     return jsonify(shift), 201
+
+
+@app.post("/api/pantries/<int:pantry_id>/shifts/full-create")
+def create_full_shift(pantry_id: int) -> Any:
+    """Create one-off or recurring shifts with roles in one request."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Forbidden"}), 403
+
+    user_id = int(user.get("user_id"))
+    is_admin = is_admin_capable(user_id)
+    is_lead = user_has_role(user_id, "PANTRY_LEAD")
+    if not (is_admin or is_lead):
+        return jsonify({"error": "Forbidden"}), 403
+    if not is_admin and not backend.is_pantry_lead(pantry_id, user_id):
+        return jsonify({"error": "Not a lead for this pantry"}), 403
+
+    pantry = find_pantry_by_id(pantry_id)
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    payload = request.get_json(silent=True) or {}
+    required = ["shift_name", "start_time", "end_time", "roles"]
+    missing = [key for key in required if not payload.get(key)]
+    if missing:
+        return jsonify({"error": f"Missing: {', '.join(missing)}"}), 400
+
+    start_time = payload.get("start_time")
+    end_time = payload.get("end_time")
+    start_utc = parse_iso_datetime_to_utc(start_time)
+    end_utc = parse_iso_datetime_to_utc(end_time)
+    if not start_utc or not end_utc or end_utc <= start_utc:
+        return jsonify({"error": "Shift end time must be after start time"}), 400
+
+    try:
+        roles_payload = normalize_shift_roles_payload(payload.get("roles"))
+        recurrence = normalize_recurrence_payload(payload.get("recurrence"), start_time=start_time)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if not recurrence:
+        created_shift = create_shift_with_roles(
+            pantry_id=pantry_id,
+            created_by=user_id,
+            shift_name=str(payload.get("shift_name")),
+            start_time=start_time,
+            end_time=end_time,
+            status=str(payload.get("status", "OPEN")).upper(),
+            roles_payload=roles_payload,
+        )
+        send_new_shift_notifications_to_subscribers_if_configured(
+            pantry=pantry,
+            shift=created_shift,
+            roles=created_shift.get("roles", []),
+        )
+        response = {
+            "created_shift_count": 1,
+            "first_shift": created_shift,
+            "shift_series_id": None,
+        }
+        return jsonify(response), 201
+
+    series = backend.create_shift_series(
+        recurrence_payload_for_series_create(
+            pantry_id=pantry_id,
+            created_by=user_id,
+            recurrence=recurrence,
+        )
+    )
+    occurrences = generate_weekly_occurrences(start_time, end_time, recurrence)
+    created_shifts: list[dict[str, Any]] = []
+    for index, occurrence in enumerate(occurrences, start=1):
+        created_shifts.append(
+            create_shift_with_roles(
+                pantry_id=pantry_id,
+                created_by=user_id,
+                shift_name=str(payload.get("shift_name")),
+                start_time=occurrence["start_time"],
+                end_time=occurrence["end_time"],
+                status=str(payload.get("status", "OPEN")).upper(),
+                roles_payload=roles_payload,
+                shift_series_id=int(series.get("shift_series_id")),
+                series_position=index,
+            )
+        )
+
+    if created_shifts:
+        send_new_shift_notifications_to_subscribers_if_configured(
+            pantry=pantry,
+            shift=created_shifts[0],
+            roles=created_shifts[0].get("roles", []),
+            recurrence=recurrence_for_client(series),
+            created_shift_count=len(created_shifts),
+            preview_occurrences=created_shifts[:3],
+        )
+
+    return jsonify(
+        {
+            "created_shift_count": len(created_shifts),
+            "first_shift": created_shifts[0] if created_shifts else None,
+            "shift_series_id": int(series.get("shift_series_id")),
+        }
+    ), 201
 
 
 @app.get("/api/shifts/<int:shift_id>")
@@ -1268,8 +2179,9 @@ def get_shift(shift_id: int) -> Any:
     user = current_user()
     pantry_id = int(shift.get("pantry_id"))
     include_cancelled = should_include_cancelled_shift_data(user, pantry_id)
-    shift["roles"] = get_shift_roles(shift_id, include_cancelled=include_cancelled)
-    return jsonify(shift)
+    payload = attach_shift_recurrence_metadata(shift, include_recurrence=True)
+    payload["roles"] = get_shift_roles(shift_id, include_cancelled=include_cancelled)
+    return jsonify(payload)
 
 
 @app.get("/api/shifts/<int:shift_id>/registrations")
@@ -1391,9 +2303,16 @@ def replace_shift_and_roles(shift_id: int) -> Any:
         return past_shift_locked_response()
 
     payload = request.get_json(silent=True) or {}
-    roles_payload = payload.get("roles")
-    if not isinstance(roles_payload, list):
-        return jsonify({"error": "roles must be an array"}), 400
+    try:
+        normalized_roles = normalize_shift_roles_payload(payload.get("roles"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    apply_scope = str(payload.get("apply_scope") or "single").strip().lower()
+    if apply_scope not in {"single", "future"}:
+        return jsonify({"error": "apply_scope must be single or future"}), 400
+    if apply_scope == "future" and not shift.get("shift_series_id"):
+        return jsonify({"error": "apply_scope future is only available for recurring shifts"}), 400
 
     shift_payload = {
         key: value
@@ -1401,59 +2320,34 @@ def replace_shift_and_roles(shift_id: int) -> Any:
         if key in {"shift_name", "start_time", "end_time", "status"}
     }
 
-    normalized_roles: list[dict[str, Any]] = []
-    seen_role_ids: set[int] = set()
-    for role_payload in roles_payload:
-        if not isinstance(role_payload, dict):
-            return jsonify({"error": "Each role must be an object"}), 400
-
-        role_title = str(role_payload.get("role_title") or "").strip()
-        if not role_title:
-            return jsonify({"error": "role_title is required"}), 400
-
-        try:
-            required_count = int(role_payload.get("required_count"))
-        except (TypeError, ValueError):
-            return jsonify({"error": "required_count must be >= 1"}), 400
-        if required_count < 1:
-            return jsonify({"error": "required_count must be >= 1"}), 400
-
-        normalized_role: dict[str, Any] = {
-            "role_title": role_title,
-            "required_count": required_count,
-        }
-        raw_role_id = role_payload.get("shift_role_id")
-        if raw_role_id is not None:
-            role_id = int(raw_role_id)
-            if role_id in seen_role_ids:
-                return jsonify({"error": "Duplicate shift_role_id in roles payload"}), 400
-            seen_role_ids.add(role_id)
-            normalized_role["shift_role_id"] = role_id
-        normalized_roles.append(normalized_role)
-
     try:
-        updated = backend.replace_shift_and_roles(
-            shift_id=shift_id,
-            shift_payload=shift_payload,
-            roles_payload=normalized_roles,
-        )
+        recurrence = normalize_recurrence_payload(payload.get("recurrence"), start_time=shift_payload.get("start_time", shift.get("start_time")))
+        if apply_scope == "future":
+            future_roles_payload = [
+                {
+                    "role_title": role["role_title"],
+                    "required_count": role["required_count"],
+                }
+                for role in normalized_roles
+            ]
+            updated = split_series_update_targets(
+                current_shift=shift,
+                shift_payload=shift_payload,
+                roles_payload=future_roles_payload,
+                recurrence=recurrence,
+                actor_user_id=user_id,
+            )
+        else:
+            updated = apply_single_shift_update_with_roles(
+                shift_id=shift_id,
+                shift_payload=shift_payload,
+                roles_payload=normalized_roles,
+            )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
     if not updated:
         return jsonify({"error": "Not found"}), 404
-
-    affected = mark_shift_signups_pending(shift_id)
-    notification_signups = affected.pop("affected_signups", [])
-    recalculate_shift_capacities(shift_id)
-    updated["roles"] = get_shift_roles(shift_id, include_cancelled=True)
-    updated.update(affected)
-    if affected["affected_signup_count"] > 0:
-        send_shift_notifications_if_configured(
-            notification_type="update",
-            shift=updated,
-            signups=notification_signups,
-        )
     return jsonify(updated)
 
 
@@ -1474,23 +2368,40 @@ def delete_shift(shift_id: int) -> Any:
     if shift_has_ended(shift):
         return past_shift_locked_response()
 
-    previous_status = str(shift.get("status", "OPEN")).upper()
-    updated_shift = backend.update_shift(shift_id, {"status": "CANCELLED"})
+    updated_shift = cancel_single_shift_for_manager(shift_id)
     if not updated_shift:
         return jsonify({"error": "Not found"}), 404
-
-    affected = mark_shift_signups_pending(shift_id)
-    notification_signups = affected.pop("affected_signups", [])
-    recalculate_shift_capacities(shift_id)
-    updated_shift["roles"] = get_shift_roles(shift_id, include_cancelled=True)
-    updated_shift.update(affected)
-    if previous_status != "CANCELLED" and affected["affected_signup_count"] > 0:
-        send_shift_notifications_if_configured(
-            notification_type="cancel",
-            shift=updated_shift,
-            signups=notification_signups,
-        )
     return jsonify(updated_shift), 200
+
+
+@app.post("/api/shifts/<int:shift_id>/cancel")
+def cancel_shift_scoped(shift_id: int) -> Any:
+    """Cancel a shift or recurring series slice."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Forbidden"}), 403
+
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift:
+        return jsonify({"error": "Not found"}), 404
+
+    user_id = int(user.get("user_id"))
+    if not ensure_shift_manager_permission(user_id, shift):
+        return jsonify({"error": "Forbidden"}), 403
+    if shift_has_ended(shift):
+        return past_shift_locked_response()
+
+    payload = request.get_json(silent=True) or {}
+    apply_scope = str(payload.get("apply_scope") or "single").strip().lower()
+    if apply_scope not in {"single", "future"}:
+        return jsonify({"error": "apply_scope must be single or future"}), 400
+    if apply_scope == "future" and not shift.get("shift_series_id"):
+        return jsonify({"error": "apply_scope future is only available for recurring shifts"}), 400
+
+    response = cancel_future_series_from(shift) if apply_scope == "future" else cancel_single_shift_for_manager(shift_id)
+    if not response:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(response), 200
 
 
 # ========== SHIFT ROLES ==========
@@ -1680,6 +2591,20 @@ def create_signup(shift_role_id: int) -> Any:
 
     now_utc = datetime.now(timezone.utc)
     signups_by_user = backend.list_signups_by_user(user_id)
+
+    cooldown_ends_at = signup_rate_limit_cooldown_ends_at(signups_by_user, now_utc)
+    if cooldown_ends_at is not None:
+        return (
+            jsonify(
+                {
+                    "error": f"You can sign up for at most {MAX_SIGNUPS_PER_24_HOURS} shifts within 24 hours",
+                    "code": "SIGNUP_RATE_LIMITED",
+                    "cooldown_ends_at": cooldown_ends_at.isoformat().replace("+00:00", "Z"),
+                }
+            ),
+            429,
+        )
+
     has_conflict = any(
         signup_row_blocks_overlap(signup_row, now_utc)
         and signup_row_overlaps_shift(signup_row, shift, shift_role_id)

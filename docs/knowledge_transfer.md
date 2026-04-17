@@ -9,7 +9,8 @@
     - memory_backend.py
     - mysql_backend.py
   - II. Data
-    - db.json
+    - mysql.json
+    - in_memory.json
   - III. Database
     - 001_initial.sql
     - init_schema.py
@@ -26,6 +27,7 @@
     - api-helpers.js
     - dashboard.js
     - lead-functions.js
+    - timezone-helpers.js
     - user-functions.js
     - volunteer-functions.js
   - III. templates
@@ -62,11 +64,11 @@ Defines StoreBackend, the abstract interface every data backend (MySQL, in-memor
 - `get_user_by_auth_uid(auth_uid:str) -> dict|None`  
   Fetch a user by linked Firebase UID.
 
-- `create_user(full_name, email, phone_number, roles:list[str], auth_provider=None, auth_uid=None) -> dict`  
+- `create_user(full_name, email, phone_number, roles:list[str], timezone=None, auth_provider=None, auth_uid=None) -> dict`  
   Create user and assign given role names.
 
 - `update_user(user_id:int, payload:dict) -> dict|None`  
-  Update allowed user fields such as name, phone, email, and auth linkage.
+  Update allowed user fields such as name, phone, timezone, email, and auth linkage.
 
 - `delete_user(user_id:int) -> None`  
   Delete a local user. Signups and pantry-lead links cascade; shift ownership becomes nullable in SQL.
@@ -101,8 +103,20 @@ Defines StoreBackend, the abstract interface every data backend (MySQL, in-memor
 - `get_shift_by_id(shift_id:int) -> dict|None`  
   Get a shift.
 
-- `create_shift(pantry_id:int, shift_name:str, start_time:str, end_time:str, status:str, created_by:int) -> dict`  
-  Create shift record.
+- `list_shifts_by_series(shift_series_id:int) -> list[dict]`  
+  List concrete shift rows belonging to one recurring series.
+
+- `get_shift_series_by_id(shift_series_id:int) -> dict|None`  
+  Fetch one recurring series record.
+
+- `create_shift_series(payload:dict) -> dict`  
+  Create the recurring-series metadata row used by recurring weekly shifts.
+
+- `update_shift_series(shift_series_id:int, payload:dict) -> dict|None`  
+  Update recurring-series metadata.
+
+- `create_shift(pantry_id:int, shift_name:str, start_time:str, end_time:str, status:str, created_by:int, shift_series_id=None, series_position=None) -> dict`  
+  Create shift record, optionally linked to a recurring series.
 
 - `update_shift(shift_id:int, payload:dict) -> dict|None`  
   Update allowed fields of a shift.
@@ -179,14 +193,15 @@ If value is `"mysql"`:
 
 If env `SEED_MYSQL_FROM_JSON_ON_EMPTY` is `"true"` (default) and the DB reports empty via `backend.is_empty()`:
 
-- Loads seed data from `data/db.json` using `db.seed.seed_mysql_from_json`
+- Loads seed data from `data/mysql.json` using `db.seed.seed_mysql_from_json`
+- The current MySQL seed includes a much larger set of future `OPEN` shifts so calendar and signup UI flows have denser mock coverage in dev
 
 Returns the MySQL backend instance.
 
 For any other `DATA_BACKEND` value:
 
 - Returns `MemoryBackend()`  
-  (which will self-seed from `data/db.json` if that file exists)
+  (which will self-seed from `data/in_memory.json` if that file exists)
 
 
 ---
@@ -194,7 +209,7 @@ For any other `DATA_BACKEND` value:
 ### 3. memory_backend.py
 
 **Purpose:**  
-Dev/demo datastore kept in Python dicts, optionally seeded from `data/db.json`. Tracks incremental IDs and keeps role capacities in sync.
+Dev/demo datastore kept in Python dicts, optionally seeded from `data/in_memory.json`. Tracks incremental IDs and keeps role capacities in sync.
 
 **Internal helpers & setup**
 
@@ -208,10 +223,10 @@ Dev/demo datastore kept in Python dicts, optionally seeded from `data/db.json`. 
   Counts occupied slots for a role (active statuses plus unexpired `PENDING_CONFIRMATION` reservations), updates `filled_count`, and sets role status to FULL when filled ≥ required, else OPEN (skips status change if role is CANCELLED).
 
 - `_load_seed_data() -> None`  
-  If `data/db.json` exists, loads tables from it and sets `next_*` ID counters to max existing + 1.
+  If `data/in_memory.json` exists, loads tables from it and sets `next_*` ID counters to max existing + 1.
 
 - `__init__(data_path=None)`  
-  Initializes empty tables and ID counters (start at 1); sets seed path (default `data/db.json`); then seeds via `_load_seed_data()`.
+  Initializes empty tables and ID counters (start at 1); sets seed path (default `data/in_memory.json`); then seeds via `_load_seed_data()`.
 
 
 ---
@@ -236,11 +251,11 @@ Dev/demo datastore kept in Python dicts, optionally seeded from `data/db.json`. 
 - `get_user_by_auth_uid(auth_uid) -> dict|None`  
   Finds a user by linked Firebase UID.
 
-- `create_user(full_name, email, phone_number, roles, auth_provider=None, auth_uid=None) -> dict`  
-  Raises `ValueError` if email or auth UID already exists; creates the user with timestamps and optional Firebase linkage; links any requested roles that already exist; returns the created user with the roles it actually assigned.
+- `create_user(full_name, email, phone_number, roles, timezone=None, auth_provider=None, auth_uid=None) -> dict`  
+  Raises `ValueError` if email or auth UID already exists; creates the user with timestamps, optional saved timezone, and optional Firebase linkage; links any requested roles that already exist; returns the created user with the roles it actually assigned.
 
 - `update_user(user_id, payload) -> dict|None`  
-  Updates allowed user fields and refreshes `updated_at`.
+  Updates allowed user fields, including `timezone`, and refreshes `updated_at`.
 
 - `delete_user(user_id) -> None`  
   Removes the user and related join/sign-up records; in memory mode any `created_by` shift references are set to `None`.
@@ -421,10 +436,15 @@ Pending reconfirmation is also transactional:
 
 ## II. Data
 
-### 1. db.json
+### 1. mysql.json and in_memory.json
 
 **Purpose:**  
-Seed dataset for development and demos. It pre-populates every table the backends expect so the app has realistic data without manual entry.
+Seed datasets for development and demos. They pre-populate every table the backends expect so the app has realistic data without manual entry.
+
+Current split:
+
+- `backend/data/mysql.json` seeds the MySQL backend and now includes a much larger future mock shift schedule for calendar and signup testing.
+- `backend/data/in_memory.json` seeds the in-memory backend.
 
 Contains:
 
@@ -655,7 +675,7 @@ Default values:
 ### 4. seed.py
 
 **Purpose:**  
-Populate MySQL tables using the dataset in `data/db.json`.
+Populate MySQL tables using the dataset in `data/mysql.json`.
 
 Functions:
 
@@ -697,6 +717,7 @@ Send volunteer notification emails through Resend without coupling the notificat
 - Loads `RESEND_API_KEY` and `RESEND_FROM_EMAIL` from `backend/.env`
 - Uses a verified sender such as `noreply@updates.example.com`
 - Expects the team to own the sending domain or subdomain and verify the DNS records in Resend before enabling delivery
+- Uses Python `zoneinfo` to render shift times in the saved user timezone and falls back to `America/New_York`
 
 **Key structures**
 
@@ -713,7 +734,8 @@ Send volunteer notification emails through Resend without coupling the notificat
 
 - `_parse_iso_datetime_to_utc(value) -> datetime|None`
 - `_normalized_text(value, fallback) -> str`
-- `_format_shift_window(shift) -> str`
+- `_resolved_timezone_name(value) -> str`
+- `_format_shift_window(shift, timezone_name=None) -> str`
 - `_build_email_html(...) -> str`
 - `_notification_result(...) -> NotificationResult`
 - `_send_resend_email(params, recipient_email, subject, success_code, success_message) -> NotificationResult`
@@ -724,6 +746,7 @@ Send volunteer notification emails through Resend without coupling the notificat
 **Behavior**
 
 - Builds a shared HTML email layout for 3 scenarios: signup confirmed, shift updated/reconfirm required, and shift cancelled.
+- Converts UTC shift timestamps into the saved recipient timezone before rendering the email body.
 - Returns structured success/failure metadata instead of `jsonify(...)`.
 - Lets `app.py` decide how to log or ignore non-fatal email delivery problems.
 
@@ -771,6 +794,12 @@ Notification helpers:
 - `send_signup_confirmation_if_configured()`
 - `send_shift_notifications_if_configured()`
 
+Profile/timezone flows:
+
+- `serialize_user_for_client()` includes `timezone`
+- `PATCH /api/me` accepts `timezone`
+- `POST /api/auth/signup/google` accepts optional `timezone`
+
 Permission helpers:
 
 - `ensure_shift_manager_permission()`
@@ -793,6 +822,7 @@ Attendance helpers:
 **Users**
 
 - `GET /api/me`
+- `PATCH /api/me`
 - `GET /api/users`
 - `GET /api/users/<user_id>`
 - `POST /api/users`
@@ -805,6 +835,9 @@ Attendance helpers:
 - `GET /api/pantries`
 - `GET /api/all_pantries`
 - `GET /api/pantries/<id>`
+- `GET /api/volunteer/pantries`
+- `POST /api/pantries/<id>/subscribe`
+- `DELETE /api/pantries/<id>/subscribe`
 - `POST /api/pantries`
 - `POST /api/pantries/<id>/leads`
 - `DELETE /api/pantries/<id>/leads/<lead_id>`
@@ -813,10 +846,12 @@ Attendance helpers:
 
 - `GET /api/pantries/<pantry_id>/shifts`
 - `POST /api/pantries/<pantry_id>/shifts`
+- `POST /api/pantries/<pantry_id>/shifts/full-create`
 - `GET /api/shifts/<shift_id>`
 - `PATCH /api/shifts/<shift_id>`
 - `PUT /api/shifts/<shift_id>/full-update`
 - `DELETE /api/shifts/<shift_id>`
+- `POST /api/shifts/<shift_id>/cancel`
 
 **Shift roles**
 
@@ -961,6 +996,7 @@ Responsive rules (≤768px):
 - single-column grids
 - vertical action buttons
 - mobile spacing adjustments
+- volunteer `Pantries` tab expands the selected pantry inline in the list instead of relying on the desktop side panel
 
 
 ---
@@ -970,12 +1006,13 @@ Responsive rules (≤768px):
 ### 1. admin-functions.js
 
 Purpose:  
-Front-end helper functions for admins and leads to manage pantries, leads, and roles, plus utility functions to populate select dropdowns.
+Front-end helper functions for admins and leads to manage pantries, leads, and roles.
 
 Note:
 
 - user search/profile/role editing now lives in `dashboard.js` + `user-functions.js`
-- `admin-functions.js` still mainly covers pantry and pantry-lead management
+- search-backed picker rendering and filtered-table UI state now live in `dashboard.js`
+- `admin-functions.js` still mainly covers pantry and pantry-lead API calls
 
 Functions:
 
@@ -1018,7 +1055,7 @@ Functions:
 - Remove pantry lead
 
 
-Dropdown helper functions:
+Legacy helper functions still present:
 
 `populateUserSelect(selectElement, users, options)`
 
@@ -1048,6 +1085,7 @@ Functions:
 `apiCall(path, options)`
 
 - Adds page query string to request
+- Adds browser timezone header for authenticated routes
 - Sends HTTP request using `fetch`
 - Throws error if response not OK
 - Returns JSON response
@@ -1095,6 +1133,11 @@ Key state variables:
 - `registrationsCache`
 - `editingShiftSnapshot`
 - `activeManageShiftsSubtab`
+- `volunteerPantryDirectory`
+- `volunteerPantrySearchQuery`
+- `volunteerPantrySort`
+- `volunteerPantrySubscriptionFilter`
+- `selectedVolunteerPantryId`
 
 
 Initialization:
@@ -1130,6 +1173,7 @@ Tab switching:
 - loads required data for that tab
 - Admin tab now has `Pantries` and `Users` subtabs
 - Admin `Users` subtab supports user search, profile viewing, and single-role updates
+- Volunteer tab set now includes `Pantries`, which loads an aggregate pantry directory with subscription state and shift preview data
 
 
 Pantry management:
@@ -1138,7 +1182,9 @@ Pantry management:
 
 - loads accessible pantries
 - loads public pantries
-- sets default pantry selection
+- sets the default pantry selection
+- syncs the shared Manage Shifts pantry search picker
+- syncs the Admin pantry assignment search picker
 
 `loadPantryLeads()`
 
@@ -1147,6 +1193,26 @@ Pantry management:
 `updatePantriesTable()`
 
 - renders table of pantries
+
+Volunteer pantry directory:
+
+`loadVolunteerPantryDirectory()`
+
+- fetches `GET /api/volunteer/pantries`
+- keeps the volunteer pantry list/search/sort/filter state synchronized
+- defaults to the first pantry in compact view when the directory loads
+
+`renderVolunteerPantryDirectory()`
+
+- renders the searchable pantry list and selected pantry detail
+- desktop keeps a side detail panel
+- tablet/phone expand the selected pantry inline in the scrollable list
+
+`toggleVolunteerPantrySubscription(buttonEl)`
+
+- calls subscribe/unsubscribe API routes
+- updates `is_subscribed` state in place
+- refreshes both the list badge and the selected pantry detail view
 
 
 Calendar / shift browsing:
@@ -1286,6 +1352,8 @@ Event listeners handle:
 - assign/remove lead actions
 - create shift form
 - edit shift form
+- search-backed pantry/lead picker interactions
+- Manage Shifts search + status filter interactions
 
 
 Attendance window helpers:
@@ -1330,7 +1398,11 @@ API helpers:
 
 `createShift(pantryId, shiftData)`
 
-- create shift
+- legacy one-off create helper
+
+`createFullShift(pantryId, shiftData)`
+
+- create one-off or recurring shift series with roles in one request
 
 `updateShift(shiftId, shiftData)`
 
@@ -1342,7 +1414,11 @@ API helpers:
 
 `deleteShift(shiftId)`
 
-- cancel shift
+- legacy single-shift cancel helper
+
+`cancelShiftWithScope(shiftId, applyScope)`
+
+- cancel one occurrence or a recurring future slice
 
 `markAttendance(signupId, attendanceStatus)`
 
@@ -1393,9 +1469,11 @@ Functions:
 - `getShift(shiftId)`
 - `getShiftRegistrations(shiftId)`
 - `createShift(pantryId, shiftData)`
+- `createFullShift(pantryId, shiftData)`
 - `updateShift(shiftId, shiftData)`
 - `updateFullShift(shiftId, shiftData)`
 - `deleteShift(shiftId)`
+- `cancelShiftWithScope(shiftId, applyScope)`
 - `markAttendance(signupId, attendanceStatus)`
 - `getShiftRoles(shiftId)`
 - `createShiftRole(shiftId, roleData)`
@@ -1504,6 +1582,7 @@ Head section:
 - page title
 - viewport metadata
 - load `dashboard.css`
+- load `timezone-helpers.js` before the domain JS files that format times
 
 Header:
 
@@ -1524,7 +1603,7 @@ Tabs are dynamically hidden or shown using JavaScript.
 
 Pantry selector:
 
-Used in management views to choose pantry.
+Used in management views to choose pantry through a search-backed selector at the top of the page.
 
 
 Main content sections:
@@ -1550,30 +1629,48 @@ Subtabs:
 Create shift form:
 
 - shift details
+- optional recurring weekly settings:
+  - repeat toggle
+  - weekly interval
+  - weekday chips
+  - finite end by occurrence count or end date
 - dynamic role inputs
 
 
 Edit/view shifts section:
 
-Tables for:
+Contains:
 
-- incoming shifts
-- ongoing shifts
-- past shifts
-- cancelled shifts
+- one shared searchable table
+- status filter buttons for `Incoming`, `Ongoing`, `Past`, and `Canceled`
+- search by shift name
+- recurring badge in manager rows for recurring occurrences
+- existing actions for registrations, editing, cancelling, revoking, and past-shift locking
+- recurring edit/cancel scope modal:
+  - `This event only`
+  - `This and following events`
 
 
 Admin Panel
 
 - Pantries subtab:
   - create pantry form
-  - assign/remove pantry leads
+  - assign/remove pantry leads through pantry and lead search pickers
   - table listing pantries and leads
 - Users subtab:
   - search + role filter
   - user table
   - user profile panel
   - single-role selector for editable user roles
+
+Volunteer `Pantries` tab
+
+- search by pantry name or address
+- sort by `Name A-Z` or `Name Z-A`
+- filter by `All`, `Subscribed`, or `Unsubscribed`
+- pantry detail shows pantry leads and only the next incoming shift preview
+- compact view uses an inline expanding detail card with a selected wrapper state and slide-in animation
+- subscribe/unsubscribe button updates both the detail panel and list badges immediately after API success
 
 
 Scripts loaded:

@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 import os
 import sys
 import pytest
 from pathlib import Path
 
 # Add backend directory to Python path
-backend_path = Path(__file__).parent.parent / "backend"
-sys.path.insert(0, str(backend_path))
+ROOT_DIR = Path(__file__).resolve().parents[1]
+BACKEND_DIR = ROOT_DIR / "backend"
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 # Set up test environment
 os.environ.setdefault("FLASK_ENV", "testing")

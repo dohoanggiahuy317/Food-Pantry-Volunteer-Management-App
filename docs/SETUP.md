@@ -41,9 +41,16 @@ cp backend/env.example backend/.env
 Your `backend/.env` should look like this:
 
 ```env
-AUTH_PROVIDER=memory
+AUTH_PROVIDER=firebase
+FIREBASE_API_KEY=
+FIREBASE_AUTH_DOMAIN=
+FIREBASE_PROJECT_ID=
+FIREBASE_APP_ID=
+FIREBASE_ADMIN_CREDENTIALS=backend/firebase_private_key.json
+
+FLASK_SECRET_KEY=huybeo
+
 DATA_BACKEND=mysql
-FLASK_SECRET_KEY=change-me
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
 MYSQL_DATABASE=volunteer_managing
@@ -52,28 +59,24 @@ MYSQL_PASSWORD=volunteer_pass
 MYSQL_POOL_SIZE=5
 MYSQL_CONNECT_TIMEOUT=10
 SEED_MYSQL_FROM_JSON_ON_EMPTY=true
+
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=noreply@updates.example.com
-FIREBASE_API_KEY=
-FIREBASE_AUTH_DOMAIN=
-FIREBASE_PROJECT_ID=
-FIREBASE_APP_ID=
-FIREBASE_ADMIN_CREDENTIALS=
 ```
 
 **Variable reference:**
 
-| Variable | Purpose |
-|---|---|
-| `AUTH_PROVIDER` | `memory` for sample login/logout, or `firebase` for Google sign-in with Firebase |
-| `DATA_BACKEND` | Set to `mysql` for the real DB, or `memory` for an in-memory backend (no Docker needed — useful for quick testing) |
-| `FLASK_SECRET_KEY` | Secret used to sign Flask session cookies |
-| `MYSQL_HOST` / `MYSQL_PORT` | Where Flask looks for MySQL. Docker maps the container to `localhost:3306` |
-| `MYSQL_DATABASE` | The database name created by Docker on first start |
-| `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml` |
-| `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/db.json` if the tables are empty |
-| `RESEND_API_KEY` | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
-| `RESEND_FROM_EMAIL` | Verified sender address used for outgoing email (for example `noreply@updates.example.com`) |
+| Variable                        | Purpose                                                                                        |
+| :------------------------------ | :--------------------------------------------------------------------------------------------- |
+| `AUTH_PROVIDER`                 | `memory` for sample login/logout, or `firebase` for Google sign-in with Firebase               |
+| `DATA_BACKEND`                  | Set to `mysql` for the real DB, or `memory` for an in-memory backend                           |
+| `FLASK_SECRET_KEY`              | Secret used to sign Flask session cookies                                                      |
+| `MYSQL_HOST` / `MYSQL_PORT`     | Where Flask looks for MySQL. Docker maps the container to `localhost:3306`                     |
+| `MYSQL_DATABASE`                | The database name created by Docker on first start                                             |
+| `MYSQL_USER` / `MYSQL_PASSWORD` | Credentials defined in `docker-compose.yml`                                                    |
+| `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/mysql.json` if the tables are empty |
+| `RESEND_API_KEY`                | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
+| `RESEND_FROM_EMAIL`             | Verified sender address used for outgoing email (for example `noreply@updates.example.com`)    |
 
 ---
 
@@ -114,8 +117,34 @@ pip install -r requirements.txt
 python app.py
 ```
 
-> **First startup note:** Flask will automatically initialize the database schema (create all tables from `backend/db/migrations/001_initial.sql`) and seed sample data from `backend/data/db.json` if the database is empty.  
-> For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly.
+> **First startup note:** Flask will automatically initialize the database schema (create all tables from `backend/db/migrations/001_initial.sql`) and seed sample data from `backend/data/mysql.json` if the database is empty.  
+> For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly. The current baseline includes `users.timezone` for localized emails, `pantry_subscriptions` for volunteer pantry notifications, and recurring-shift support through `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`.
+> The current MySQL seed includes a larger future shift dataset so the calendar and signup flows have much denser mock data out of the box.
+
+---
+
+## Running Tests
+
+Install the backend dependencies first if you have not already:
+
+```bash
+cd backend
+pip install -r requirements.txt
+cd ..
+```
+
+Run tests from the repository root so `pytest` discovers the repository-level `tests/` directory:
+
+```bash
+pytest tests
+```
+
+Run an individual file when you only want a focused check:
+
+```bash
+pytest tests/test_signup_rate_limit.py
+pytest tests/test_notifications.py
+```
 
 ---
 
@@ -138,7 +167,15 @@ Flask serves the full application — both the frontend (HTML/CSS/JS) and the AP
 
 ## Step 5: Optional Resend Email Setup
 
-Volunteer notification emails are sent through `backend/notifications/notifications.py` for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
+Volunteer notification emails are sent through `backend/notifications/notifications.py` for confirmed signups, shift updates that require reconfirmation, shift cancellations, and pantry subscriber notifications when a pantry posts a new shift or recurring series.
+
+Timezone behavior in the current app:
+
+- API timestamps remain stored and transported as UTC ISO strings.
+- The browser detects a user's timezone with `Intl.DateTimeFormat().resolvedOptions().timeZone`.
+- After login, the frontend syncs that timezone to the user profile through `PATCH /api/me` if it is missing or changed.
+- Google signup includes the browser timezone in the initial signup request.
+- Notification emails render shift times in the saved user timezone, with `America/New_York` as the fallback when none is stored or the value is invalid.
 
 **1. Make sure you control a sending domain**
 
@@ -173,6 +210,7 @@ Volunteer notification emails are sent through `backend/notifications/notificati
 
 - If `RESEND_API_KEY` or `RESEND_FROM_EMAIL` is missing, the notification helper returns a structured failure result and `app.py` logs a warning instead of crashing the signup or shift-management flow.
 - If Resend is configured correctly, volunteers receive emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
+- Those emails use the saved `users.timezone` value when formatting the shift time window.
 
 ---
 
