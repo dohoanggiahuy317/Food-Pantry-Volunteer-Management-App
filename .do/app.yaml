@@ -1,0 +1,125 @@
+name: vmswedenison-prod
+region: nyc
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+domains:
+  - domain: vmswedenison.site
+    type: PRIMARY
+
+databases:
+  - name: volunteer-db
+    engine: MYSQL
+    version: "8"
+    production: true
+    cluster_name: ${DIGITALOCEAN_DB_CLUSTER_NAME}
+    db_name: volunteer_managing
+    db_user: volunteer_app
+
+services:
+  - name: web
+    github:
+      repo: dohoanggiahuy317/Food-Pantry-Volunteer-Management-App
+      branch: main
+      deploy_on_push: false
+    environment_slug: python
+    source_dir: /
+    build_command: pip install -r backend/requirements.txt
+    run_command: gunicorn --chdir backend --worker-tmp-dir /dev/shm --bind 0.0.0.0:8080 app:app
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    health_check:
+      http_path: /healthz
+      initial_delay_seconds: 15
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    envs:
+      - key: APP_ENV
+        value: production
+        scope: RUN_TIME
+        type: GENERAL
+      - key: AUTH_PROVIDER
+        value: firebase
+        scope: RUN_TIME
+        type: GENERAL
+      - key: DATA_BACKEND
+        value: mysql
+        scope: RUN_TIME
+        type: GENERAL
+      - key: SEED_MYSQL_FROM_JSON_ON_EMPTY
+        value: "false"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: TRUST_REVERSE_PROXY
+        value: "true"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: PREFERRED_URL_SCHEME_HTTPS
+        value: "true"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://vmswedenison.site
+        scope: RUN_TIME
+        type: GENERAL
+      - key: FLASK_SECRET_KEY
+        value: ${FLASK_SECRET_KEY}
+        scope: RUN_TIME
+        type: SECRET
+      - key: FIREBASE_API_KEY
+        value: ${FIREBASE_API_KEY}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: FIREBASE_AUTH_DOMAIN
+        value: ${FIREBASE_AUTH_DOMAIN}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: FIREBASE_PROJECT_ID
+        value: ${FIREBASE_PROJECT_ID}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: FIREBASE_APP_ID
+        value: ${FIREBASE_APP_ID}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: FIREBASE_ADMIN_CREDENTIALS
+        value: ${FIREBASE_ADMIN_CREDENTIALS_JSON}
+        scope: RUN_TIME
+        type: SECRET
+      - key: RESEND_API_KEY
+        value: ${RESEND_API_KEY}
+        scope: RUN_TIME
+        type: SECRET
+      - key: RESEND_FROM_EMAIL
+        value: ${RESEND_FROM_EMAIL}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_HOST
+        value: ${volunteer-db.HOSTNAME}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_PORT
+        value: ${volunteer-db.PORT}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_DATABASE
+        value: ${volunteer-db.DATABASE}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_USER
+        value: ${volunteer-db.USERNAME}
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_PASSWORD
+        value: ${volunteer-db.PASSWORD}
+        scope: RUN_TIME
+        type: SECRET

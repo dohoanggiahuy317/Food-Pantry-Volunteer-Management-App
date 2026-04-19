@@ -1,0 +1,138 @@
+# Deploy to DigitalOcean App Platform
+
+This repository now includes the production deployment artifacts for:
+
+- DigitalOcean App Platform web service
+- DigitalOcean Managed MySQL
+- GitHub Actions CI/CD
+- Production domain `https://vmswedenison.site`
+
+## 1. Create the Managed MySQL Cluster
+
+Create a production MySQL cluster in the `nyc` region before the first deployment.
+
+Recommended settings:
+
+- Engine: MySQL 8
+- Cluster name: choose a stable name such as `vmswedenison-mysql`
+- Database name: `volunteer_managing`
+- Database user: `volunteer_app`
+
+After the cluster exists, keep the exact cluster name. The App Platform spec references it through the GitHub variable `DIGITALOCEAN_DB_CLUSTER_NAME`.
+
+## 2. Configure GitHub Variables and Secrets
+
+Add these repository variables in GitHub:
+
+- `DIGITALOCEAN_DB_CLUSTER_NAME`
+- `FIREBASE_API_KEY`
+- `FIREBASE_AUTH_DOMAIN`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_APP_ID`
+- `RESEND_FROM_EMAIL`
+
+Add these repository secrets in GitHub:
+
+- `DIGITALOCEAN_ACCESS_TOKEN`
+- `FLASK_SECRET_KEY`
+- `FIREBASE_ADMIN_CREDENTIALS_JSON`
+- `RESEND_API_KEY`
+
+Notes:
+
+- `FIREBASE_ADMIN_CREDENTIALS_JSON` should be the full Firebase Admin SDK JSON document as one secret value.
+- `FLASK_SECRET_KEY` should be a long random string.
+- `DIGITALOCEAN_ACCESS_TOKEN` needs write access to App Platform.
+
+## 3. Review the App Platform Spec
+
+The production spec lives at [app.yaml](/Users/dohoanggiahuy/Desktop/volunteer_managing/.do/app.yaml).
+
+Important details:
+
+- The service builds from the repository root, not `backend/`, because Flask serves sibling `frontend/` assets at runtime.
+- The service runs with Gunicorn on port `8080`.
+- `/healthz` is used for App Platform health checks.
+- Production seeding is disabled with `SEED_MYSQL_FROM_JSON_ON_EMPTY=false`.
+- MySQL connection settings come from App Platform bindable variables for the attached managed database.
+
+## 4. Create the App Platform App
+
+You can let the first GitHub Actions deploy create the app from `.do/app.yaml`, or create it in the DigitalOcean control panel first.
+
+If creating it manually:
+
+1. Connect the GitHub repository.
+2. Use the existing app spec in `.do/app.yaml`.
+3. Set the app name to `vmswedenison-prod`.
+4. Confirm the region is `nyc`.
+5. Confirm the attached database is the managed cluster you created.
+
+## 5. Configure the Domain
+
+Add `vmswedenison.site` as the primary domain in App Platform.
+
+Then apply the DNS records that DigitalOcean gives you for the apex domain. Wait for:
+
+- DNS propagation
+- TLS certificate issuance
+
+After the app is live, verify:
+
+- `https://vmswedenison.site/healthz`
+- `https://vmswedenison.site`
+
+## 6. Configure Firebase for Production
+
+In Firebase:
+
+1. Add `vmswedenison.site` to Authorized domains.
+2. Confirm the production web app config matches the GitHub variables.
+3. Generate or reuse a dedicated production Admin SDK credential.
+4. Store the Admin SDK JSON in the GitHub secret `FIREBASE_ADMIN_CREDENTIALS_JSON`.
+
+The backend now supports both:
+
+- a local file path for development
+- a raw JSON secret for production
+
+## 7. Configure Resend
+
+Set `RESEND_FROM_EMAIL` to the verified sender you want to use on your domain.
+
+If you want to postpone email delivery, leave `RESEND_API_KEY` unset. The app will not crash, but notifications will be skipped and logged as configuration failures.
+
+## 8. CI/CD Behavior
+
+Two workflows are now committed:
+
+- [ci.yml](/Users/dohoanggiahuy/Desktop/volunteer_managing/.github/workflows/ci.yml)
+- [deploy.yml](/Users/dohoanggiahuy/Desktop/volunteer_managing/.github/workflows/deploy.yml)
+
+Behavior:
+
+- Pull requests into `main` run `pytest tests`
+- Pushes to `main` run `pytest tests`
+- Pushes to `main` also run a production deploy after tests pass
+
+App Platform `deploy_on_push` is disabled in the spec so GitHub Actions remains the deployment gate.
+
+## 9. First Release Smoke Test
+
+After the first successful deployment:
+
+1. Open `https://vmswedenison.site`.
+2. Confirm the dashboard loads.
+3. Complete Google sign-in through Firebase.
+4. Confirm the app can read and write MySQL data.
+5. Confirm session persistence works across page reloads over HTTPS.
+6. If Resend is enabled, trigger one notification flow and confirm delivery.
+
+## 10. Ongoing Updates
+
+For future releases:
+
+1. Open a pull request into `main`.
+2. Wait for CI to pass.
+3. Merge to `main`.
+4. GitHub Actions deploys the updated App Platform spec and code automatically.
