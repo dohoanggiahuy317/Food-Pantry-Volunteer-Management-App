@@ -22,8 +22,8 @@ async function bootstrapAuthShell() {
         }
 
         try {
-            await getCurrentUser();
-            await enterApp();
+            const user = await getCurrentUser();
+            await enterApp(user);
             return;
         } catch (error) {
             if (error.status && error.status !== 401) {
@@ -310,11 +310,11 @@ async function requestFirebaseAccountDeletion(currentUser) {
     }
 }
 
-async function enterApp() {
+async function enterApp(user) {
     hideAuthShell();
     showAppShell();
     setAuthLoading(false);
-    await window.initializeDashboardApp();
+    await window.initializeDashboardApp(user);
 }
 
 function showAuthShell() {

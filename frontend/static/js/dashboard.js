@@ -283,7 +283,7 @@ async function syncCurrentUserTimezoneIfNeeded() {
     }
 }
 
-async function initializeDashboardApp() {
+async function initializeDashboardApp(preloadedUser) {
     if (dashboardBootPromise) {
         return dashboardBootPromise;
     }
@@ -294,7 +294,7 @@ async function initializeDashboardApp() {
                 throw new Error('Required functions not loaded. Please refresh the page.');
             }
 
-            currentUser = await getCurrentUser();
+            currentUser = preloadedUser || await getCurrentUser();
             await syncCurrentUserTimezoneIfNeeded();
             document.getElementById('user-email').textContent = currentUser.email;
             document.getElementById('user-role').textContent = currentUser.roles.join(', ');
