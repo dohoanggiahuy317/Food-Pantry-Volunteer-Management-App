@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 STATE_TABLE_NAME = "app_bootstrap_state"
 STATE_KEY_SCHEMA_SIGNATURE = "demo_schema_signature"
