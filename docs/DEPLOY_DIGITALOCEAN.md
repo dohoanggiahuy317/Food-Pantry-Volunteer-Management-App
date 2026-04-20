@@ -52,9 +52,27 @@ Important details:
 
 - The service builds from the repository root, not `backend/`, because Flask serves sibling `frontend/` assets at runtime.
 - The service runs with Gunicorn on port `8080`.
+- A pre-deploy App Platform job now owns demo DB bootstrapping and reseeding behavior.
 - `/healthz` is used for App Platform health checks.
 - Production seeding is disabled with `SEED_MYSQL_FROM_JSON_ON_EMPTY=false`.
 - MySQL connection settings come from App Platform bindable variables for the attached managed database.
+
+## Demo Database Bootstrap Behavior
+
+The app spec now includes a `PRE_DEPLOY` job that manages demo data in MySQL.
+
+Behavior:
+
+- If the schema hash has never been recorded, the job drops all app tables, recreates the schema, and seeds `backend/data/mysql.json`.
+- If the schema hash matches the last deployed schema hash, the job exits without changing data.
+- If the schema hash changes, the job drops all app tables, recreates the schema, and reseeds the demo dataset.
+
+The schema hash is derived from all files in `backend/db/migrations/*.sql`.
+
+Environment variables:
+
+- Web service: `DEMO_DB_BOOTSTRAP_MODE=disabled`
+- Pre-deploy job: `DEMO_DB_BOOTSTRAP_MODE=reset_if_untracked_or_schema_changed`
 
 ## 4. Create the App Platform App
 

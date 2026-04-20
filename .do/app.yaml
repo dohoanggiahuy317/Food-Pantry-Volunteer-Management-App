@@ -18,6 +18,48 @@ databases:
     db_name: volunteer_managing
     db_user: volunteer_app
 
+jobs:
+  - name: demo-bootstrap
+    kind: PRE_DEPLOY
+    github:
+      repo: dohoanggiahuy317/Food-Pantry-Volunteer-Management-App
+      branch: main
+      deploy_on_push: false
+    environment_slug: python
+    source_dir: /
+    run_command: python backend/db/demo_bootstrap.py
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    envs:
+      - key: DATA_BACKEND
+        value: mysql
+        scope: RUN_TIME
+        type: GENERAL
+      - key: DEMO_DB_BOOTSTRAP_MODE
+        value: reset_if_untracked_or_schema_changed
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_HOST
+        value: "${volunteer-db.HOSTNAME}"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_PORT
+        value: "${volunteer-db.PORT}"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_DATABASE
+        value: "${volunteer-db.DATABASE}"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_USER
+        value: "${volunteer-db.USERNAME}"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: MYSQL_PASSWORD
+        value: "${volunteer-db.PASSWORD}"
+        scope: RUN_TIME
+        type: SECRET
+
 services:
   - name: web
     github:
@@ -48,6 +90,10 @@ services:
         type: GENERAL
       - key: DATA_BACKEND
         value: mysql
+        scope: RUN_TIME
+        type: GENERAL
+      - key: DEMO_DB_BOOTSTRAP_MODE
+        value: disabled
         scope: RUN_TIME
         type: GENERAL
       - key: SEED_MYSQL_FROM_JSON_ON_EMPTY
