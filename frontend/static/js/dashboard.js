@@ -332,7 +332,178 @@ async function initializeDashboardApp() {
         }
     })();
 
+    await maybeStartAppTour();
     return dashboardBootPromise;
+}
+
+const APP_TOUR_STORAGE_KEY = 'volunteerAppTourCompleted';
+let appTourSteps = null;
+let appTourCurrentIndex = 0;
+
+function isElementVisible(element) {
+    if (!(element instanceof HTMLElement)) {
+        return false;
+    }
+    const style = window.getComputedStyle(element);
+    return style.visibility !== 'hidden' && style.display !== 'none' && element.offsetWidth > 0 && element.offsetHeight > 0;
+}
+
+function getAppTourSteps() {
+    const steps = [
+        {
+            title: 'Welcome',
+            body: 'This tour will walk you through the main sections of the volunteer dashboard.',
+            selector: '.header-left h1',
+            tab: null
+        },
+        {
+            title: 'Navigation',
+            body: 'Use these tabs to jump between the calendar, your shifts, pantries, admin features, and your account.',
+            selector: '.nav-tabs-container',
+            tab: null
+        },
+        {
+            title: 'Calendar',
+            body: 'Browse all available volunteer shifts and use the calendar filters to find a time that works for you.',
+            selector: '.calendar-shell-card',
+            tab: 'calendar'
+        },
+        {
+            title: 'Filters',
+            body: 'Open the calendar filters to search by pantry, date range, or time bucket.',
+            selector: '#calendar-sidebar-toggle',
+            tab: 'calendar'
+        },
+        {
+            title: 'Pantry Directory',
+            body: 'See pantry details, subscribe for notifications, and preview upcoming shifts.',
+            selector: '#tab-pantries',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'My Account',
+            body: 'Update your profile, phone number, and saved timezone from your account page.',
+            selector: '#tab-my-account',
+            tab: 'my-account'
+        }
+    ];
+
+    return steps.filter((step) => {
+        if (step.optional) {
+            return Boolean(document.querySelector(step.selector));
+        }
+        return true;
+    });
+}
+
+async function openAppTour() {
+    appTourSteps = getAppTourSteps();
+    if (!appTourSteps.length) {
+        return;
+    }
+    appTourCurrentIndex = 0;
+    await renderAppTourStep(0);
+}
+
+function closeAppTour(save = true) {
+    const highlight = document.getElementById('app-tour-highlighter');
+    const backdrop = document.getElementById('app-tour-backdrop');
+    const popover = document.getElementById('app-tour-popover');
+
+    highlight?.classList.add('app-hidden');
+    backdrop?.classList.add('app-hidden');
+    popover?.classList.add('app-hidden');
+    if (save) {
+        localStorage.setItem(APP_TOUR_STORAGE_KEY, 'true');
+    }
+}
+
+function shouldAutoStartAppTour() {
+    return !localStorage.getItem(APP_TOUR_STORAGE_KEY);
+}
+
+async function maybeStartAppTour() {
+    if (shouldAutoStartAppTour()) {
+        appTourSteps = getAppTourSteps();
+        if (appTourSteps.length) {
+            setTimeout(() => openAppTour(), 500);
+        }
+    }
+}
+
+async function renderAppTourStep(index) {
+    if (!appTourSteps || index < 0 || index >= appTourSteps.length) {
+        closeAppTour(true);
+        return;
+    }
+
+    appTourCurrentIndex = index;
+    const step = appTourSteps[index];
+    if (step.tab) {
+        await activateTab(step.tab);
+    }
+
+    const highlight = document.getElementById('app-tour-highlighter');
+    const backdrop = document.getElementById('app-tour-backdrop');
+    const popover = document.getElementById('app-tour-popover');
+    const popoverTitle = document.getElementById('app-tour-popover-title');
+    const popoverBody = document.getElementById('app-tour-popover-body');
+    const stepCount = document.getElementById('app-tour-step-count');
+    const prevBtn = document.getElementById('app-tour-prev-btn');
+    const nextBtn = document.getElementById('app-tour-next-btn');
+
+    if (!highlight || !backdrop || !popover || !popoverTitle || !popoverBody || !stepCount || !prevBtn || !nextBtn) {
+        return;
+    }
+
+    const target = step.selector ? document.querySelector(step.selector) : null;
+    backdrop.classList.remove('app-hidden');
+    highlight.classList.remove('app-hidden');
+    popover.classList.remove('app-hidden');
+    popoverTitle.textContent = step.title;
+    popoverBody.textContent = step.body;
+    stepCount.textContent = `${index + 1} of ${appTourSteps.length}`;
+    prevBtn.disabled = index === 0;
+    nextBtn.textContent = index === appTourSteps.length - 1 ? 'Finish' : 'Next';
+
+    prevBtn.onclick = () => renderAppTourStep(index - 1);
+    nextBtn.onclick = () => renderAppTourStep(index + 1);
+
+    if (target && isElementVisible(target)) {
+        const padding = 12;
+        const rect = target.getBoundingClientRect();
+        const top = Math.max(8, rect.top - padding);
+        const left = Math.max(8, rect.left - padding);
+        const width = Math.min(window.innerWidth - 16, rect.width + padding * 2);
+        const height = Math.min(window.innerHeight - 16, rect.height + padding * 2);
+
+        highlight.style.top = `${top}px`;
+        highlight.style.left = `${left}px`;
+        highlight.style.width = `${width}px`;
+        highlight.style.height = `${height}px`;
+        highlight.style.borderRadius = `${Math.min(width, height) > 120 ? 18 : 9999}px`;
+        popover.style.transform = 'none';
+
+        const popoverRect = popover.getBoundingClientRect();
+        const preferredLeft = Math.min(window.innerWidth - popoverRect.width - 16, Math.max(16, left + width / 2 - popoverRect.width / 2));
+        let preferredTop = rect.bottom + 16;
+        if (preferredTop + popoverRect.height + 16 > window.innerHeight) {
+            preferredTop = Math.max(16, rect.top - popoverRect.height - 16);
+        }
+        popover.style.top = `${preferredTop}px`;
+        popover.style.left = `${preferredLeft}px`;
+        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    } else {
+        highlight.style.top = '50%';
+        highlight.style.left = '50%';
+        highlight.style.width = '0px';
+        highlight.style.height = '0px';
+        highlight.style.borderRadius = '50%';
+        popover.style.transform = 'translate(-50%, -50%)';
+        popover.style.top = '50%';
+        popover.style.left = '50%';
+    }
 }
 
 // Setup UI based on role
@@ -2679,6 +2850,18 @@ function setupEventListeners() {
         tab.addEventListener('click', async () => {
             await activateTab(tab.dataset.tab);
         });
+    });
+
+    document.getElementById('start-tour-btn')?.addEventListener('click', () => {
+        openAppTour();
+    });
+
+    document.getElementById('app-tour-close-btn')?.addEventListener('click', () => {
+        closeAppTour(true);
+    });
+
+    document.getElementById('app-tour-backdrop')?.addEventListener('click', () => {
+        closeAppTour(true);
     });
 
     document.getElementById('admin-user-search-btn')?.addEventListener('click', async () => {

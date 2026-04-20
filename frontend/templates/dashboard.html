@@ -84,6 +84,7 @@
                         <div class="user-email" id="user-email">Loading...</div>
                         <div class="user-role" id="user-role"></div>
                     </div>
+                    <button type="button" class="btn btn-secondary" id="start-tour-btn">Take Tour</button>
                     <button type="button" class="btn btn-secondary" id="logout-btn">Log Out</button>
                 </div>
             </div>
@@ -903,6 +904,25 @@
                     <button type="button" class="btn btn-primary" data-recurring-scope-choice="single">This event only</button>
                     <button type="button" class="btn btn-secondary" data-recurring-scope-choice="future">This and following events</button>
                     <button type="button" class="btn btn-danger" data-recurring-scope-choice="cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="app-tour-backdrop" class="tour-backdrop app-hidden"></div>
+        <div id="app-tour-highlighter" class="tour-highlighter app-hidden" aria-hidden="true"></div>
+        <div id="app-tour-popover" class="tour-popover app-hidden" role="dialog" aria-modal="true" aria-labelledby="app-tour-popover-title">
+            <div class="tour-popover-card">
+                <div class="tour-popover-header">
+                    <h2 id="app-tour-popover-title">Tour</h2>
+                    <button type="button" class="tour-popover-close" id="app-tour-close-btn" aria-label="Close tour">&times;</button>
+                </div>
+                <div id="app-tour-popover-body" class="tour-popover-body"></div>
+                <div class="tour-popover-footer">
+                    <span id="app-tour-step-count" class="tour-step-count"></span>
+                    <div class="tour-step-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" id="app-tour-prev-btn">Previous</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="app-tour-next-btn">Next</button>
+                    </div>
                 </div>
             </div>
         </div>
