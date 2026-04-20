@@ -29,6 +29,13 @@ let volunteerPantrySort = 'name-asc';
 let volunteerPantrySubscriptionFilter = 'all';
 let selectedVolunteerPantryId = null;
 let lastVolunteerPantriesCompactViewport = null;
+let myRegisteredSignups = [];
+let myShiftsViewMode = 'calendar';
+let myShiftsListFilters = {
+    search: '',
+    pantryId: 'all',
+    timeBucket: 'all'
+};
 
 const RECURRING_WEEKDAY_ORDER = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
 const RECURRING_WEEKDAY_LABELS = {
@@ -385,6 +392,7 @@ async function activateTab(targetTab) {
         setAdminSubtab(activeAdminSubtab);
         await loadAdminTab();
     } else if (targetTab === 'my-shifts') {
+        setMyShiftsViewMode('calendar');
         await loadMyRegisteredShifts();
     } else if (targetTab === 'pantries') {
         await loadVolunteerPantryDirectory();
@@ -957,178 +965,6 @@ async function updatePantriesTable() {
     });
 }
 
-// Load calendar shifts from ALL pantries
-async function loadCalendarShifts() {
-    try {
-        document.getElementById('shifts-container').innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading shifts from all pantries...</p></div>';
-
-        // Load shifts from all pantries and group by pantry
-        const allShifts = {};
-
-        if (!allPublicPantries || allPublicPantries.length === 0) {
-            document.getElementById('shifts-container').innerHTML = '<p class="empty-state">No pantries available</p>';
-            return;
-        }
-
-        for (const pantry of allPublicPantries) {
-            try {
-                const shifts = await getActiveShifts(pantry.pantry_id);
-
-                if (shifts && shifts.length > 0) {
-                    for (const shift of shifts) {
-                        allShifts[pantry.pantry_id] = {
-                            name: pantry.name,
-                            location: pantry.location_address,
-                            shifts: shifts && shifts.length > 0 ? shifts : []
-                        };
-                    }
-                }
-
-            } catch (err) {
-                console.warn(`Failed to load shifts for pantry ${pantry.pantry_id}:`, err);
-            }
-        }
-
-        displayAllShiftsGroupedByPantry(allShifts);
-    } catch (error) {
-        console.error('Failed to load shifts:', error);
-        document.getElementById('shifts-container').innerHTML = `<p class="my-shift-load-error empty-state-compact">Error: ${escapeHtml(error.message)}</p>`;
-    }
-}
-
-// Display all shifts grouped by pantry
-function displayAllShiftsGroupedByPantry(allShifts) {
-    console.log('All shifts grouped by pantry:', allShifts);
-    const container = document.getElementById('shifts-container');
-    container.classList.remove('loading');
-
-    const pantryIds = Object.keys(allShifts);
-    if (pantryIds.length === 0) {
-        container.innerHTML = '<p class="empty-state">No pantries available</p>';
-        return;
-    }
-
-    container.innerHTML = '';
-
-    // Create sections for each pantry
-    pantryIds.forEach(pantryId => {
-        const pantryData = allShifts[pantryId];
-
-        // Pantry section header
-        const section = document.createElement('div');
-        section.className = 'pantry-section';
-
-        const header = document.createElement('div');
-        header.className = 'pantry-section-header';
-        header.innerHTML = `
-                    <h3 class="pantry-section-title">${pantryData.name}</h3>
-                    <p class="pantry-section-subtitle">${pantryData.location || 'No location listed'}</p>
-                `;
-        section.appendChild(header);
-
-        // Shifts grid for this pantry
-        const grid = document.createElement('div');
-        grid.className = 'shifts-grid';
-
-        if (pantryData.shifts && pantryData.shifts.length > 0) {
-            pantryData.shifts.forEach(shift => {
-                displayShiftCard(grid, shift);
-            });
-        } else {
-            const noShifts = document.createElement('p');
-            noShifts.className = 'empty-state';
-            noShifts.textContent = 'No shifts scheduled yet';
-            grid.appendChild(noShifts);
-        }
-
-        section.appendChild(grid);
-        container.appendChild(section);
-    });
-}
-
-// Display shifts as cards
-function displayShiftsCards(shifts) {
-    const container = document.getElementById('shifts-container');
-    container.classList.remove('loading');
-
-    if (!shifts || shifts.length === 0) {
-        container.innerHTML = '<p class="empty-state">No shifts available yet</p>';
-        return;
-    }
-
-    container.innerHTML = '';
-    const grid = document.createElement('div');
-    grid.className = 'shifts-grid';
-
-    shifts.forEach(shift => {
-        displayShiftCard(grid, shift);
-    });
-
-    container.appendChild(grid);
-}
-
-// Display a single shift card
-function displayShiftCard(grid, shift) {
-    const card = document.createElement('div');
-    card.className = 'shift-card';
-
-    const startDate = new Date(shift.start_time);
-    const endDate = new Date(shift.end_time);
-
-    let rolesHTML = '';
-    // API returns roles in 'roles' field, not 'shift_roles'
-    const shiftRoles = shift.roles || shift.shift_roles || [];
-
-    if (shiftRoles && shiftRoles.length > 0) {
-        rolesHTML = shiftRoles.map(role => {
-            const filled = role.filled_count || 0;
-            const required = role.required_count || 1;
-            const percentage = (filled / required) * 100;
-            const isFull = filled >= required;
-            const shiftCancelled = String(shift.status || 'OPEN').toUpperCase() === 'CANCELLED';
-            const roleCancelled = String(role.status || 'OPEN').toUpperCase() === 'CANCELLED';
-            const isUnavailable = shiftCancelled || roleCancelled;
-            const capacityClass = isFull ? 'capacity-full' : 'capacity-available';
-
-            return `
-                        <div class="role-item">
-                            <div class="role-item-main">
-                                <div class="role-name">${role.role_title}</div>
-                                <div class="role-capacity ${capacityClass}">${filled}/${required} filled</div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: ${percentage}%"></div>
-                                </div>
-                            </div>
-                            <div class="role-item-action">
-                                ${isUnavailable
-                    ? '<button class="btn btn-secondary" disabled>Unavailable</button>'
-                    : isFull
-                    ? '<button class="btn btn-secondary" disabled>Full</button>'
-                    : `<button class="btn btn-success" onclick="signupForRole(${role.shift_role_id})">Sign Up</button>`
-                }
-                            </div>
-                        </div>
-                    `;
-        }).join('');
-    } else {
-        rolesHTML = '<p class="empty-state empty-state-compact">No positions available</p>';
-    }
-
-    card.innerHTML = `
-                <div class="shift-header">
-                    <div>
-                        <div class="shift-title">${shift.shift_name}</div>
-                        <div class="shift-date">📅 ${escapeHtml(formatLocalTimeRange(startDate, endDate))}</div>
-                    </div>
-                </div>
-                <div class="shift-roles">
-                    ${rolesHTML}
-                </div>
-            `;
-
-    grid.appendChild(card);
-}
-
 // Signup for role
 async function signupForRole(roleId) {
     if (!currentUser || !currentUser.user_id) {
@@ -1145,10 +981,8 @@ async function signupForRole(roleId) {
     }
 
     try {
-
-        const myShiftsTab = document.getElementById('content-my-shifts');
         const isVolunteer = currentUserHasRole('VOLUNTEER');
-        if (isVolunteer && myShiftsTab && myShiftsTab.classList.contains('active')) {
+        if (isVolunteer) {
             await loadMyRegisteredShifts();
         }
         showMessage('calendar', 'Successfully signed up!', 'success');
@@ -1706,6 +1540,150 @@ function renderCredibilitySummary(attendanceScore) {
     `;
 }
 
+function renderMyShiftsSummary() {
+    const container = document.getElementById('my-shifts-summary');
+    if (!container || !currentUser) {
+        return;
+    }
+
+    container.innerHTML = renderCredibilitySummary(currentUser.attendance_score);
+}
+
+function setMyShiftsViewMode(mode = 'calendar') {
+    myShiftsViewMode = mode === 'list' ? 'list' : 'calendar';
+
+    const toggle = document.querySelector('.my-shifts-view-toggle');
+    if (toggle) {
+        toggle.dataset.activeView = myShiftsViewMode;
+    }
+
+    document.querySelectorAll('[data-my-shifts-view]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.myShiftsView === myShiftsViewMode);
+    });
+
+    document.getElementById('my-shifts-calendar-panel')?.classList.toggle('app-hidden', myShiftsViewMode !== 'calendar');
+    document.getElementById('my-shifts-list-panel')?.classList.toggle('app-hidden', myShiftsViewMode !== 'list');
+}
+
+function getMyShiftsListPantries(signups = myRegisteredSignups) {
+    const pantryMap = new Map();
+
+    (Array.isArray(signups) ? signups : []).forEach((signup) => {
+        const pantryId = String(signup.pantry_id || '');
+        if (!pantryId || pantryMap.has(pantryId)) {
+            return;
+        }
+        pantryMap.set(pantryId, {
+            pantry_id: pantryId,
+            name: signup.pantry_name || `Pantry ${pantryId}`
+        });
+    });
+
+    return [...pantryMap.values()].sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')));
+}
+
+function syncMyShiftsListFilters() {
+    const searchInput = document.getElementById('my-shifts-list-search');
+    const pantrySelect = document.getElementById('my-shifts-list-pantry-filter');
+    const timeSelect = document.getElementById('my-shifts-list-time-filter');
+
+    if (searchInput) {
+        searchInput.value = myShiftsListFilters.search;
+    }
+    if (timeSelect) {
+        timeSelect.value = myShiftsListFilters.timeBucket;
+    }
+    if (!pantrySelect) {
+        return;
+    }
+
+    const pantryOptions = [
+        '<option value="all">All pantries</option>',
+        ...getMyShiftsListPantries().map((pantry) => `<option value="${escapeHtml(pantry.pantry_id)}">${escapeHtml(pantry.name)}</option>`)
+    ];
+    pantrySelect.innerHTML = pantryOptions.join('');
+
+    const hasPantry = myShiftsListFilters.pantryId === 'all'
+        || getMyShiftsListPantries().some((pantry) => String(pantry.pantry_id) === String(myShiftsListFilters.pantryId));
+    myShiftsListFilters.pantryId = hasPantry ? myShiftsListFilters.pantryId : 'all';
+    pantrySelect.value = myShiftsListFilters.pantryId;
+}
+
+function filterMyShiftList(signups) {
+    return (Array.isArray(signups) ? signups : []).filter((signup) => {
+        const searchBlob = [
+            signup.shift_name,
+            signup.pantry_name,
+            signup.pantry_location,
+            signup.role_title
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        if (myShiftsListFilters.search && !searchBlob.includes(myShiftsListFilters.search.toLowerCase())) {
+            return false;
+        }
+
+        if (myShiftsListFilters.pantryId !== 'all' && String(signup.pantry_id) !== String(myShiftsListFilters.pantryId)) {
+            return false;
+        }
+
+        const startDate = safeDateValue(signup.start_time);
+        if (myShiftsListFilters.timeBucket !== 'all' && startDate && resolveCalendarTimeBucket(startDate) !== myShiftsListFilters.timeBucket) {
+            return false;
+        }
+
+        return true;
+    });
+}
+
+function getMyRegisteredShiftBuckets(signups, now = new Date()) {
+    const buckets = {
+        incoming: [],
+        ongoing: [],
+        past: [],
+    };
+
+    (Array.isArray(signups) ? signups : []).forEach((signup) => {
+        const bucket = classifyShiftBucket(signup, now);
+        buckets[bucket].push(signup);
+    });
+
+    buckets.incoming.sort((a, b) => sortByDate(a, b, 'start_time', 'asc'));
+    buckets.ongoing.sort((a, b) => sortByDate(a, b, 'end_time', 'asc'));
+    buckets.past.sort((a, b) => sortByDate(a, b, 'end_time', 'desc'));
+    return buckets;
+}
+
+function renderMyShiftList(signups) {
+    const container = document.getElementById('my-shifts-list-container');
+    if (!container) {
+        return;
+    }
+
+    syncMyShiftsListFilters();
+    const now = new Date();
+    container.classList.remove('loading');
+    const filteredSignups = filterMyShiftList(signups);
+
+    if (!Array.isArray(signups) || signups.length === 0) {
+        container.innerHTML = '<p class="my-shift-empty-all">You have no registered shifts yet.</p>';
+        return;
+    }
+
+    if (filteredSignups.length === 0) {
+        container.innerHTML = '<p class="my-shift-empty-all">No registered shifts match your list filters.</p>';
+        return;
+    }
+
+    const buckets = getMyRegisteredShiftBuckets(filteredSignups, now);
+    container.innerHTML = `
+        <div class="my-shifts-sections">
+            ${renderMyShiftSection('incoming', 'Incoming Shifts', buckets.incoming, now)}
+            ${renderMyShiftSection('ongoing', 'Ongoing Shifts', buckets.ongoing, now)}
+            ${renderMyShiftSection('past', 'Past Shifts', buckets.past, now)}
+        </div>
+    `;
+}
+
 function formatAccountValue(value, fallback = '—') {
     if (value === null || value === undefined || value === '') {
         return fallback;
@@ -1917,75 +1895,58 @@ function renderMyShiftSection(sectionId, title, signups, now) {
 }
 
 async function loadMyRegisteredShifts() {
-    const container = document.getElementById('my-shifts-container');
-    if (!container || !currentUser) return;
+    const listContainer = document.getElementById('my-shifts-list-container');
+    if (!listContainer || !currentUser) return;
 
-    container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading your registered shifts...</p></div>';
+    renderMyShiftsSummary();
+    listContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading your registered shifts...</p></div>';
+
+    const myShiftsCalendarController = typeof getCalendarController === 'function'
+        ? getCalendarController('my-shifts')
+        : null;
+    myShiftsCalendarController?.showLoading('Loading your registered shifts...');
 
     try {
         const signups = await getUserSignups(currentUser.user_id);
-        const now = new Date();
-        container.classList.remove('loading');
-
-        if (!signups || signups.length === 0) {
-            container.innerHTML = `
-                ${renderCredibilitySummary(currentUser.attendance_score)}
-                <p class="my-shift-empty-all">You have no registered shifts yet.</p>
-            `;
-            return;
+        myRegisteredSignups = Array.isArray(signups) ? signups : [];
+        renderMyShiftList(myRegisteredSignups);
+        if (typeof setMyShiftsCalendarItems === 'function') {
+            await setMyShiftsCalendarItems(myRegisteredSignups, true);
         }
-
-        const buckets = {
-            incoming: [],
-            ongoing: [],
-            past: [],
-        };
-
-        signups.forEach(signup => {
-            const bucket = classifyShiftBucket(signup, now);
-            buckets[bucket].push(signup);
-        });
-
-        buckets.incoming.sort((a, b) => sortByDate(a, b, 'start_time', 'asc'));
-        buckets.ongoing.sort((a, b) => sortByDate(a, b, 'end_time', 'asc'));
-        buckets.past.sort((a, b) => sortByDate(a, b, 'end_time', 'desc'));
-
-        container.innerHTML = `
-            <div class="my-shifts-sections">
-                ${renderCredibilitySummary(currentUser.attendance_score)}
-                ${renderMyShiftSection('incoming', 'Incoming Shifts', buckets.incoming, now)}
-                ${renderMyShiftSection('ongoing', 'Ongoing Shifts', buckets.ongoing, now)}
-                ${renderMyShiftSection('past', 'Past Shifts', buckets.past, now)}
-            </div>
-        `;
     } catch (error) {
         console.error('Failed to load my shifts:', error);
-        container.innerHTML = `<p class="my-shift-load-error">Failed to load your registered shifts: ${escapeHtml(error.message)}</p>`;
+        myRegisteredSignups = [];
+        listContainer.classList.remove('loading');
+        listContainer.innerHTML = `<p class="my-shift-load-error">Failed to load your registered shifts: ${escapeHtml(error.message)}</p>`;
+        myShiftsCalendarController?.showError('Failed to load registered shifts', error.message);
         showMessage('my-shifts', `Failed to load shifts: ${error.message}`, 'error');
     }
 }
 
 async function cancelMySignup(signupId) {
-    if (!confirm('Cancel this signup?')) return;
+    if (!confirm('Cancel this signup?')) return false;
 
     try {
         await cancelSignup(signupId);
         showMessage('my-shifts', 'Signup cancelled successfully!', 'success');
         await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
+        return true;
     } catch (error) {
         showMessage('my-shifts', `Cancel failed: ${error.message}`, 'error');
+        return false;
     }
 }
 
 async function reconfirmMySignup(signupId, action) {
     const normalizedAction = String(action || '').toUpperCase();
     const actionLabel = normalizedAction === 'CONFIRM' ? 'confirm this updated shift' : 'cancel this updated shift signup';
-    if (!confirm(`Do you want to ${actionLabel}?`)) return;
+    if (!confirm(`Do you want to ${actionLabel}?`)) return false;
 
     try {
         await reconfirmSignup(signupId, normalizedAction);
         showMessage('my-shifts', normalizedAction === 'CONFIRM' ? 'Shift reconfirmed successfully!' : 'Signup cancelled successfully!', 'success');
         await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
+        return true;
     } catch (error) {
         const details = parseApiErrorDetails(error);
         if (details && details.code === 'ROLE_FULL_OR_UNAVAILABLE') {
@@ -1996,6 +1957,7 @@ async function reconfirmMySignup(signupId, action) {
             showMessage('my-shifts', `Action failed: ${error.message}`, 'error');
         }
         await loadMyRegisteredShifts();
+        return false;
     }
 }
 
@@ -2524,6 +2486,7 @@ async function revokeShiftConfirm(shiftId) {
 function setupEventListeners() {
     setManageShiftsSubtab(activeManageShiftsSubtab);
     setAdminSubtab(activeAdminSubtab);
+    setMyShiftsViewMode(myShiftsViewMode);
     lastAdminUsersPhoneViewport = isPhoneViewport();
     lastVolunteerPantriesCompactViewport = isVolunteerPantryCompactViewport();
     window.addEventListener('resize', handleAdminUsersViewportChange);
@@ -2682,6 +2645,33 @@ function setupEventListeners() {
         if (pantryShell && pantryResultsEl && !pantryShell.contains(event.target)) {
             pantryResultsEl.classList.add('app-hidden');
         }
+    });
+
+    document.querySelectorAll('[data-my-shifts-view]').forEach((button) => {
+        button.addEventListener('click', () => {
+            setMyShiftsViewMode(button.dataset.myShiftsView || 'calendar');
+        });
+    });
+
+    document.getElementById('my-shifts-list-search')?.addEventListener('input', () => {
+        myShiftsListFilters.search = document.getElementById('my-shifts-list-search')?.value.trim() || '';
+        renderMyShiftList(myRegisteredSignups);
+    });
+
+    document.getElementById('my-shifts-list-pantry-filter')?.addEventListener('change', () => {
+        myShiftsListFilters.pantryId = document.getElementById('my-shifts-list-pantry-filter')?.value || 'all';
+        renderMyShiftList(myRegisteredSignups);
+    });
+
+    document.getElementById('my-shifts-list-time-filter')?.addEventListener('change', () => {
+        myShiftsListFilters.timeBucket = document.getElementById('my-shifts-list-time-filter')?.value || 'all';
+        renderMyShiftList(myRegisteredSignups);
+    });
+
+    document.getElementById('my-shifts-list-clear-filters')?.addEventListener('click', () => {
+        myShiftsListFilters = { search: '', pantryId: 'all', timeBucket: 'all' };
+        syncMyShiftsListFilters();
+        renderMyShiftList(myRegisteredSignups);
     });
 
     // Tab navigation

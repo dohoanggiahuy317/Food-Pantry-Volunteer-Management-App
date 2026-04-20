@@ -48,7 +48,8 @@ volunteer_managing/
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
             ├── lead-functions.js   # getShifts(), createFullShift(), updateShift(), updateFullShift(), cancelShiftWithScope(), markAttendance()
             ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup(), pantry subscription helpers
-            └── dashboard.js        # App entry point: boot sequence, tab state, event handlers, volunteer pantry directory UI
+            ├── calendar-functions.js   # Reusable root-scoped calendar controllers for Available Shifts + My Shifts
+            └── dashboard.js        # App entry point: boot sequence, tab state, event handlers, volunteer pantry directory UI + My Shifts list filters
 ```
 
 ---
@@ -409,6 +410,11 @@ window 'load' event fires
             'my-shifts'  → loadMyRegisteredShifts()
             'shifts'     → loadShiftsTable()
             'admin'      → loadAdminTab()
+
+Volunteer note:
+
+- the `My Shifts` tab now defaults to an in-tab calendar subview and can toggle back to a filtered list subview
+- both the shared `Calendar` tab and the `My Shifts` calendar run through `calendar-functions.js` controllers instead of separate hard-coded UIs
 ```
 
 ---

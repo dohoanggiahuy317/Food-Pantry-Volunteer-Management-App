@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from dotenv import load_dotenv
 from flask import Flask, g, jsonify, render_template, request, session
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
@@ -26,15 +27,53 @@ BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 load_dotenv(BASE_DIR / ".env")
 
+
+def env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_csv(name: str) -> list[str]:
+    raw_value = str(os.getenv(name, "") or "")
+    return [item.strip() for item in raw_value.split(",") if item.strip()]
+
+
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
+IS_PRODUCTION = APP_ENV == "production"
+
 app = Flask(
     __name__,
     static_folder=str(ROOT_DIR / "frontend" / "static"),
     template_folder=str(ROOT_DIR / "frontend" / "templates"),
 )
-app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "volunteer-managing-dev-secret")
+flask_secret_key = str(os.getenv("FLASK_SECRET_KEY") or "").strip()
+if flask_secret_key:
+    app.config["SECRET_KEY"] = flask_secret_key
+elif IS_PRODUCTION:
+    raise RuntimeError("Missing FLASK_SECRET_KEY for production")
+else:
+    app.config["SECRET_KEY"] = "volunteer-managing-dev-secret"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-CORS(app, resources={r"/*": {"origins": "*"}})
+app.config["SESSION_COOKIE_SECURE"] = env_flag("SESSION_COOKIE_SECURE", IS_PRODUCTION)
+app.config["PREFERRED_URL_SCHEME"] = "https" if env_flag("PREFERRED_URL_SCHEME_HTTPS", IS_PRODUCTION) else "http"
+
+if env_flag("TRUST_REVERSE_PROXY", IS_PRODUCTION):
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=int(os.getenv("PROXY_FIX_X_FOR", "1")),
+        x_proto=int(os.getenv("PROXY_FIX_X_PROTO", "1")),
+        x_host=int(os.getenv("PROXY_FIX_X_HOST", "1")),
+        x_port=int(os.getenv("PROXY_FIX_X_PORT", "1")),
+    )
+
+cors_allowed_origins = env_csv("CORS_ALLOWED_ORIGINS")
+if cors_allowed_origins:
+    CORS(app, resources={r"/api/*": {"origins": cors_allowed_origins}}, supports_credentials=True)
+elif not IS_PRODUCTION:
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
 backend: StoreBackend = create_backend()
 auth_service = create_auth_service()
@@ -48,6 +87,8 @@ PAST_SHIFT_LOCK_CODE = "PAST_SHIFT_LOCKED"
 ACTIVE_SIGNUP_STATUSES = {SIGNUP_STATUS_CONFIRMED, "SHOW_UP", "NO_SHOW"}
 LEAD_VISIBLE_SIGNUP_STATUSES = ACTIVE_SIGNUP_STATUSES
 RESERVATION_WINDOW_HOURS = 48
+MAX_SIGNUPS_PER_24_HOURS = 5
+SIGNUP_RATE_LIMIT_WINDOW = timedelta(hours=24)
 ADMIN_ROLE_NAME = "ADMIN"
 SUPER_ADMIN_ROLE_NAME = "SUPER_ADMIN"
 PROTECTED_SUPER_ADMIN_USER_ID = 1
@@ -640,6 +681,26 @@ def recurrence_signature(recurrence: dict[str, Any] | None) -> tuple[Any, ...] |
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def signup_rate_limit_cooldown_ends_at(
+    signup_rows: list[dict[str, Any]],
+    now_utc: datetime | None = None,
+) -> datetime | None:
+    now_utc = now_utc or datetime.now(timezone.utc)
+    window_start = now_utc - SIGNUP_RATE_LIMIT_WINDOW
+    recent_signup_times = sorted(
+        created_at
+        for signup_row in signup_rows
+        if (created_at := parse_iso_datetime_to_utc(signup_row.get("created_at"))) is not None
+        and created_at > window_start
+    )
+
+    if len(recent_signup_times) < MAX_SIGNUPS_PER_24_HOURS:
+        return None
+
+    cooldown_anchor_index = len(recent_signup_times) - MAX_SIGNUPS_PER_24_HOURS
+    return recent_signup_times[cooldown_anchor_index] + SIGNUP_RATE_LIMIT_WINDOW
 
 
 def signup_row_blocks_overlap(signup_row: dict[str, Any], now_utc: datetime | None = None) -> bool:
@@ -2570,14 +2631,18 @@ def create_signup(shift_role_id: int) -> Any:
     now_utc = datetime.now(timezone.utc)
     signups_by_user = backend.list_signups_by_user(user_id)
 
-    cutoff = now_utc - timedelta(hours=24)
-    recent_signups = [
-        s for s in signups_by_user
-        if parse_iso_datetime_to_utc(s.get("created_at")) is not None
-        and parse_iso_datetime_to_utc(s.get("created_at")) >= cutoff
-    ]
-    if len(recent_signups) >= 5:
-        return jsonify({"error": "You have reached the maximum of 5 shift registrations within 24 hours"}), 400
+    cooldown_ends_at = signup_rate_limit_cooldown_ends_at(signups_by_user, now_utc)
+    if cooldown_ends_at is not None:
+        return (
+            jsonify(
+                {
+                    "error": f"You can sign up for at most {MAX_SIGNUPS_PER_24_HOURS} shifts within 24 hours",
+                    "code": "SIGNUP_RATE_LIMITED",
+                    "cooldown_ends_at": cooldown_ends_at.isoformat().replace("+00:00", "Z"),
+                }
+            ),
+            429,
+        )
 
     has_conflict = any(
         signup_row_blocks_overlap(signup_row, now_utc)
@@ -2802,6 +2867,11 @@ def index() -> Any:
     return render_template("dashboard.html")
 
 
+@app.get("/healthz")
+def healthcheck() -> tuple[dict[str, str], int]:
+    return {"status": "ok"}, 200
+
+
 @app.get("/dashboard")
 def dashboard() -> Any:
     """Main dashboard - unified page for all roles."""
@@ -2809,4 +2879,4 @@ def dashboard() -> Any:
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000, host='0.0.0.0')
+    app.run(debug=not IS_PRODUCTION, port=int(os.getenv("PORT", "5000")), host="0.0.0.0")

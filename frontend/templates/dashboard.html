@@ -93,8 +93,8 @@
         <div class="nav-tabs">
             <div class="nav-tabs-container">
                 <button class="nav-tab" data-tab="calendar">📅 Calendar</button>
-                <button class="nav-tab hidden" data-tab="pantries" id="tab-pantries">🏠 Pantries</button>
                 <button class="nav-tab hidden" data-tab="my-shifts" id="tab-my-shifts">🧾 My Shifts</button>
+                <button class="nav-tab hidden" data-tab="pantries" id="tab-pantries">🏠 Pantries</button>
                 <button class="nav-tab hidden" data-tab="shifts" id="tab-shifts">🔧 Manage Shifts</button>
                 <button class="nav-tab hidden" data-tab="admin" id="tab-admin">👥 Admin Panel</button>
                 <button class="nav-tab" data-tab="my-account" id="tab-my-account">👤 My Account</button>
@@ -123,41 +123,41 @@
                     </div>
                 </div>
                 <div id="message-calendar" class="message"></div>
-                <div class="calendar-app" id="calendar-app">
-                    <div id="calendar-sidebar-backdrop" class="calendar-sidebar-backdrop app-hidden"></div>
-                    <aside class="calendar-sidebar" id="calendar-sidebar">
+                <div class="calendar-app" id="calendar-app" data-calendar-root="available">
+                    <div id="calendar-sidebar-backdrop" class="calendar-sidebar-backdrop app-hidden" data-calendar-part="sidebar-backdrop"></div>
+                    <aside class="calendar-sidebar" id="calendar-sidebar" data-calendar-part="sidebar">
                         <div class="calendar-sidebar-header">
                             <div>
                                 <h3 class="calendar-sidebar-title">Schedule</h3>
                                 <p class="calendar-sidebar-copy">Pick a date, week, and filters.</p>
                             </div>
-                            <button type="button" class="calendar-sidebar-close" id="calendar-sidebar-close" aria-label="Close calendar filters">&times;</button>
+                            <button type="button" class="calendar-sidebar-close" id="calendar-sidebar-close" aria-label="Close calendar filters" data-calendar-part="sidebar-close">&times;</button>
                         </div>
 
                         <div class="calendar-mini-picker">
                             <div class="calendar-mini-toolbar">
-                                <button type="button" class="calendar-nav-button" id="calendar-mini-prev" aria-label="Previous mini month">‹</button>
-                                <div id="calendar-mini-label" class="calendar-mini-label"></div>
-                                <button type="button" class="calendar-nav-button" id="calendar-mini-next" aria-label="Next mini month">›</button>
+                                <button type="button" class="calendar-nav-button" id="calendar-mini-prev" aria-label="Previous mini month" data-calendar-part="mini-prev">‹</button>
+                                <div id="calendar-mini-label" class="calendar-mini-label" data-calendar-part="mini-label"></div>
+                                <button type="button" class="calendar-nav-button" id="calendar-mini-next" aria-label="Next mini month" data-calendar-part="mini-next">›</button>
                             </div>
-                            <div class="calendar-mini-weekdays" id="calendar-mini-weekdays"></div>
-                            <div class="calendar-mini-grid" id="calendar-mini-grid"></div>
+                            <div class="calendar-mini-weekdays" id="calendar-mini-weekdays" data-calendar-part="mini-weekdays"></div>
+                            <div class="calendar-mini-grid" id="calendar-mini-grid" data-calendar-part="mini-grid"></div>
                         </div>
 
                         <div class="calendar-filter-panel">
                             <div class="calendar-filter-group">
                                 <label for="calendar-search-input">Search</label>
-                                <input type="search" id="calendar-search-input" placeholder="Search shifts, pantry, roles">
+                                <input type="search" id="calendar-search-input" placeholder="Search shifts, pantry, roles" data-calendar-part="search-input">
                             </div>
                             <div class="calendar-filter-group">
                                 <label for="calendar-pantry-filter">Pantry</label>
-                                <select id="calendar-pantry-filter">
+                                <select id="calendar-pantry-filter" data-calendar-part="pantry-filter">
                                     <option value="all">All pantries</option>
                                 </select>
                             </div>
                             <div class="calendar-filter-group">
                                 <label for="calendar-time-filter">Time Bucket</label>
-                                <select id="calendar-time-filter">
+                                <select id="calendar-time-filter" data-calendar-part="time-filter">
                                     <option value="all">All day</option>
                                     <option value="morning">Morning</option>
                                     <option value="afternoon">Afternoon</option>
@@ -165,37 +165,37 @@
                                 </select>
                             </div>
                             <div class="calendar-filter-actions">
-                                <button type="button" class="btn btn-secondary btn-sm" id="calendar-clear-filters-btn">Clear Filters</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="calendar-clear-filters-btn" data-calendar-part="clear-filters">Clear Filters</button>
                             </div>
                         </div>
 
                         <div class="calendar-legend-panel">
                             <h4 class="calendar-legend-title">Pantry Colors</h4>
-                            <div id="calendar-pantry-legend" class="calendar-pantry-legend"></div>
+                            <div id="calendar-pantry-legend" class="calendar-pantry-legend" data-calendar-part="legend"></div>
                         </div>
                     </aside>
 
                     <div class="calendar-main">
                         <div class="calendar-toolbar">
                             <div class="calendar-toolbar-left">
-                                <button type="button" class="btn btn-secondary btn-sm calendar-sidebar-toggle" id="calendar-sidebar-toggle">Filters</button>
-                                <button type="button" class="btn btn-secondary btn-sm" id="calendar-today-btn">Today</button>
+                                <button type="button" class="btn btn-secondary btn-sm calendar-sidebar-toggle" id="calendar-sidebar-toggle" data-calendar-part="sidebar-toggle">Filters</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="calendar-today-btn" data-calendar-part="today-btn">Today</button>
                                 <div class="calendar-nav-group">
-                                    <button type="button" class="calendar-nav-button" id="calendar-prev-btn" aria-label="Previous range">‹</button>
-                                    <button type="button" class="calendar-nav-button" id="calendar-next-btn" aria-label="Next range">›</button>
+                                    <button type="button" class="calendar-nav-button" id="calendar-prev-btn" aria-label="Previous range" data-calendar-part="prev-btn">‹</button>
+                                    <button type="button" class="calendar-nav-button" id="calendar-next-btn" aria-label="Next range" data-calendar-part="next-btn">›</button>
                                 </div>
-                                <div id="calendar-range-label" class="calendar-range-label">Loading…</div>
+                                <div id="calendar-range-label" class="calendar-range-label" data-calendar-part="range-label">Loading…</div>
                             </div>
                             <div class="calendar-view-switch" role="tablist" aria-label="Calendar view switch">
-                                <button type="button" class="calendar-view-button active" data-calendar-view="month">Month</button>
-                                <button type="button" class="calendar-view-button" data-calendar-view="week">Week</button>
-                                <button type="button" class="calendar-view-button" data-calendar-view="day">Day</button>
+                                <button type="button" class="calendar-view-button active" data-calendar-view="month" data-calendar-part="view-button">Month</button>
+                                <button type="button" class="calendar-view-button" data-calendar-view="week" data-calendar-part="view-button">Week</button>
+                                <button type="button" class="calendar-view-button" data-calendar-view="day" data-calendar-part="view-button">Day</button>
                             </div>
                         </div>
 
-                        <div id="calendar-active-filter-summary" class="calendar-active-filter-summary"></div>
+                        <div id="calendar-active-filter-summary" class="calendar-active-filter-summary" data-calendar-part="filter-summary"></div>
 
-                        <div id="shifts-container" class="calendar-view-container loading">
+                        <div id="shifts-container" class="calendar-view-container loading" data-calendar-part="container">
                             <div class="spinner"></div>
                             <p>Loading shifts...</p>
                         </div>
@@ -253,12 +253,133 @@
         <div class="tab-content" id="content-my-shifts">
             <div class="card">
                 <div class="card-header">
-                    <h2 class="card-title">My Registered Shifts</h2>
+                    <div>
+                        <h2 class="card-title">My Registered Shifts</h2>
+                        <p class="calendar-shell-copy">Review your volunteer schedule in calendar or list view.</p>
+                    </div>
                 </div>
                 <div id="message-my-shifts" class="message"></div>
-                <div id="my-shifts-container" class="loading">
-                    <div class="spinner"></div>
-                    <p>Loading your registered shifts...</p>
+                <div id="my-shifts-summary" class="my-shifts-summary-shell">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading your registered shifts...</p>
+                    </div>
+                </div>
+                <div class="my-shifts-view-toggle" role="tablist" aria-label="My shifts view switch">
+                    <button type="button" class="my-shifts-view-button active" data-my-shifts-view="calendar">Calendar</button>
+                    <button type="button" class="my-shifts-view-button" data-my-shifts-view="list">List</button>
+                </div>
+                <div id="my-shifts-calendar-panel" class="my-shifts-view-panel">
+                    <div class="my-shifts-calendar-shell calendar-shell-card">
+                        <div class="calendar-app" data-calendar-root="my-shifts">
+                            <div class="calendar-sidebar-backdrop app-hidden" data-calendar-part="sidebar-backdrop"></div>
+                            <aside class="calendar-sidebar" data-calendar-part="sidebar">
+                                <div class="calendar-sidebar-header">
+                                    <div>
+                                        <h3 class="calendar-sidebar-title">Schedule</h3>
+                                        <p class="calendar-sidebar-copy">Review your registered dates, views, and filters.</p>
+                                    </div>
+                                    <button type="button" class="calendar-sidebar-close" aria-label="Close my shifts calendar filters" data-calendar-part="sidebar-close">&times;</button>
+                                </div>
+
+                                <div class="calendar-mini-picker">
+                                    <div class="calendar-mini-toolbar">
+                                        <button type="button" class="calendar-nav-button" aria-label="Previous mini month" data-calendar-part="mini-prev">‹</button>
+                                        <div class="calendar-mini-label" data-calendar-part="mini-label"></div>
+                                        <button type="button" class="calendar-nav-button" aria-label="Next mini month" data-calendar-part="mini-next">›</button>
+                                    </div>
+                                    <div class="calendar-mini-weekdays" data-calendar-part="mini-weekdays"></div>
+                                    <div class="calendar-mini-grid" data-calendar-part="mini-grid"></div>
+                                </div>
+
+                                <div class="calendar-filter-panel">
+                                    <div class="calendar-filter-group">
+                                        <label for="my-shifts-calendar-search-input">Search</label>
+                                        <input type="search" id="my-shifts-calendar-search-input" placeholder="Search shifts, pantry, roles" data-calendar-part="search-input">
+                                    </div>
+                                    <div class="calendar-filter-group">
+                                        <label for="my-shifts-calendar-pantry-filter">Pantry</label>
+                                        <select id="my-shifts-calendar-pantry-filter" data-calendar-part="pantry-filter">
+                                            <option value="all">All pantries</option>
+                                        </select>
+                                    </div>
+                                    <div class="calendar-filter-group">
+                                        <label for="my-shifts-calendar-time-filter">Time Bucket</label>
+                                        <select id="my-shifts-calendar-time-filter" data-calendar-part="time-filter">
+                                            <option value="all">All day</option>
+                                            <option value="morning">Morning</option>
+                                            <option value="afternoon">Afternoon</option>
+                                            <option value="evening">Evening</option>
+                                        </select>
+                                    </div>
+                                    <div class="calendar-filter-actions">
+                                        <button type="button" class="btn btn-secondary btn-sm" data-calendar-part="clear-filters">Clear Filters</button>
+                                    </div>
+                                </div>
+
+                                <div class="calendar-legend-panel">
+                                    <h4 class="calendar-legend-title">Pantry Colors</h4>
+                                    <div class="calendar-pantry-legend" data-calendar-part="legend"></div>
+                                </div>
+                            </aside>
+
+                            <div class="calendar-main">
+                                <div class="calendar-toolbar">
+                                    <div class="calendar-toolbar-left">
+                                        <button type="button" class="btn btn-secondary btn-sm calendar-sidebar-toggle" data-calendar-part="sidebar-toggle">Filters</button>
+                                        <button type="button" class="btn btn-secondary btn-sm" data-calendar-part="today-btn">Today</button>
+                                        <div class="calendar-nav-group">
+                                            <button type="button" class="calendar-nav-button" aria-label="Previous range" data-calendar-part="prev-btn">‹</button>
+                                            <button type="button" class="calendar-nav-button" aria-label="Next range" data-calendar-part="next-btn">›</button>
+                                        </div>
+                                        <div class="calendar-range-label" data-calendar-part="range-label">Loading…</div>
+                                    </div>
+                                    <div class="calendar-view-switch" role="tablist" aria-label="My shifts calendar view switch">
+                                        <button type="button" class="calendar-view-button active" data-calendar-view="month" data-calendar-part="view-button">Month</button>
+                                        <button type="button" class="calendar-view-button" data-calendar-view="week" data-calendar-part="view-button">Week</button>
+                                        <button type="button" class="calendar-view-button" data-calendar-view="day" data-calendar-part="view-button">Day</button>
+                                    </div>
+                                </div>
+
+                                <div class="calendar-active-filter-summary" data-calendar-part="filter-summary"></div>
+
+                                <div class="calendar-view-container loading" data-calendar-part="container">
+                                    <div class="spinner"></div>
+                                    <p>Loading your registered shifts...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="my-shifts-list-panel" class="my-shifts-view-panel app-hidden">
+                    <div class="my-shifts-list-toolbar">
+                        <div class="my-shifts-list-search-group">
+                            <label for="my-shifts-list-search">Search</label>
+                            <input type="search" id="my-shifts-list-search" placeholder="Search shifts, pantry, roles">
+                        </div>
+                        <div class="my-shifts-list-filter-group">
+                            <label for="my-shifts-list-pantry-filter">Pantry</label>
+                            <select id="my-shifts-list-pantry-filter">
+                                <option value="all">All pantries</option>
+                            </select>
+                        </div>
+                        <div class="my-shifts-list-filter-group">
+                            <label for="my-shifts-list-time-filter">Time Bucket</label>
+                            <select id="my-shifts-list-time-filter">
+                                <option value="all">All day</option>
+                                <option value="morning">Morning</option>
+                                <option value="afternoon">Afternoon</option>
+                                <option value="evening">Evening</option>
+                            </select>
+                        </div>
+                        <div class="my-shifts-list-filter-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" id="my-shifts-list-clear-filters">Clear Filters</button>
+                        </div>
+                    </div>
+                    <div id="my-shifts-list-container" class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading your registered shifts...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -759,10 +880,17 @@
             </div>
         </div>
 
-        <div id="calendar-shift-modal" class="modal-overlay app-hidden">
+        <div id="calendar-shift-modal" class="modal-overlay app-hidden" data-calendar-modal="available">
             <div class="modal-panel modal-panel-calendar">
-                <button type="button" id="calendar-shift-modal-close" class="modal-close-button" aria-label="Close shift details">&times;</button>
-                <div id="calendar-shift-modal-body"></div>
+                <button type="button" id="calendar-shift-modal-close" class="modal-close-button" aria-label="Close shift details" data-calendar-modal-part="close">&times;</button>
+                <div id="calendar-shift-modal-body" data-calendar-modal-part="body"></div>
+            </div>
+        </div>
+
+        <div id="my-shifts-calendar-modal" class="modal-overlay app-hidden" data-calendar-modal="my-shifts">
+            <div class="modal-panel modal-panel-calendar">
+                <button type="button" class="modal-close-button" aria-label="Close registered shift details" data-calendar-modal-part="close">&times;</button>
+                <div data-calendar-modal-part="body"></div>
             </div>
         </div>
 

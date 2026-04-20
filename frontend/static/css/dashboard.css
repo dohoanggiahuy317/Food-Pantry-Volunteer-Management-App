@@ -1191,6 +1191,146 @@ table tr:hover {
     gap: 1.25rem;
 }
 
+.my-shifts-summary-shell {
+    margin-bottom: 1rem;
+}
+
+.my-shifts-view-toggle {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    background: #eef2ff;
+    border-radius: 999px;
+    padding: 0.25rem;
+    margin-bottom: 1rem;
+    position: relative;
+    overflow: hidden;
+    width: min(100%, 320px);
+}
+
+.my-shifts-view-toggle::before {
+    content: "";
+    position: absolute;
+    top: 0.25rem;
+    bottom: 0.25rem;
+    left: 0.25rem;
+    width: calc(50% - 0.25rem);
+    border-radius: 999px;
+    background: white;
+    box-shadow: 0 2px 10px rgba(79, 70, 229, 0.16);
+    transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.my-shifts-view-toggle[data-active-view="list"]::before {
+    transform: translateX(100%);
+}
+
+.my-shifts-view-button {
+    border: none;
+    background: transparent;
+    color: #4b5563;
+    padding: 0.6rem 1rem;
+    border-radius: 999px;
+    font-weight: 700;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+    transition: color 180ms ease, transform 180ms ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    text-align: center;
+}
+
+.my-shifts-view-button.active {
+    color: #3730a3;
+}
+
+.my-shifts-view-button:hover {
+    color: #312e81;
+}
+
+.my-shifts-view-button:active {
+    transform: scale(0.98);
+}
+
+.my-shifts-calendar-shell {
+    margin-top: 0.25rem;
+}
+
+.my-shifts-view-panel + .my-shifts-view-panel {
+    margin-top: 0.25rem;
+}
+
+.my-shifts-view-panel:not(.app-hidden) {
+    animation: my-shifts-panel-enter 180ms ease;
+}
+
+@keyframes my-shifts-panel-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.my-shifts-list-toolbar {
+    display: flex;
+    gap: 1rem;
+    align-items: end;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.my-shifts-list-search-group,
+.my-shifts-list-filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.my-shifts-list-search-group {
+    flex: 1 1 280px;
+}
+
+.my-shifts-list-filter-group {
+    flex: 0 1 220px;
+}
+
+.my-shifts-list-filter-group label,
+.my-shifts-list-search-group label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #374151;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.my-shifts-list-search-group input,
+.my-shifts-list-filter-group select {
+    width: 100%;
+    padding: 0.72rem 0.8rem;
+    border: 1px solid #dbe4f0;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    background: white;
+}
+
+.my-shifts-list-search-group input:focus,
+.my-shifts-list-filter-group select:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.my-shifts-list-filter-actions {
+    display: flex;
+    align-items: flex-end;
+}
+
 .my-shift-section {
     border: 1px solid #e2e8f0;
     border-radius: 10px;
@@ -2065,6 +2205,8 @@ table tr:hover {
 
 .calendar-month-event-time,
 .calendar-month-event-title,
+.calendar-month-event-subtitle,
+.calendar-month-event-badge,
 .calendar-month-event-span {
     display: block;
     overflow: hidden;
@@ -2079,6 +2221,22 @@ table tr:hover {
 
 .calendar-month-event-title {
     font-size: 0.82rem;
+}
+
+.calendar-month-event-subtitle {
+    margin-top: 0.12rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.86;
+}
+
+.calendar-month-event-badge {
+    margin-top: 0.16rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    opacity: 0.9;
 }
 
 .calendar-month-event-span {
@@ -2184,6 +2342,8 @@ table tr:hover {
 
 .calendar-week-event-title,
 .calendar-week-event-meta,
+.calendar-week-event-subtitle,
+.calendar-week-event-badge,
 .calendar-week-event-span {
     display: block;
     overflow: hidden;
@@ -2196,9 +2356,25 @@ table tr:hover {
     font-weight: 700;
 }
 
+.calendar-week-event-subtitle {
+    margin-top: 0.18rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    opacity: 0.88;
+}
+
 .calendar-week-event-meta {
     margin-top: 0.2rem;
     font-size: 0.74rem;
+}
+
+.calendar-week-event-badge {
+    margin-top: 0.2rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    opacity: 0.88;
 }
 
 .calendar-week-event-span {
@@ -2253,6 +2429,22 @@ table tr:hover {
     font-size: 1rem;
     font-weight: 700;
     color: #1f2937;
+}
+
+.calendar-day-card-subtitle {
+    margin-top: 0.25rem;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #475569;
+}
+
+.calendar-day-card-badge {
+    margin-top: 0.35rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .calendar-day-card-span {
@@ -2345,6 +2537,8 @@ table tr:hover {
 
 .calendar-phone-event-time,
 .calendar-phone-event-title,
+.calendar-phone-event-subtitle,
+.calendar-phone-event-badge,
 .calendar-phone-event-meta,
 .calendar-phone-event-span {
     display: block;
@@ -2359,6 +2553,22 @@ table tr:hover {
     margin-top: 0.2rem;
     font-size: 0.96rem;
     font-weight: 700;
+}
+
+.calendar-phone-event-subtitle {
+    margin-top: 0.2rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    opacity: 0.88;
+}
+
+.calendar-phone-event-badge {
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.88;
 }
 
 .calendar-phone-event-span {
@@ -2411,6 +2621,18 @@ table tr:hover {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: #7c3aed;
+}
+
+.calendar-modal-status-row {
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    margin-top: 0.9rem;
+}
+
+.calendar-status-badge-past {
+    background: #e2e8f0;
+    color: #475569;
 }
 
 .calendar-modal-section {
@@ -2485,6 +2707,19 @@ table tr:hover {
 .calendar-modal-role-capacity-label {
     margin-top: 0.35rem;
     font-size: 0.8rem;
+    color: #64748b;
+}
+
+.calendar-modal-actions {
+    display: flex;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.calendar-modal-action-note {
+    font-size: 0.88rem;
     color: #64748b;
 }
 
@@ -3445,7 +3680,8 @@ table tr:hover {
 
     .shift-view-toolbar,
     .shift-view-filter-group,
-    .volunteer-pantries-toolbar {
+    .volunteer-pantries-toolbar,
+    .my-shifts-list-toolbar {
         flex-direction: column;
         align-items: stretch;
     }
@@ -3516,6 +3752,17 @@ table tr:hover {
 
     .my-shift-section {
         padding: 0.85rem;
+    }
+
+    .my-shifts-view-toggle {
+        width: 100%;
+    }
+
+    .my-shifts-view-button,
+    .my-shifts-list-filter-actions .btn,
+    .calendar-modal-actions .btn {
+        width: 100%;
+        justify-content: center;
     }
 
     .registrant-item {
