@@ -92,7 +92,7 @@ services:
         scope: RUN_TIME
         type: GENERAL
       - key: FIREBASE_ADMIN_CREDENTIALS
-        value: "${FIREBASE_ADMIN_CREDENTIALS_JSON}"
+        value: '${FIREBASE_ADMIN_CREDENTIALS_JSON}'
         scope: RUN_TIME
         type: SECRET
       - key: RESEND_API_KEY
