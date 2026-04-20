@@ -27,7 +27,7 @@ jobs:
       deploy_on_push: false
     environment_slug: python
     source_dir: /
-    run_command: python backend/db/demo_bootstrap.py
+    run_command: PYTHONPATH=/workspace/backend python -m db.demo_bootstrap
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-0.5gb
     envs:
