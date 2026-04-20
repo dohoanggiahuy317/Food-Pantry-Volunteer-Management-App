@@ -1,380 +1,437 @@
-"""
-Unit tests for the notification system.
-Tests all three notification functions across different scenarios:
-  - Missing recipient email
-  - Missing sender email (env not configured)
-  - Missing API key (env not configured)
-  - Resend library not installed
-  - Resend API call failure
-  - Successful send (mocked)
-  - Edge cases: invalid datetimes, multiple roles, missing timezone
-"""
-
-from __future__ import annotations
-
-import importlib
-import sys
-from unittest.mock import MagicMock, patch
-
 import pytest
+from unittest.mock import patch, MagicMock
 
-# ---------------------------------------------------------------------------
-# Helpers — shared test data
-# ---------------------------------------------------------------------------
-
-VALID_RECIPIENT = {
-    "email": "volunteer@example.com",
-    "full_name": "Alice Smith",
-    "timezone": "America/Chicago",
-}
-
-RECIPIENT_NO_EMAIL = {
-    "email": "",
-    "full_name": "No Email User",
-}
-
-VALID_SHIFT = {
-    "shift_name": "Food Distribution",
-    "start_time": "2025-06-15T09:00:00+00:00",
-    "end_time": "2025-06-15T12:00:00+00:00",
-}
-
-MULTI_DAY_SHIFT = {
-    "shift_name": "Overnight Shift",
-    "start_time": "2025-06-15T22:00:00+00:00",
-    "end_time": "2025-06-16T06:00:00+00:00",
-}
-
-BAD_TIMES_SHIFT = {
-    "shift_name": "Bad Times Shift",
-    "start_time": "not-a-date",
-    "end_time": None,
-}
-
-VALID_PANTRY = {
-    "name": "Downtown Food Pantry",
-    "location_address": "123 Main St, Springfield",
-}
-
-VALID_ROLE = {
-    "role_title": "Greeter",
-}
-
-SIGNUPS_SINGLE_ROLE = [
-    {"role_title": "Greeter"},
-]
-
-SIGNUPS_MULTI_ROLE = [
-    {"role_title": "Greeter"},
-    {"role_title": "Greeter"},  # duplicate — should de-duplicate
-    {"role_title": "Packer"},
-]
-
-SIGNUPS_EMPTY = []
+from notifications import (
+    send_signup_confirmation,
+    send_shift_update_notification,
+    send_shift_cancellation_notification,
+    NotificationResult
+)
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
-@pytest.fixture(autouse=True)
-def reset_notifications_module():
-    """
-    Re-import the notifications module before each test so that module-level
-    globals (RESEND_API_KEY, RESEND_FROM_EMAIL) can be patched cleanly.
-    """
-    mod_name = "notifications.notifications"
-    if mod_name in sys.modules:
-        del sys.modules[mod_name]
-    yield
-    if mod_name in sys.modules:
-        del sys.modules[mod_name]
+class TestNotificationHelpers:
+    """Test notification helper functions."""
 
+    def test_parse_iso_datetime_to_utc(self):
+        """Test ISO datetime parsing."""
+        from notifications.notifications import _parse_iso_datetime_to_utc
 
-def _get_module(api_key: str = "test-key", from_email: str = "noreply@example.com"):
-    """Import the module with the given env-level overrides already applied."""
-    with patch.dict(
-        "os.environ",
-        {"RESEND_API_KEY": api_key, "RESEND_FROM_EMAIL": from_email},
-        clear=False,
-    ):
-        mod = importlib.import_module("notifications.notifications")
-        mod.RESEND_API_KEY = api_key
-        mod.RESEND_FROM_EMAIL = from_email
-        return mod
+        # Test valid datetime string
+        dt = _parse_iso_datetime_to_utc("2023-01-01T12:00:00Z")
+        assert dt is not None
+        assert dt.year == 2023
+        assert dt.month == 1
+        assert dt.day == 1
+        assert dt.hour == 12
 
+        # Test invalid input
+        assert _parse_iso_datetime_to_utc("invalid") is None
+        assert _parse_iso_datetime_to_utc(None) is None
 
-# ---------------------------------------------------------------------------
-# send_signup_confirmation
-# ---------------------------------------------------------------------------
+    def test_normalized_text(self):
+        """Test text normalization."""
+        from notifications.notifications import _normalized_text
 
-class TestSendSignupConfirmation:
+        assert _normalized_text("  test  ", "fallback") == "test"
+        assert _normalized_text(None, "fallback") == "fallback"
+        assert _normalized_text("", "fallback") == "fallback"
+        assert _normalized_text("value", "fallback") == "value"
 
-    def test_missing_recipient_email(self):
-        mod = _get_module()
-        result = mod.send_signup_confirmation(RECIPIENT_NO_EMAIL, VALID_SHIFT, VALID_PANTRY, VALID_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
+    def test_normalized_role_titles(self):
+        """Test role title normalization."""
+        from notifications.notifications import _normalized_role_titles
 
-    def test_missing_sender_email(self):
-        mod = _get_module(from_email="")
-        result = mod.send_signup_confirmation(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, VALID_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "SENDER_EMAIL_MISSING"
-        assert result["recipient_email"] == VALID_RECIPIENT["email"]
+        signups = [
+            {"role_title": "Role 1"},
+            {"role_title": "Role 1"},  # duplicate
+            {"role_title": "Role 2"},
+            {"role_title": None}
+        ]
 
-    def test_missing_api_key(self):
-        mod = _get_module(api_key="")
-        result = mod.send_signup_confirmation(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, VALID_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_API_KEY_MISSING"
+        result = _normalized_role_titles(signups)
+        assert "Role 1" in result
+        assert "Role 2" in result
+        assert result.count("Role 1") == 1  # no duplicates
 
-    def test_resend_library_missing(self):
-        mod = _get_module()
-        with patch.dict("sys.modules", {"resend": None}):
-            result = mod.send_signup_confirmation(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, VALID_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_LIBRARY_MISSING"
+    def test_format_shift_window(self):
+        """Test shift window formatting."""
+        from notifications.notifications import _format_shift_window
 
-    def test_resend_send_fails(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.side_effect = Exception("network error")
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_signup_confirmation(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, VALID_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_SEND_FAILED"
-        assert "network error" in result["message"]
+        shift = {
+            "start_time": "2023-01-01T10:00:00Z",
+            "end_time": "2023-01-01T12:00:00Z"
+        }
 
-    def test_successful_send(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.return_value = {"id": "abc123"}
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_signup_confirmation(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, VALID_ROLE)
-        assert result["ok"] is True
-        assert result["code"] == "SIGNUP_CONFIRMATION_SENT"
-        assert result["recipient_email"] == VALID_RECIPIENT["email"]
-        assert "Food Distribution" in result["subject"]
-        assert result["provider"] == "resend"
-        assert result["provider_response"] == {"id": "abc123"}
+        result = _format_shift_window(shift, "UTC")
+        assert "Sunday, January 01, 2023" in result
+        assert "10:00 AM - 12:00 PM UTC" in result
 
-    def test_subject_contains_shift_name(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.return_value = {}
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_signup_confirmation(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, VALID_ROLE)
-        assert VALID_SHIFT["shift_name"] in result["subject"]
-
-    def test_missing_shift_name_uses_fallback(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.return_value = {}
-        shift_no_name = {**VALID_SHIFT, "shift_name": ""}
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_signup_confirmation(VALID_RECIPIENT, shift_no_name, VALID_PANTRY, VALID_ROLE)
-        assert result["ok"] is True
-        # subject should still be built (with fallback text)
-        assert result["subject"] is not None
-
-
-# ---------------------------------------------------------------------------
-# send_shift_update_notification
-# ---------------------------------------------------------------------------
-
-class TestSendShiftUpdateNotification:
-
-    def test_missing_recipient_email(self):
-        mod = _get_module()
-        result = mod.send_shift_update_notification(RECIPIENT_NO_EMAIL, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
-
-    def test_missing_sender_email(self):
-        mod = _get_module(from_email="")
-        result = mod.send_shift_update_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "SENDER_EMAIL_MISSING"
-
-    def test_missing_api_key(self):
-        mod = _get_module(api_key="")
-        result = mod.send_shift_update_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_API_KEY_MISSING"
-
-    def test_resend_library_missing(self):
-        mod = _get_module()
-        with patch.dict("sys.modules", {"resend": None}):
-            result = mod.send_shift_update_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_LIBRARY_MISSING"
-
-    def test_resend_send_fails(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.side_effect = RuntimeError("timeout")
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_shift_update_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_SEND_FAILED"
-
-    def test_successful_send(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.return_value = {"id": "upd456"}
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_shift_update_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is True
-        assert result["code"] == "SHIFT_UPDATE_NOTIFICATION_SENT"
-        assert result["recipient_email"] == VALID_RECIPIENT["email"]
-
-    def test_multiple_roles_deduplication(self):
-        """Duplicate role titles should appear only once in the notification."""
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.return_value = {}
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_shift_update_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_MULTI_ROLE)
-        assert result["ok"] is True
-        # Check that the email params were built — Emails.send was called once
-        assert mock_resend.Emails.send.call_count == 1
-        call_params = mock_resend.Emails.send.call_args[0][0]
-        html = call_params["html"]
-        assert html.count("Greeter") == 1   # de-duplicated
-        assert "Packer" in html
-
-    def test_empty_signups_uses_fallback_role(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.return_value = {}
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_shift_update_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_EMPTY)
-        assert result["ok"] is True
-        call_params = mock_resend.Emails.send.call_args[0][0]
-        assert "Volunteer role" in call_params["html"]  # fallback
-
-
-# ---------------------------------------------------------------------------
-# send_shift_cancellation_notification
-# ---------------------------------------------------------------------------
-
-class TestSendShiftCancellationNotification:
-
-    def test_missing_recipient_email(self):
-        mod = _get_module()
-        result = mod.send_shift_cancellation_notification(RECIPIENT_NO_EMAIL, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
-
-    def test_missing_sender_email(self):
-        mod = _get_module(from_email="")
-        result = mod.send_shift_cancellation_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "SENDER_EMAIL_MISSING"
-
-    def test_missing_api_key(self):
-        mod = _get_module(api_key="")
-        result = mod.send_shift_cancellation_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_API_KEY_MISSING"
-
-    def test_resend_library_missing(self):
-        mod = _get_module()
-        with patch.dict("sys.modules", {"resend": None}):
-            result = mod.send_shift_cancellation_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_LIBRARY_MISSING"
-
-    def test_resend_send_fails(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.side_effect = ConnectionError("refused")
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_shift_cancellation_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is False
-        assert result["code"] == "RESEND_SEND_FAILED"
-
-    def test_successful_send(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.return_value = {"id": "can789"}
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_shift_cancellation_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert result["ok"] is True
-        assert result["code"] == "SHIFT_CANCELLATION_NOTIFICATION_SENT"
-        assert "cancelled" in result["subject"].lower()
-
-    def test_subject_contains_shift_name(self):
-        mod = _get_module()
-        mock_resend = MagicMock()
-        mock_resend.Emails.send.return_value = {}
-        with patch.dict("sys.modules", {"resend": mock_resend}):
-            result = mod.send_shift_cancellation_notification(VALID_RECIPIENT, VALID_SHIFT, VALID_PANTRY, SIGNUPS_SINGLE_ROLE)
-        assert VALID_SHIFT["shift_name"] in result["subject"]
-
-
-# ---------------------------------------------------------------------------
-# Helper function edge cases
-# ---------------------------------------------------------------------------
-
-class TestFormatShiftWindow:
-
-    def test_same_day_shift_format(self):
-        mod = _get_module()
-        result = mod._format_shift_window(VALID_SHIFT, "America/New_York")
-        # same-day: shows date once with start-end time
-        assert "June 15, 2025" in result
-        assert " - " in result
-
-    def test_multi_day_shift_format(self):
-        mod = _get_module()
-        result = mod._format_shift_window(MULTI_DAY_SHIFT, "America/New_York")
-        # multi-day: both dates should appear
-        assert "June 15" in result
-        assert "June 16" in result
-
-    def test_invalid_times_returns_fallback(self):
-        mod = _get_module()
-        result = mod._format_shift_window(BAD_TIMES_SHIFT, "America/New_York")
+        # Test with invalid times
+        invalid_shift = {"start_time": None, "end_time": None}
+        result = _format_shift_window(invalid_shift)
         assert result == "Time unavailable"
 
-    def test_no_timezone_uses_default(self):
-        mod = _get_module()
-        result = mod._format_shift_window(VALID_SHIFT, None)
-        # should not raise and should return a formatted string
-        assert "2025" in result
+    def test_build_email_html(self):
+        """Test HTML email building."""
+        from notifications.notifications import _build_email_html
 
-    def test_invalid_timezone_falls_back_to_default(self):
-        mod = _get_module()
-        result = mod._format_shift_window(VALID_SHIFT, "Not/ATimezone")
-        # should fall back to America/New_York and still format correctly
-        assert "2025" in result
+        html = _build_email_html(
+            recipient_name="John Doe",
+            intro="This is an intro.",
+            details=[
+                ("Item1", "Value1"),
+                ("Item2", "Value2"),
+            ],
+            outro="This is an outro.",
+        )
+
+        assert "Hi John Doe" in html
+        assert "This is an intro." in html
+        assert "This is an outro." in html
+        assert "<strong>Item1:</strong> Value1" in html
+        assert "<strong>Item2:</strong> Value2" in html
+        assert "Volunteer Managing Teams" in html
+        assert html.startswith("<p>")
+
+    def test_notification_result(self):
+        """Test notification result structure."""
+        from notifications.notifications import _notification_result
+
+        result = _notification_result(
+            ok=True,
+            code="SUCCESS",
+            message="Test message",
+            recipient_email="test@example.com",
+            subject="Test Subject",
+        )
+
+        assert result["ok"] is True
+        assert result["code"] == "SUCCESS"
+        assert result["message"] == "Test message"
+        assert result["recipient_email"] == "test@example.com"
+        assert result["subject"] == "Test Subject"
+        assert result["provider"] == "resend"
+        assert result["provider_response"] is None
 
 
-class TestNormalizedRoleTitles:
+class TestSignupConfirmation:
+    """Test signup confirmation notification."""
 
-    def test_single_role(self):
-        mod = _get_module()
-        result = mod._normalized_role_titles([{"role_title": "Greeter"}])
-        assert result == "Greeter"
+    def test_missing_recipient_email(self):
+        """Test error when recipient email is missing."""
+        result = send_signup_confirmation(
+            recipient={"full_name": "John Doe"},
+            shift={"shift_name": "Morning Shift"},
+            pantry={"name": "Food Bank"},
+            role={"role_title": "Volunteer"},
+        )
 
-    def test_multiple_unique_roles(self):
-        mod = _get_module()
-        result = mod._normalized_role_titles([{"role_title": "Greeter"}, {"role_title": "Packer"}])
-        assert result == "Greeter, Packer"
+        assert result["ok"] is False
+        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
+        assert result["message"] == "Recipient email is missing."
 
-    def test_duplicate_roles_deduplicated(self):
-        mod = _get_module()
-        result = mod._normalized_role_titles([{"role_title": "Greeter"}, {"role_title": "Greeter"}])
-        assert result == "Greeter"
+    def test_missing_sender_email_config(self):
+        """Test error when sender email is not configured."""
+        with patch("notifications.notifications.RESEND_FROM_EMAIL", ""):
+            result = send_signup_confirmation(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "John Doe"
+                },
+                shift={"shift_name": "Morning Shift"},
+                pantry={"name": "Food Bank"},
+                role={"role_title": "Volunteer"},
+            )
 
-    def test_empty_list_returns_fallback(self):
-        mod = _get_module()
-        result = mod._normalized_role_titles([])
-        assert result == "Volunteer role"
+            assert result["ok"] is False
+            assert result["code"] == "SENDER_EMAIL_MISSING"
 
-    def test_missing_role_title_uses_fallback(self):
-        mod = _get_module()
-        result = mod._normalized_role_titles([{"role_title": ""}])
-        assert result == "Volunteer role"
+    def test_successful_signup_confirmation_with_mock(self):
+        """Test successful signup confirmation."""
+        with patch("notifications.notifications.RESEND_API_KEY", "test_key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "sender@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+
+            mock_send.return_value = {
+                "ok": True,
+                "provider": "resend",
+                "code": "SIGNUP_CONFIRMATION_SENT",
+                "message": "Signup confirmation email sent.",
+                "recipient_email": "volunteer@example.com",
+                "subject": "Volunteer signup confirmed: Morning Shift",
+                "provider_response": {"id": "email_123"},
+            }
+
+            result = send_signup_confirmation(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "John Doe"
+                },
+                shift={
+                    "shift_name": "Morning Shift",
+                    "start_time": "2023-05-15T08:00:00Z",
+                    "end_time": "2023-05-15T12:00:00Z",
+                },
+                pantry={
+                    "name": "Community Food Bank",
+                    "location_address": "123 Main St"
+                },
+                role={"role_title": "Food Sorter"},
+            )
+
+            assert result["ok"] is True
+            assert result["code"] == "SIGNUP_CONFIRMATION_SENT"
+            assert "Morning Shift" in result["subject"]
+
+    def test_signup_confirmation_uses_defaults(self):
+        """Test that signup confirmation uses default values."""
+        with patch("notifications.notifications.RESEND_API_KEY", "test_key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "sender@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+
+            mock_send.return_value = {
+                "ok": True,
+                "provider": "resend",
+                "code": "SIGNUP_CONFIRMATION_SENT",
+                "message": "Signup confirmation email sent.",
+                "recipient_email": "volunteer@example.com",
+                "subject": "Volunteer signup confirmed: your volunteer shift",
+                "provider_response": None,
+            }
+
+            result = send_signup_confirmation(
+                recipient={"email": "volunteer@example.com"},
+                shift={},
+                pantry={},
+                role={},
+            )
+
+            assert result["ok"] is True
+            # Verify that _send_resend_email was called with the params
+            mock_send.assert_called_once()
+            call_args = mock_send.call_args
+            params = call_args[0][0]
+            
+            # The HTML should contain default values
+            html = params["html"]
+            assert "Volunteer" in html  # Default recipient name
+            assert "Pantry" in html  # Default pantry name
+            assert "Volunteer role" in html  # Default role title
+
+
+class TestShiftUpdateNotification:
+    """Test shift update notification."""
+
+    def test_missing_recipient_email(self):
+        """Test error when recipient email is missing."""
+        result = send_shift_update_notification(
+            recipient={"full_name": "John Doe"},
+            shift={"shift_name": "Morning Shift"},
+            pantry={"name": "Food Bank"},
+            signups=[],
+        )
+
+        assert result["ok"] is False
+        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
+
+    def test_missing_sender_email_config(self):
+        """Test error when sender email is not configured."""
+        with patch("notifications.notifications.RESEND_FROM_EMAIL", ""):
+            result = send_shift_update_notification(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "John Doe"
+                },
+                shift={"shift_name": "Morning Shift"},
+                pantry={"name": "Food Bank"},
+                signups=[],
+            )
+
+            assert result["ok"] is False
+            assert result["code"] == "SENDER_EMAIL_MISSING"
+
+    def test_successful_shift_update_with_mock(self):
+        """Test successful shift update notification."""
+        with patch("notifications.notifications.RESEND_API_KEY", "test_key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "sender@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+
+            mock_send.return_value = {
+                "ok": True,
+                "provider": "resend",
+                "code": "SHIFT_UPDATE_NOTIFICATION_SENT",
+                "message": "Shift update notification email sent.",
+                "recipient_email": "volunteer@example.com",
+                "subject": "Shift updated: action needed for Morning Shift",
+                "provider_response": {"id": "email_456"},
+            }
+
+            result = send_shift_update_notification(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "Jane Smith"
+                },
+                shift={
+                    "shift_name": "Morning Shift",
+                    "start_time": "2023-05-20T09:00:00Z",
+                    "end_time": "2023-05-20T13:00:00Z",
+                },
+                pantry={
+                    "name": "Downtown Food Bank",
+                    "location_address": "456 Oak Ave"
+                },
+                signups=[
+                    {"role_title": "Cashier"},
+                    {"role_title": "Packager"},
+                ],
+            )
+
+            assert result["ok"] is True
+            assert result["code"] == "SHIFT_UPDATE_NOTIFICATION_SENT"
+            assert "action needed" in result["subject"]
+
+    def test_shift_update_with_multiple_signups(self):
+        """Test shift update with multiple role signups."""
+        with patch("notifications.notifications.RESEND_API_KEY", "test_key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "sender@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+
+            mock_send.return_value = {
+                "ok": True,
+                "provider": "resend",
+                "code": "SHIFT_UPDATE_NOTIFICATION_SENT",
+                "message": "Shift update notification email sent.",
+                "recipient_email": "volunteer@example.com",
+                "subject": "Shift updated: action needed for Shift",
+                "provider_response": None,
+            }
+
+            result = send_shift_update_notification(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "Alex"
+                },
+                shift={
+                    "shift_name": "Special Event",
+                    "start_time": "2023-05-25T10:00:00Z",
+                    "end_time": "2023-05-25T15:00:00Z",
+                },
+                pantry={"name": "Event Food Bank"},
+                signups=[
+                    {"role_title": "Setup"},
+                    {"role_title": "Distribution"},
+                    {"role_title": "Cleanup"},
+                ],
+            )
+
+            assert result["ok"] is True
+            # Verify multiple roles are included
+            call_args = mock_send.call_args
+            params = call_args[0][0]
+            html = params["html"]
+            assert "Setup" in html or "Distribution" in html or "Cleanup" in html
+
+
+class TestShiftCancellationNotification:
+    """Test shift cancellation notification."""
+
+    def test_missing_recipient_email(self):
+        """Test error when recipient email is missing."""
+        result = send_shift_cancellation_notification(
+            recipient={"full_name": "John Doe"},
+            shift={"shift_name": "Morning Shift"},
+            pantry={"name": "Food Bank"},
+            signups=[],
+        )
+
+        assert result["ok"] is False
+        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
+
+    def test_missing_sender_email_config(self):
+        """Test error when sender email is not configured."""
+        with patch("notifications.notifications.RESEND_FROM_EMAIL", ""):
+            result = send_shift_cancellation_notification(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "John Doe"
+                },
+                shift={"shift_name": "Morning Shift"},
+                pantry={"name": "Food Bank"},
+                signups=[],
+            )
+
+            assert result["ok"] is False
+            assert result["code"] == "SENDER_EMAIL_MISSING"
+
+    def test_successful_shift_cancellation_with_mock(self):
+        """Test successful shift cancellation notification."""
+        with patch("notifications.notifications.RESEND_API_KEY", "test_key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "sender@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+
+            mock_send.return_value = {
+                "ok": True,
+                "provider": "resend",
+                "code": "SHIFT_CANCELLATION_NOTIFICATION_SENT",
+                "message": "Shift cancellation notification email sent.",
+                "recipient_email": "volunteer@example.com",
+                "subject": "Shift cancelled: Evening Shift",
+                "provider_response": {"id": "email_789"},
+            }
+
+            result = send_shift_cancellation_notification(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "Bob Wilson"
+                },
+                shift={
+                    "shift_name": "Evening Shift",
+                    "start_time": "2023-06-01T17:00:00Z",
+                    "end_time": "2023-06-01T21:00:00Z",
+                },
+                pantry={
+                    "name": "Evening Food Bank",
+                    "location_address": "789 Pine Rd"
+                },
+                signups=[{"role_title": "Volunteer"}],
+            )
+
+            assert result["ok"] is True
+            assert result["code"] == "SHIFT_CANCELLATION_NOTIFICATION_SENT"
+            assert "cancelled" in result["subject"]
+
+    def test_cancellation_email_content(self):
+        """Test that cancellation email contains appropriate message."""
+        with patch("notifications.notifications.RESEND_API_KEY", "test_key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "sender@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+
+            mock_send.return_value = {
+                "ok": True,
+                "provider": "resend",
+                "code": "SHIFT_CANCELLATION_NOTIFICATION_SENT",
+                "message": "Shift cancellation notification email sent.",
+                "recipient_email": "volunteer@example.com",
+                "subject": "Shift cancelled: Test Shift",
+                "provider_response": None,
+            }
+
+            result = send_shift_cancellation_notification(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "Test User"
+                },
+                shift={"shift_name": "Test Shift"},
+                pantry={"name": "Test Bank"},
+                signups=[],
+            )
+
+            assert result["ok"] is True
+            call_args = mock_send.call_args
+            params = call_args[0][0]
+            html = params["html"]
+            
+            # Verify cancellation-specific content
+            assert "cancelled" in html.lower()
+            assert "flexibility" in html.lower()

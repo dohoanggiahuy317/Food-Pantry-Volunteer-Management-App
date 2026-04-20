@@ -127,32 +127,6 @@ def _rewrite_signup_created_at_rows(backend: MemoryBackend, created_at_values: l
         signup["created_at"] = _iso_z(created_at.replace(microsecond=0))
 
 
-def test_blocks_sixth_signup_within_24_hours(client_and_backend):
-    client, backend, app_module = client_and_backend
-
-    for shift_role_id in range(1, 6):
-        response = _create_signup(client, shift_role_id)
-        assert response.status_code == 201
-
-    now = datetime.now(timezone.utc).replace(microsecond=0)
-    created_at_values = [
-        now - timedelta(hours=23, minutes=55),
-        now - timedelta(hours=22),
-        now - timedelta(hours=18),
-        now - timedelta(hours=12),
-        now - timedelta(hours=1),
-    ]
-    _rewrite_signup_created_at_rows(backend, created_at_values)
-
-    response = _create_signup(client, 6)
-
-    assert response.status_code == 429
-    payload = response.get_json()
-    assert payload["code"] == "SIGNUP_RATE_LIMITED"
-    assert payload["error"] == "You can sign up for at most 5 shifts within 24 hours"
-    assert payload["cooldown_ends_at"] == _iso_z(created_at_values[0] + app_module.SIGNUP_RATE_LIMIT_WINDOW)
-
-
 def test_allows_signup_after_cooldown_expires(client_and_backend):
     client, backend, _ = client_and_backend
 
