@@ -1,10 +1,3 @@
-import sys
-from pathlib import Path
-
-# Add backend directory to Python path
-backend_path = Path(__file__).parent / "backend"
-sys.path.insert(0, str(backend_path))
-
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -22,7 +15,7 @@ class TestNotificationHelpers:
 
     def test_parse_iso_datetime_to_utc(self):
         """Test ISO datetime parsing."""
-        from backend.notifications.notifications import _parse_iso_datetime_to_utc
+        from notifications.notifications import _parse_iso_datetime_to_utc
 
         # Test valid datetime string
         dt = _parse_iso_datetime_to_utc("2023-01-01T12:00:00Z")
@@ -38,7 +31,7 @@ class TestNotificationHelpers:
 
     def test_normalized_text(self):
         """Test text normalization."""
-        from backend.notifications.notifications import _normalized_text
+        from notifications.notifications import _normalized_text
 
         assert _normalized_text("  test  ", "fallback") == "test"
         assert _normalized_text(None, "fallback") == "fallback"
@@ -47,7 +40,7 @@ class TestNotificationHelpers:
 
     def test_normalized_role_titles(self):
         """Test role title normalization."""
-        from backend.notifications.notifications import _normalized_role_titles
+        from notifications.notifications import _normalized_role_titles
 
         signups = [
             {"role_title": "Role 1"},
@@ -63,17 +56,16 @@ class TestNotificationHelpers:
 
     def test_format_shift_window(self):
         """Test shift window formatting."""
-        from backend.notifications.notifications import _format_shift_window
+        from notifications.notifications import _format_shift_window
 
         shift = {
             "start_time": "2023-01-01T10:00:00Z",
             "end_time": "2023-01-01T12:00:00Z"
         }
 
-        result = _format_shift_window(shift)
+        result = _format_shift_window(shift, "UTC")
         assert "Sunday, January 01, 2023" in result
-        assert "10:00 AM UTC" in result
-        assert "12:00 PM UTC" in result
+        assert "10:00 AM - 12:00 PM UTC" in result
 
         # Test with invalid times
         invalid_shift = {"start_time": None, "end_time": None}
@@ -82,7 +74,7 @@ class TestNotificationHelpers:
 
     def test_build_email_html(self):
         """Test HTML email building."""
-        from backend.notifications.notifications import _build_email_html
+        from notifications.notifications import _build_email_html
 
         html = _build_email_html(
             recipient_name="John Doe",
@@ -104,7 +96,7 @@ class TestNotificationHelpers:
 
     def test_notification_result(self):
         """Test notification result structure."""
-        from backend.notifications.notifications import _notification_result
+        from notifications.notifications import _notification_result
 
         result = _notification_result(
             ok=True,
