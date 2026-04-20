@@ -14,7 +14,7 @@ databases:
     engine: MYSQL
     version: "8"
     production: true
-    cluster_name: ${DIGITALOCEAN_DB_CLUSTER_NAME}
+    cluster_name: "${DIGITALOCEAN_DB_CLUSTER_NAME}"
     db_name: volunteer_managing
     db_user: volunteer_app
 
@@ -72,54 +72,54 @@ services:
         scope: RUN_TIME
         type: GENERAL
       - key: FLASK_SECRET_KEY
-        value: ${FLASK_SECRET_KEY}
+        value: "${FLASK_SECRET_KEY}"
         scope: RUN_TIME
         type: SECRET
       - key: FIREBASE_API_KEY
-        value: ${FIREBASE_API_KEY}
+        value: "${FIREBASE_API_KEY}"
         scope: RUN_TIME
         type: GENERAL
       - key: FIREBASE_AUTH_DOMAIN
-        value: ${FIREBASE_AUTH_DOMAIN}
+        value: "${FIREBASE_AUTH_DOMAIN}"
         scope: RUN_TIME
         type: GENERAL
       - key: FIREBASE_PROJECT_ID
-        value: ${FIREBASE_PROJECT_ID}
+        value: "${FIREBASE_PROJECT_ID}"
         scope: RUN_TIME
         type: GENERAL
       - key: FIREBASE_APP_ID
-        value: ${FIREBASE_APP_ID}
+        value: "${FIREBASE_APP_ID}"
         scope: RUN_TIME
         type: GENERAL
       - key: FIREBASE_ADMIN_CREDENTIALS
-        value: ${FIREBASE_ADMIN_CREDENTIALS_JSON}
+        value: "${FIREBASE_ADMIN_CREDENTIALS_JSON}"
         scope: RUN_TIME
         type: SECRET
       - key: RESEND_API_KEY
-        value: ${RESEND_API_KEY}
+        value: "${RESEND_API_KEY}"
         scope: RUN_TIME
         type: SECRET
       - key: RESEND_FROM_EMAIL
-        value: ${RESEND_FROM_EMAIL}
+        value: "${RESEND_FROM_EMAIL}"
         scope: RUN_TIME
         type: GENERAL
       - key: MYSQL_HOST
-        value: ${volunteer-db.HOSTNAME}
+        value: "${volunteer-db.HOSTNAME}"
         scope: RUN_TIME
         type: GENERAL
       - key: MYSQL_PORT
-        value: ${volunteer-db.PORT}
+        value: "${volunteer-db.PORT}"
         scope: RUN_TIME
         type: GENERAL
       - key: MYSQL_DATABASE
-        value: ${volunteer-db.DATABASE}
+        value: "${volunteer-db.DATABASE}"
         scope: RUN_TIME
         type: GENERAL
       - key: MYSQL_USER
-        value: ${volunteer-db.USERNAME}
+        value: "${volunteer-db.USERNAME}"
         scope: RUN_TIME
         type: GENERAL
       - key: MYSQL_PASSWORD
-        value: ${volunteer-db.PASSWORD}
+        value: "${volunteer-db.PASSWORD}"
         scope: RUN_TIME
         type: SECRET
