@@ -48,6 +48,8 @@ PAST_SHIFT_LOCK_CODE = "PAST_SHIFT_LOCKED"
 ACTIVE_SIGNUP_STATUSES = {SIGNUP_STATUS_CONFIRMED, "SHOW_UP", "NO_SHOW"}
 LEAD_VISIBLE_SIGNUP_STATUSES = ACTIVE_SIGNUP_STATUSES
 RESERVATION_WINDOW_HOURS = 48
+MAX_SIGNUPS_PER_24_HOURS = 5
+SIGNUP_RATE_LIMIT_WINDOW = timedelta(hours=24)
 ADMIN_ROLE_NAME = "ADMIN"
 SUPER_ADMIN_ROLE_NAME = "SUPER_ADMIN"
 PROTECTED_SUPER_ADMIN_USER_ID = 1
@@ -640,6 +642,26 @@ def recurrence_signature(recurrence: dict[str, Any] | None) -> tuple[Any, ...] |
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def signup_rate_limit_cooldown_ends_at(
+    signup_rows: list[dict[str, Any]],
+    now_utc: datetime | None = None,
+) -> datetime | None:
+    now_utc = now_utc or datetime.now(timezone.utc)
+    window_start = now_utc - SIGNUP_RATE_LIMIT_WINDOW
+    recent_signup_times = sorted(
+        created_at
+        for signup_row in signup_rows
+        if (created_at := parse_iso_datetime_to_utc(signup_row.get("created_at"))) is not None
+        and created_at > window_start
+    )
+
+    if len(recent_signup_times) < MAX_SIGNUPS_PER_24_HOURS:
+        return None
+
+    cooldown_anchor_index = len(recent_signup_times) - MAX_SIGNUPS_PER_24_HOURS
+    return recent_signup_times[cooldown_anchor_index] + SIGNUP_RATE_LIMIT_WINDOW
 
 
 def signup_row_blocks_overlap(signup_row: dict[str, Any], now_utc: datetime | None = None) -> bool:
@@ -2569,6 +2591,20 @@ def create_signup(shift_role_id: int) -> Any:
 
     now_utc = datetime.now(timezone.utc)
     signups_by_user = backend.list_signups_by_user(user_id)
+
+    cooldown_ends_at = signup_rate_limit_cooldown_ends_at(signups_by_user, now_utc)
+    if cooldown_ends_at is not None:
+        return (
+            jsonify(
+                {
+                    "error": f"You can sign up for at most {MAX_SIGNUPS_PER_24_HOURS} shifts within 24 hours",
+                    "code": "SIGNUP_RATE_LIMITED",
+                    "cooldown_ends_at": cooldown_ends_at.isoformat().replace("+00:00", "Z"),
+                }
+            ),
+            429,
+        )
+
     has_conflict = any(
         signup_row_blocks_overlap(signup_row, now_utc)
         and signup_row_overlaps_shift(signup_row, shift, shift_role_id)

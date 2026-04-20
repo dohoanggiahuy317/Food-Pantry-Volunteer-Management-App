@@ -33,6 +33,12 @@ The data layer uses an abstract `StoreBackend` interface with two concrete imple
 
 The active backend is selected at startup via the `DATA_BACKEND` environment variable (defaults to `mysql`). Swapping backends requires no changes to `app.py`.
 
+### Test Layout
+
+- Automated tests live in the repository-level `tests/` directory.
+- `tests/conftest.py` adds `backend/` to the Python import path so tests can still import `app`, `backends`, and `notifications` while being run from the repo root.
+- Current test files include `tests/test_notifications.py` and `tests/test_signup_rate_limit.py`.
+
 ### Auth Provider Switch
 
 Authentication is configured separately from data storage:
@@ -134,7 +140,7 @@ The app now shows an auth gate before the dashboard.
 - Can view volunteer registrations and mark attendance.
 
 ### Volunteer
-- Can browse open, non-expired shifts.
+- Can browse open, non-expired shifts in the shared `Calendar` tab with pantry, search, and time-bucket filters plus month/week/day navigation.
 - Can use the `Pantries` tab to search pantries by name/address, sort by name, and filter by `All`, `Subscribed`, or `Unsubscribed`.
 - Can open a pantry detail view to see pantry leads and the next incoming shift preview.
 - Can subscribe or unsubscribe from a pantry to receive email when that pantry creates a new one-off shift or recurring series.
@@ -142,6 +148,9 @@ The app now shows an auth gate before the dashboard.
 - Shift edits move existing signups to `PENDING_CONFIRMATION` with a 48-hour reservation window.
 - Can reconfirm after shift edits.
 - If they cancel during reconfirmation, the signup row is removed (same as normal cancel), so they can sign up again later if capacity is available.
+- The `My Shifts` tab now defaults to a calendar view and can toggle back to the original list view.
+- `My Shifts` calendar supports pantry/search/time-bucket filters, month/week/day navigation, responsive phone agenda rendering, and cancel/reconfirm actions from the shift detail modal.
+- `My Shifts` list view supports volunteer-facing search and filters by pantry and time bucket while preserving the incoming/ongoing/past grouping.
 - Can manage their own profile from `My Account`, including verified Firebase email changes and full account deletion.
 - Sees shift times in the browser's local timezone and receives notification emails in the saved account timezone once it has been synced.
 - Receives email notifications when Resend is configured
@@ -160,6 +169,29 @@ Set up Firebase Authentication and Resend email for the full experience, or use 
 If you want real email delivery in development or production, configure Resend in `backend/.env` with `RESEND_API_KEY` and `RESEND_FROM_EMAIL`. Resend’s official docs say sending uses a domain you own and recommend a subdomain such as `updates.yourdomain.com`; if your team does not already own a domain, register one first, then follow the Resend domain setup docs and DNS provider guide before using that sender address.
 
 For this dev branch, the base schema in `backend/db/migrations/001_initial.sql` is the source of truth. If you already created a database from an older version of that file, recreate the dev schema so the current user/account changes, including `users.timezone`, pantry subscriptions, and recurring-shift tables/columns such as `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`, apply cleanly.
+
+### Running Tests
+
+Install backend dependencies first:
+
+```bash
+cd backend
+pip install -r requirements.txt
+cd ..
+```
+
+Run the full suite from the repository root:
+
+```bash
+pytest tests
+```
+
+Run a specific test file:
+
+```bash
+pytest tests/test_signup_rate_limit.py
+pytest tests/test_notifications.py
+```
 
 ---
 

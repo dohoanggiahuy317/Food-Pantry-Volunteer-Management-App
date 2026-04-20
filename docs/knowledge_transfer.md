@@ -956,7 +956,11 @@ Registrations view:
 
 "My Shifts" view:
 
-- card grid
+- default calendar subview plus toggle back to list
+- animated view toggle pill
+- reusable calendar shell scoped to the volunteer tab
+- list toolbar with volunteer-facing search, pantry filter, and time-bucket filter
+- card grid in list mode
 - status and attendance badges
 - meta text
 - action buttons
@@ -1219,15 +1223,23 @@ Calendar / shift browsing:
 
 `loadCalendarShifts()`
 
-- fetch shifts for all pantries
-- group shifts by pantry
-- render shift cards
+- resolves the shared `available` calendar controller
+- fetches `/api/calendar/shifts` for the visible date range
+- normalizes shift rows into reusable calendar event objects
+- renders month/week/day desktop views plus phone agenda views
 
-Rendering helpers:
+`calendar-functions.js`
 
-- `displayAllShiftsGroupedByPantry`
-- `displayShiftsCards`
-- `displayShiftCard`
+- owns reusable root-scoped calendar controllers instead of a single hard-coded global calendar instance
+- registers two controllers:
+  - `available` for the shared shift-browsing calendar tab
+  - `my-shifts` for the volunteer registered-shifts tab
+- keeps per-instance state for selected date, current view, filters, active modal item, and responsive phone/desktop behavior
+- allows each calendar instance to provide its own:
+  - data loader
+  - event normalizer
+  - modal body renderer
+  - action handler
 
 Signup handling:
 
@@ -1262,6 +1274,38 @@ Formatting helpers:
 Volunteer dashboard:
 
 Functions:
+
+`loadMyRegisteredShifts()`
+
+- fetches `GET /api/users/<currentUserId>/signups` once per refresh
+- saves rows into `myRegisteredSignups`
+- renders the credibility summary
+- updates both volunteer subviews from the same dataset:
+  - `My Shifts` calendar
+  - `My Shifts` list
+
+`setMyShiftsViewMode(mode)`
+
+- controls whether the volunteer sees `calendar` or `list`
+- keeps the toggle UI synchronized through `data-active-view`
+
+`renderMyShiftList(signups)`
+
+- applies volunteer list filters before bucket rendering
+- keeps the existing incoming / ongoing / past sections
+
+List filter state:
+
+- `myShiftsListFilters.search`
+- `myShiftsListFilters.pantryId`
+- `myShiftsListFilters.timeBucket`
+
+My Shifts calendar behavior:
+
+- shows all registered shifts, including past items
+- uses pantry colors for incoming/ongoing items
+- renders past items in neutral gray
+- exposes cancel/reconfirm actions from the volunteer modal when the signup is still actionable
 
 `renderMyShiftCard()`
 
