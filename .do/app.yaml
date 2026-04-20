@@ -26,7 +26,6 @@ services:
       deploy_on_push: false
     environment_slug: python
     source_dir: /
-    build_command: pip install -r backend/requirements.txt
     run_command: gunicorn --chdir backend --worker-tmp-dir /dev/shm --bind 0.0.0.0:8080 app:app
     http_port: 8080
     instance_count: 1
