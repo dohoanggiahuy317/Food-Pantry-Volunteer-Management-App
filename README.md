@@ -197,6 +197,8 @@ pytest tests/test_notifications.py
 
 ## Documentation structure
 - `SETUP.md` — detailed local setup instructions, including Docker configuration, database seeding, Firebase Authentication setup, and Resend email configuration.
+- `DEPLOY_DIGITALOCEAN.md` — production deployment guide for DigitalOcean App Platform, Managed MySQL, DNS, Firebase, and CI/CD.
+- `DEPLOYMENT_FAQ.md` — end-to-end DigitalOcean deployment FAQ, including setup steps, common failures, and the fixes used in this project.
 - `application_flow.md` — detailed documentation of the core application flows, including authentication, shift management, and notification logic.
 - `data_model.md` — detailed documentation of the database schema and data model, including tables, relationships, and example records.
 - `knowledge_transfer.md` — notes and documentation for future maintainers, including code structure, design decisions, and areas for future improvement.

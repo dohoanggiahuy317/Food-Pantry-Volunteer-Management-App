@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 from auth.base import AuthError, AuthService, IdentityPayload
@@ -19,12 +21,37 @@ class FirebaseAuthService(AuthService):
         self._service_account_credentials = os.getenv("FIREBASE_ADMIN_CREDENTIALS", "").strip()
         self._firebase_auth = self._initialize_firebase_auth()
 
+    def _resolve_service_account_credentials(self) -> dict[str, Any] | str:
+        raw_credentials = self._service_account_credentials.strip()
+        if not raw_credentials:
+            raise RuntimeError("Missing FIREBASE_ADMIN_CREDENTIALS")
+
+        if raw_credentials.startswith("{"):
+            try:
+                credentials_payload = json.loads(raw_credentials)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError("FIREBASE_ADMIN_CREDENTIALS contains invalid JSON") from exc
+            if not isinstance(credentials_payload, dict):
+                raise RuntimeError("FIREBASE_ADMIN_CREDENTIALS JSON must decode to an object")
+            return credentials_payload
+
+        repo_root = Path(__file__).resolve().parents[2]
+        backend_root = repo_root / "backend"
+        for candidate in (
+            Path(raw_credentials),
+            Path.cwd() / raw_credentials,
+            repo_root / raw_credentials,
+            backend_root / raw_credentials,
+        ):
+            if candidate.is_file():
+                return str(candidate)
+
+        raise RuntimeError("FIREBASE_ADMIN_CREDENTIALS must be a JSON document or a readable file path")
+
     def _initialize_firebase_auth(self) -> Any:
         missing = [key for key, value in self._client_config.items() if not value]
         if missing:
             raise RuntimeError(f"Missing Firebase client configuration: {', '.join(missing)}")
-        if not self._service_account_credentials:
-            raise RuntimeError("Missing FIREBASE_ADMIN_CREDENTIALS")
 
         try:
             import firebase_admin
@@ -34,7 +61,7 @@ class FirebaseAuthService(AuthService):
             raise RuntimeError("firebase-admin is required for AUTH_PROVIDER=firebase") from exc
 
         if not firebase_admin._apps:
-            credential = credentials.Certificate(self._service_account_credentials)
+            credential = credentials.Certificate(self._resolve_service_account_credentials())
             firebase_admin.initialize_app(credential)
         return firebase_auth
 
