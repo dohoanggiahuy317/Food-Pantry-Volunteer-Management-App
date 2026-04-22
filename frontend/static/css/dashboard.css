@@ -3989,11 +3989,11 @@ table tr:hover {
     z-index: 1201;
     pointer-events: none;
     border: 3px solid #dc2626;
-    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.65);
+    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.65), 0 0 0 8px rgba(255, 255, 255, 0.2), 0 18px 40px rgba(15, 23, 42, 0.22);
     transition: all 0.25s ease;
-    background: rgba(255, 255, 255, 0.3);
-    backdrop-filter: brightness(1.5);
-    -webkit-backdrop-filter: brightness(1.5);
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: brightness(1.35);
+    -webkit-backdrop-filter: brightness(1.35);
 }
 
 .tour-popover {
@@ -4007,9 +4007,41 @@ table tr:hover {
     transition: transform 0.25s ease, opacity 0.25s ease;
 }
 
+.tour-popover-arrow {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 4px;
+    transform: rotate(45deg);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+}
+
+.tour-popover-arrow-top {
+    left: calc(var(--tour-arrow-left, 50%) - 9px);
+    bottom: -8px;
+}
+
+.tour-popover-arrow-right {
+    top: calc(var(--tour-arrow-top, 50%) - 9px);
+    left: -8px;
+}
+
+.tour-popover-arrow-bottom {
+    left: calc(var(--tour-arrow-left, 50%) - 9px);
+    top: -8px;
+}
+
+.tour-popover-arrow-left {
+    top: calc(var(--tour-arrow-top, 50%) - 9px);
+    right: -8px;
+}
+
 .tour-popover-card {
     display: grid;
     gap: 1rem;
+    position: relative;
+    z-index: 1;
 }
 
 .tour-popover-header {

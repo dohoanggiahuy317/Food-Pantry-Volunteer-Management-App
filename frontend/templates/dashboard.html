@@ -145,7 +145,7 @@
                             <div class="calendar-mini-grid" id="calendar-mini-grid" data-calendar-part="mini-grid"></div>
                         </div>
 
-                        <div class="calendar-filter-panel">
+                        <div class="calendar-filter-panel" data-app-tour-target="available-calendar-filters">
                             <div class="calendar-filter-group">
                                 <label for="calendar-search-input">Search</label>
                                 <input type="search" id="calendar-search-input" placeholder="Search shifts, pantry, roles" data-calendar-part="search-input">
@@ -911,6 +911,7 @@
         <div id="app-tour-backdrop" class="tour-backdrop app-hidden"></div>
         <div id="app-tour-highlighter" class="tour-highlighter app-hidden" aria-hidden="true"></div>
         <div id="app-tour-popover" class="tour-popover app-hidden" role="dialog" aria-modal="true" aria-labelledby="app-tour-popover-title">
+            <div class="tour-popover-arrow" id="app-tour-popover-arrow" aria-hidden="true"></div>
             <div class="tour-popover-card">
                 <div class="tour-popover-header">
                     <h2 id="app-tour-popover-title">Tour</h2>

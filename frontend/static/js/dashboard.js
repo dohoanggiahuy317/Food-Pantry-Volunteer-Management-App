@@ -337,8 +337,11 @@ async function initializeDashboardApp() {
 }
 
 const APP_TOUR_STORAGE_KEY = 'volunteerAppTourCompleted';
+const APP_TOUR_FILTERS_SELECTOR = '[data-app-tour-target="available-calendar-filters"]';
 let appTourSteps = null;
 let appTourCurrentIndex = 0;
+let appTourManagedSidebarControllerKey = null;
+let appTourResizeTimeoutId = null;
 
 function isElementVisible(element) {
     if (!(element instanceof HTMLElement)) {
@@ -369,22 +372,101 @@ function getAppTourSteps() {
             tab: 'calendar'
         },
         {
-            title: 'Filters',
-            body: 'Open the calendar filters to search by pantry, date range, or time bucket.',
-            selector: '#calendar-sidebar-toggle',
+            title: 'Calendar Views',
+            body: 'You can view the calendar in month, week, and day modes here.',
+            selector: '#content-calendar .calendar-view-switch',
             tab: 'calendar'
         },
         {
+            title: 'Filters',
+            body: 'Use these filters to search by pantry, date range, or time bucket.',
+            selector: APP_TOUR_FILTERS_SELECTOR,
+            tab: 'calendar',
+            requiresAvailableCalendarSidebar: true
+        },
+        {
+            title: 'My Shifts',
+            body: 'Review the shifts you already signed up for and switch between calendar and list views.',
+            selector: '#tab-my-shifts',
+            tab: 'my-shifts',
+            optional: true
+        },
+        {
             title: 'Pantry Directory',
-            body: 'See pantry details, subscribe for notifications, and preview upcoming shifts.',
+            body: 'Use the Pantry tab to browse pantry details, preview upcoming shifts, and manage your subscriptions.',
             selector: '#tab-pantries',
             tab: 'pantries',
             optional: true
         },
         {
+            title: 'Search Pantries',
+            body: 'Search by pantry name or address to quickly narrow the directory.',
+            selector: '#volunteer-pantry-search',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Sort Pantries',
+            body: 'Sort the pantry list alphabetically to scan the directory the way you prefer.',
+            selector: '#volunteer-pantry-sort',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Subscription Filters',
+            body: 'Use these filters to show all pantries, only the ones you subscribed to, or only unsubscribed ones.',
+            selector: '.volunteer-pantries-filter-row',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Pantry List',
+            body: 'Select a pantry here to review its address, upcoming shifts, and subscription status.',
+            selector: '#volunteer-pantries-list',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Pantry Details',
+            body: 'This panel shows the selected pantry details, pantry leads, the next incoming shift, and the subscribe or unsubscribe action.',
+            selector: '#volunteer-pantry-detail .volunteer-pantry-detail-head',
+            tab: 'pantries',
+            optional: true
+        },
+        {
             title: 'My Account',
-            body: 'Update your profile, phone number, and saved timezone from your account page.',
+            body: 'Use My Account to review your saved account details and manage profile settings.',
             selector: '#tab-my-account',
+            tab: 'my-account'
+        },
+        {
+            title: 'Account Summary',
+            body: 'This section shows your current account details, including your email, phone number, roles, and saved timezone.',
+            selector: '#my-account-summary',
+            tab: 'my-account'
+        },
+        {
+            title: 'Timezone Note',
+            body: 'This note explains which browser timezone the app is using to display times on the web.',
+            selector: '#my-account-timezone-note',
+            tab: 'my-account'
+        },
+        {
+            title: 'Basic Information',
+            body: 'Update your full name and phone number here, then save your changes.',
+            selector: '#my-account-profile-form',
+            tab: 'my-account'
+        },
+        {
+            title: 'Email Address',
+            body: 'Review your current email and start an email change request from this section when needed.',
+            selector: '#my-account-email-form',
+            tab: 'my-account'
+        },
+        {
+            title: 'Delete Account',
+            body: 'Warning: use this action only if you want to permanently remove your account. Deleting your account will sign you out and cannot be undone.',
+            selector: '#delete-account-btn',
             tab: 'my-account'
         }
     ];
@@ -406,14 +488,194 @@ async function openAppTour() {
     await renderAppTourStep(0);
 }
 
+function getAvailableCalendarTourController() {
+    if (typeof getCalendarController !== 'function') {
+        return null;
+    }
+    return getCalendarController('available');
+}
+
+function resetAppTourPopoverPlacement(popover, popoverArrow) {
+    popover.style.transform = 'none';
+    popover.style.top = '';
+    popover.style.left = '';
+    popover.style.removeProperty('--tour-arrow-left');
+    popover.style.removeProperty('--tour-arrow-top');
+    popover.classList.remove(
+        'tour-popover-placement-top',
+        'tour-popover-placement-right',
+        'tour-popover-placement-bottom',
+        'tour-popover-placement-left'
+    );
+    if (popoverArrow) {
+        popoverArrow.className = 'tour-popover-arrow';
+    }
+}
+
+async function waitForAppTourLayout() {
+    await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+    await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
+async function scrollAppTourTargetIntoView(target) {
+    if (!(target instanceof HTMLElement)) {
+        return;
+    }
+    target.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+    await waitForAppTourLayout();
+}
+
+async function cleanupAppTourManagedSidebar() {
+    if (!appTourManagedSidebarControllerKey) {
+        return;
+    }
+    if (typeof getCalendarController === 'function') {
+        getCalendarController(appTourManagedSidebarControllerKey)?.closeSidebar();
+    }
+    appTourManagedSidebarControllerKey = null;
+    await waitForAppTourLayout();
+}
+
+async function prepareAppTourStep(step) {
+    if (!step?.requiresAvailableCalendarSidebar) {
+        return;
+    }
+
+    const controller = getAvailableCalendarTourController();
+    if (!controller || !isPhoneViewport()) {
+        return;
+    }
+
+    const sidebar = controller.part?.('sidebar');
+    const sidebarWasOpen = sidebar?.classList.contains('open');
+    if (!sidebarWasOpen) {
+        controller.openSidebar();
+        appTourManagedSidebarControllerKey = 'available';
+    }
+    await waitForAppTourLayout();
+}
+
+function applyAppTourHighlight(highlight, rect) {
+    const padding = Math.min(18, Math.max(12, Math.round(Math.min(rect.width, rect.height) * 0.08)));
+    const top = Math.max(8, rect.top - padding);
+    const left = Math.max(8, rect.left - padding);
+    const width = Math.min(window.innerWidth - 16, rect.width + padding * 2);
+    const height = Math.min(window.innerHeight - 16, rect.height + padding * 2);
+
+    highlight.style.top = `${top}px`;
+    highlight.style.left = `${left}px`;
+    highlight.style.width = `${width}px`;
+    highlight.style.height = `${height}px`;
+    highlight.style.borderRadius = `${Math.min(width, height) > 120 ? 24 : 18}px`;
+}
+
+function clampAppTourValue(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function isAppTourOpen() {
+    const popover = document.getElementById('app-tour-popover');
+    return Boolean(popover && !popover.classList.contains('app-hidden'));
+}
+
+function scheduleAppTourReposition() {
+    if (!isAppTourOpen() || !appTourSteps || appTourCurrentIndex < 0 || appTourCurrentIndex >= appTourSteps.length) {
+        return;
+    }
+
+    if (appTourResizeTimeoutId) {
+        window.clearTimeout(appTourResizeTimeoutId);
+    }
+
+    appTourResizeTimeoutId = window.setTimeout(() => {
+        appTourResizeTimeoutId = null;
+        if (isAppTourOpen()) {
+            renderAppTourStep(appTourCurrentIndex);
+        }
+    }, 120);
+}
+
+function positionAppTourPopover(popover, popoverArrow, rect) {
+    const margin = 16;
+    const arrowSize = 14;
+    const spaceAbove = rect.top - margin;
+    const spaceBelow = window.innerHeight - rect.bottom - margin;
+    const spaceLeft = rect.left - margin;
+    const spaceRight = window.innerWidth - rect.right - margin;
+    const popoverWidth = popover.offsetWidth;
+    const popoverHeight = popover.offsetHeight;
+
+    let placement = 'bottom';
+    if (spaceRight >= popoverWidth + arrowSize) {
+        placement = 'right';
+    } else if (spaceBelow >= popoverHeight + arrowSize) {
+        placement = 'bottom';
+    } else if (spaceAbove >= popoverHeight + arrowSize) {
+        placement = 'top';
+    } else if (spaceLeft >= popoverWidth + arrowSize) {
+        placement = 'left';
+    } else if (spaceBelow >= spaceAbove) {
+        placement = 'bottom';
+    } else {
+        placement = 'top';
+    }
+
+    let top = margin;
+    let left = margin;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    if (placement === 'right') {
+        left = clampAppTourValue(rect.right + arrowSize, margin, window.innerWidth - popoverWidth - margin);
+        top = clampAppTourValue(centerY - popoverHeight / 2, margin, window.innerHeight - popoverHeight - margin);
+    } else if (placement === 'left') {
+        left = clampAppTourValue(rect.left - popoverWidth - arrowSize, margin, window.innerWidth - popoverWidth - margin);
+        top = clampAppTourValue(centerY - popoverHeight / 2, margin, window.innerHeight - popoverHeight - margin);
+    } else if (placement === 'top') {
+        top = clampAppTourValue(rect.top - popoverHeight - arrowSize, margin, window.innerHeight - popoverHeight - margin);
+        left = clampAppTourValue(centerX - popoverWidth / 2, margin, window.innerWidth - popoverWidth - margin);
+    } else {
+        top = clampAppTourValue(rect.bottom + arrowSize, margin, window.innerHeight - popoverHeight - margin);
+        left = clampAppTourValue(centerX - popoverWidth / 2, margin, window.innerWidth - popoverWidth - margin);
+    }
+
+    popover.style.top = `${top}px`;
+    popover.style.left = `${left}px`;
+    popover.classList.add(`tour-popover-placement-${placement}`);
+
+    if (!popoverArrow) {
+        return;
+    }
+
+    popoverArrow.classList.add(`tour-popover-arrow-${placement}`);
+    if (placement === 'top' || placement === 'bottom') {
+        const arrowLeft = clampAppTourValue(centerX - left, 24, popoverWidth - 24);
+        popover.style.setProperty('--tour-arrow-left', `${arrowLeft}px`);
+    } else {
+        const arrowTop = clampAppTourValue(centerY - top, 24, popoverHeight - 24);
+        popover.style.setProperty('--tour-arrow-top', `${arrowTop}px`);
+    }
+}
+
 function closeAppTour(save = true) {
     const highlight = document.getElementById('app-tour-highlighter');
     const backdrop = document.getElementById('app-tour-backdrop');
     const popover = document.getElementById('app-tour-popover');
+    const popoverArrow = document.getElementById('app-tour-popover-arrow');
 
-    highlight?.classList.add('app-hidden');
-    backdrop?.classList.add('app-hidden');
-    popover?.classList.add('app-hidden');
+    if (appTourResizeTimeoutId) {
+        window.clearTimeout(appTourResizeTimeoutId);
+        appTourResizeTimeoutId = null;
+    }
+
+    cleanupAppTourManagedSidebar().finally(() => {
+        highlight?.classList.add('app-hidden');
+        backdrop?.classList.add('app-hidden');
+        popover?.classList.add('app-hidden');
+        if (popover) {
+            resetAppTourPopoverPlacement(popover, popoverArrow);
+        }
+    });
     if (save) {
         localStorage.setItem(APP_TOUR_STORAGE_KEY, 'true');
     }
@@ -452,15 +714,19 @@ async function renderAppTourStep(index) {
     const stepCount = document.getElementById('app-tour-step-count');
     const prevBtn = document.getElementById('app-tour-prev-btn');
     const nextBtn = document.getElementById('app-tour-next-btn');
+    const popoverArrow = document.getElementById('app-tour-popover-arrow');
 
     if (!highlight || !backdrop || !popover || !popoverTitle || !popoverBody || !stepCount || !prevBtn || !nextBtn) {
         return;
     }
 
-    const target = step.selector ? document.querySelector(step.selector) : null;
+    await cleanupAppTourManagedSidebar();
+    await prepareAppTourStep(step);
+
     backdrop.classList.remove('app-hidden');
     highlight.classList.remove('app-hidden');
     popover.classList.remove('app-hidden');
+    resetAppTourPopoverPlacement(popover, popoverArrow);
     popoverTitle.textContent = step.title;
     popoverBody.textContent = step.body;
     stepCount.textContent = `${index + 1} of ${appTourSteps.length}`;
@@ -470,36 +736,19 @@ async function renderAppTourStep(index) {
     prevBtn.onclick = () => renderAppTourStep(index - 1);
     nextBtn.onclick = () => renderAppTourStep(index + 1);
 
+    const target = step.selector ? document.querySelector(step.selector) : null;
     if (target && isElementVisible(target)) {
-        const padding = 12;
+        await scrollAppTourTargetIntoView(target);
         const rect = target.getBoundingClientRect();
-        const top = Math.max(8, rect.top - padding);
-        const left = Math.max(8, rect.left - padding);
-        const width = Math.min(window.innerWidth - 16, rect.width + padding * 2);
-        const height = Math.min(window.innerHeight - 16, rect.height + padding * 2);
-
-        highlight.style.top = `${top}px`;
-        highlight.style.left = `${left}px`;
-        highlight.style.width = `${width}px`;
-        highlight.style.height = `${height}px`;
-        highlight.style.borderRadius = `${Math.min(width, height) > 120 ? 18 : 9999}px`;
-        popover.style.transform = 'none';
-
-        const popoverRect = popover.getBoundingClientRect();
-        const preferredLeft = Math.min(window.innerWidth - popoverRect.width - 16, Math.max(16, left + width / 2 - popoverRect.width / 2));
-        let preferredTop = rect.bottom + 16;
-        if (preferredTop + popoverRect.height + 16 > window.innerHeight) {
-            preferredTop = Math.max(16, rect.top - popoverRect.height - 16);
-        }
-        popover.style.top = `${preferredTop}px`;
-        popover.style.left = `${preferredLeft}px`;
-        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        applyAppTourHighlight(highlight, rect);
+        positionAppTourPopover(popover, popoverArrow, rect);
     } else {
         highlight.style.top = '50%';
         highlight.style.left = '50%';
         highlight.style.width = '0px';
         highlight.style.height = '0px';
         highlight.style.borderRadius = '50%';
+        resetAppTourPopoverPlacement(popover, popoverArrow);
         popover.style.transform = 'translate(-50%, -50%)';
         popover.style.top = '50%';
         popover.style.left = '50%';
@@ -2662,6 +2911,7 @@ function setupEventListeners() {
     lastVolunteerPantriesCompactViewport = isVolunteerPantryCompactViewport();
     window.addEventListener('resize', handleAdminUsersViewportChange);
     window.addEventListener('resize', handleVolunteerPantriesViewportChange);
+    window.addEventListener('resize', scheduleAppTourReposition);
     if (typeof initializeCalendarUi === 'function') {
         initializeCalendarUi();
     }
