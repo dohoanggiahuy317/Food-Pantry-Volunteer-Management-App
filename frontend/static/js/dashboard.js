@@ -3224,13 +3224,6 @@ function setupEventListeners() {
         dismissAppTourNudge();
     });
 
-    document.getElementById('app-tour-close-btn')?.addEventListener('click', () => {
-        if (appTourIsRequired) {
-            return;
-        }
-        closeAppTour(true);
-    });
-
     document.getElementById('app-tour-backdrop')?.addEventListener('click', () => {
         if (appTourIsRequired) {
             return;

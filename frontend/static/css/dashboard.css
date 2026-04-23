@@ -3980,7 +3980,7 @@ table tr:hover {
 .tour-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.64);
+    background: transparent
     z-index: 1200;
 }
 
@@ -3989,13 +3989,15 @@ table tr:hover {
     z-index: 1201;
     pointer-events: none;
     border: 3px solid #dc2626;
-    box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.65), 0 0 0 8px rgba(255, 255, 255, 0.2), 0 18px 40px rgba(15, 23, 42, 0.22);
+    box-shadow:
+        0 0 0 9999px rgba(15, 23, 42, 0.52),
+        0 0 0 6px rgba(255, 255, 255, 0.14),
+        0 18px 40px rgba(15, 23, 42, 0.18);
     transition: all 0.25s ease;
-    background: rgba(255, 255, 255, 0.2);
-    backdrop-filter: brightness(1.35);
-    -webkit-backdrop-filter: brightness(1.35);
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
-
 .tour-popover {
     position: fixed;
     z-index: 1202;
@@ -4054,17 +4056,6 @@ table tr:hover {
 .tour-popover-header h2 {
     margin: 0;
     font-size: 1.05rem;
-}
-
-.tour-popover-close {
-    background: transparent;
-    border: 1px solid #e2e8f0;
-    border-radius: 9999px;
-    width: 2.5rem;
-    height: 2.5rem;
-    color: #1f2937;
-    font-size: 1.25rem;
-    cursor: pointer;
 }
 
 .tour-popover-body {
