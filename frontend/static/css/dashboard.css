@@ -3972,3 +3972,160 @@ table tr:hover {
         cursor: default;
     }
 }
+
+#start-tour-btn {
+    white-space: nowrap;
+}
+
+.tour-backdrop {
+    position: fixed;
+    inset: 0;
+    background: transparent
+    z-index: 1200;
+}
+
+.tour-highlighter {
+    position: fixed;
+    z-index: 1201;
+    pointer-events: none;
+    border: 3px solid #dc2626;
+    box-shadow:
+        0 0 0 9999px rgba(15, 23, 42, 0.52),
+        0 0 0 6px rgba(255, 255, 255, 0.14),
+        0 18px 40px rgba(15, 23, 42, 0.18);
+    transition: all 0.25s ease;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+.tour-popover {
+    position: fixed;
+    z-index: 1202;
+    max-width: min(440px, calc(100vw - 2rem));
+    background: white;
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
+    padding: 1rem;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.tour-popover-arrow {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 4px;
+    transform: rotate(45deg);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+}
+
+.tour-popover-arrow-top {
+    left: calc(var(--tour-arrow-left, 50%) - 9px);
+    bottom: -8px;
+}
+
+.tour-popover-arrow-right {
+    top: calc(var(--tour-arrow-top, 50%) - 9px);
+    left: -8px;
+}
+
+.tour-popover-arrow-bottom {
+    left: calc(var(--tour-arrow-left, 50%) - 9px);
+    top: -8px;
+}
+
+.tour-popover-arrow-left {
+    top: calc(var(--tour-arrow-top, 50%) - 9px);
+    right: -8px;
+}
+
+.tour-popover-card {
+    display: grid;
+    gap: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.tour-popover-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.tour-popover-header h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.tour-popover-body {
+    color: #334155;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+.tour-popover-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.tour-step-count {
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+.tour-step-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+#app-tour-backdrop.app-hidden,
+#app-tour-highlighter.app-hidden,
+#app-tour-popover.app-hidden {
+    display: none;
+}
+
+.tour-nudge {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 1100;
+    max-width: min(320px, calc(100vw - 2rem));
+}
+
+.tour-nudge-card {
+    background: linear-gradient(135deg, #fff7ed 0%, #ffffff 100%);
+    border: 1px solid #fdba74;
+    border-radius: 18px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+    padding: 1rem;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.tour-nudge-title {
+    margin: 0;
+    color: #9a3412;
+    font-size: 0.98rem;
+    font-weight: 700;
+}
+
+.tour-nudge-copy {
+    margin: 0;
+    color: #7c2d12;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.tour-nudge-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+#app-tour-nudge.app-hidden {
+    display: none;
+}

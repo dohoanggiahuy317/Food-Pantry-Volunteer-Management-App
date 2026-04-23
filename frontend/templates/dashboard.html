@@ -84,6 +84,7 @@
                         <div class="user-email" id="user-email">Loading...</div>
                         <div class="user-role" id="user-role"></div>
                     </div>
+                    <button type="button" class="btn btn-secondary" id="start-tour-btn">Take Tour</button>
                     <button type="button" class="btn btn-secondary" id="logout-btn">Log Out</button>
                 </div>
             </div>
@@ -144,7 +145,7 @@
                             <div class="calendar-mini-grid" id="calendar-mini-grid" data-calendar-part="mini-grid"></div>
                         </div>
 
-                        <div class="calendar-filter-panel">
+                        <div class="calendar-filter-panel" data-app-tour-target="available-calendar-filters">
                             <div class="calendar-filter-group">
                                 <label for="calendar-search-input">Search</label>
                                 <input type="search" id="calendar-search-input" placeholder="Search shifts, pantry, roles" data-calendar-part="search-input">
@@ -906,6 +907,37 @@
                 </div>
             </div>
         </div>
+
+        <div id="app-tour-backdrop" class="tour-backdrop app-hidden"></div>
+        <div id="app-tour-highlighter" class="tour-highlighter app-hidden" aria-hidden="true"></div>
+        <div id="app-tour-popover" class="tour-popover app-hidden" role="dialog" aria-modal="true" aria-labelledby="app-tour-popover-title">
+            <div class="tour-popover-arrow" id="app-tour-popover-arrow" aria-hidden="true"></div>
+            <div class="tour-popover-card">
+                <div class="tour-popover-header">
+                    <h2 id="app-tour-popover-title">Tour</h2>
+                </div>
+                <div id="app-tour-popover-body" class="tour-popover-body"></div>
+                <div class="tour-popover-footer">
+                    <span id="app-tour-step-count" class="tour-step-count"></span>
+                    <div class="tour-step-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" id="app-tour-skip-btn">Skip Tour</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="app-tour-prev-btn">Previous</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="app-tour-next-btn">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="app-tour-nudge" class="tour-nudge app-hidden" aria-live="polite">
+            <div class="tour-nudge-card">
+                <p class="tour-nudge-title">Want a quick tour?</p>
+                <p class="tour-nudge-copy">You can retake the dashboard tour any time.</p>
+                <div class="tour-nudge-actions">
+                    <button type="button" class="btn btn-primary btn-sm" id="app-tour-nudge-start-btn">Take Tour</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="app-tour-nudge-skip-btn">Skip</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Global Notification Modal -->
@@ -918,6 +950,7 @@
     </div>
 
     <!-- Include JavaScript Modules -->
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/dist/js.cookie.min.js"></script>
     <script src="{{ url_for('static', filename='js/api-helpers.js') }}"></script>
     <script src="{{ url_for('static', filename='js/timezone-helpers.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user-functions.js') }}"></script>
