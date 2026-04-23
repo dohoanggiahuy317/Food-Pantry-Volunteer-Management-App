@@ -332,16 +332,20 @@ async function initializeDashboardApp() {
         }
     })();
 
+    await dashboardBootPromise;
     await maybeStartAppTour();
     return dashboardBootPromise;
 }
 
-const APP_TOUR_STORAGE_KEY = 'volunteerAppTourCompleted';
+const APP_TOUR_STORAGE_KEY_PREFIX = 'volunteerAppTourCompleted';
+const APP_TOUR_PENDING_COOKIE = 'volunteerAppTourPendingSignup';
+const APP_TOUR_NUDGE_DISMISSED_KEY_PREFIX = 'volunteerAppTourNudgeDismissed';
 const APP_TOUR_FILTERS_SELECTOR = '[data-app-tour-target="available-calendar-filters"]';
 let appTourSteps = null;
 let appTourCurrentIndex = 0;
 let appTourManagedSidebarControllerKey = null;
 let appTourResizeTimeoutId = null;
+let appTourIsRequired = false;
 
 function isElementVisible(element) {
     if (!(element instanceof HTMLElement)) {
@@ -479,7 +483,90 @@ function getAppTourSteps() {
     });
 }
 
-async function openAppTour() {
+function getAppTourStorageKey() {
+    if (!currentUser || !currentUser.user_id) {
+        return null;
+    }
+    return `${APP_TOUR_STORAGE_KEY_PREFIX}:${currentUser.user_id}`;
+}
+
+function getAppTourNudgeDismissedKey() {
+    if (!currentUser || !currentUser.user_id) {
+        return null;
+    }
+    return `${APP_TOUR_NUDGE_DISMISSED_KEY_PREFIX}:${currentUser.user_id}`;
+}
+
+function getPendingAppTourCookie() {
+    return window.Cookies ? window.Cookies.get(APP_TOUR_PENDING_COOKIE) : null;
+}
+
+function shouldRequireAppTour() {
+    if (!currentUser || !currentUser.user_id) {
+        return false;
+    }
+
+    const pendingValue = getPendingAppTourCookie();
+    if (!pendingValue) {
+        return false;
+    }
+
+    if (pendingValue === 'pending') {
+        if (window.Cookies) {
+            window.Cookies.set(APP_TOUR_PENDING_COOKIE, String(currentUser.user_id), { sameSite: 'Lax' });
+        }
+        return true;
+    }
+
+    return pendingValue === String(currentUser.user_id);
+}
+
+function markAppTourCompleted() {
+    const storageKey = getAppTourStorageKey();
+    if (storageKey) {
+        localStorage.setItem(storageKey, 'true');
+    }
+    const nudgeDismissedKey = getAppTourNudgeDismissedKey();
+    if (nudgeDismissedKey) {
+        sessionStorage.setItem(nudgeDismissedKey, 'true');
+    }
+    if (window.Cookies) {
+        window.Cookies.remove(APP_TOUR_PENDING_COOKIE);
+    }
+}
+
+function hideAppTourNudge() {
+    document.getElementById('app-tour-nudge')?.classList.add('app-hidden');
+}
+
+function showAppTourNudge() {
+    document.getElementById('app-tour-nudge')?.classList.remove('app-hidden');
+}
+
+function dismissAppTourNudge() {
+    const nudgeDismissedKey = getAppTourNudgeDismissedKey();
+    if (nudgeDismissedKey) {
+        sessionStorage.setItem(nudgeDismissedKey, 'true');
+    }
+    hideAppTourNudge();
+}
+
+function shouldShowAppTourNudge() {
+    const storageKey = getAppTourStorageKey();
+    const nudgeDismissedKey = getAppTourNudgeDismissedKey();
+    if (!storageKey || !nudgeDismissedKey) {
+        return false;
+    }
+
+    const hasCompletedTour = localStorage.getItem(storageKey) === 'true';
+    const cookiePresent = Boolean(getPendingAppTourCookie());
+    const dismissedForSession = sessionStorage.getItem(nudgeDismissedKey) === 'true';
+
+    return hasCompletedTour && !cookiePresent && !dismissedForSession && !appTourIsRequired;
+}
+
+async function openAppTour(options = {}) {
+    appTourIsRequired = Boolean(options.forceRequired);
     appTourSteps = getAppTourSteps();
     if (!appTourSteps.length) {
         return;
@@ -658,6 +745,10 @@ function positionAppTourPopover(popover, popoverArrow, rect) {
 }
 
 function closeAppTour(save = true) {
+    if (appTourIsRequired && !save) {
+        return;
+    }
+
     const highlight = document.getElementById('app-tour-highlighter');
     const backdrop = document.getElementById('app-tour-backdrop');
     const popover = document.getElementById('app-tour-popover');
@@ -677,20 +768,31 @@ function closeAppTour(save = true) {
         }
     });
     if (save) {
-        localStorage.setItem(APP_TOUR_STORAGE_KEY, 'true');
+        const storageKey = getAppTourStorageKey();
+        if (storageKey) {
+            localStorage.setItem(storageKey, 'true');
+        }
+        if (appTourIsRequired) {
+            markAppTourCompleted();
+        }
     }
-}
-
-function shouldAutoStartAppTour() {
-    return !localStorage.getItem(APP_TOUR_STORAGE_KEY);
+    appTourIsRequired = false;
 }
 
 async function maybeStartAppTour() {
-    if (shouldAutoStartAppTour()) {
+    if (shouldRequireAppTour()) {
         appTourSteps = getAppTourSteps();
         if (appTourSteps.length) {
-            setTimeout(() => openAppTour(), 500);
+            await openAppTour({ forceRequired: true });
         }
+        hideAppTourNudge();
+        return;
+    }
+
+    if (shouldShowAppTourNudge()) {
+        showAppTourNudge();
+    } else {
+        hideAppTourNudge();
     }
 }
 
@@ -712,11 +814,13 @@ async function renderAppTourStep(index) {
     const popoverTitle = document.getElementById('app-tour-popover-title');
     const popoverBody = document.getElementById('app-tour-popover-body');
     const stepCount = document.getElementById('app-tour-step-count');
+    const skipBtn = document.getElementById('app-tour-skip-btn');
     const prevBtn = document.getElementById('app-tour-prev-btn');
     const nextBtn = document.getElementById('app-tour-next-btn');
     const popoverArrow = document.getElementById('app-tour-popover-arrow');
+    const closeBtn = document.getElementById('app-tour-close-btn');
 
-    if (!highlight || !backdrop || !popover || !popoverTitle || !popoverBody || !stepCount || !prevBtn || !nextBtn) {
+    if (!highlight || !backdrop || !popover || !popoverTitle || !popoverBody || !stepCount || !skipBtn || !prevBtn || !nextBtn) {
         return;
     }
 
@@ -732,7 +836,12 @@ async function renderAppTourStep(index) {
     stepCount.textContent = `${index + 1} of ${appTourSteps.length}`;
     prevBtn.disabled = index === 0;
     nextBtn.textContent = index === appTourSteps.length - 1 ? 'Finish' : 'Next';
+    if (closeBtn) {
+        closeBtn.hidden = appTourIsRequired;
+        closeBtn.disabled = appTourIsRequired;
+    }
 
+    skipBtn.onclick = () => closeAppTour(true);
     prevBtn.onclick = () => renderAppTourStep(index - 1);
     nextBtn.onclick = () => renderAppTourStep(index + 1);
 
@@ -3103,14 +3212,29 @@ function setupEventListeners() {
     });
 
     document.getElementById('start-tour-btn')?.addEventListener('click', () => {
-        openAppTour();
+        openAppTour({ forceRequired: false });
+    });
+
+    document.getElementById('app-tour-nudge-start-btn')?.addEventListener('click', async () => {
+        dismissAppTourNudge();
+        await openAppTour({ forceRequired: false });
+    });
+
+    document.getElementById('app-tour-nudge-skip-btn')?.addEventListener('click', () => {
+        dismissAppTourNudge();
     });
 
     document.getElementById('app-tour-close-btn')?.addEventListener('click', () => {
+        if (appTourIsRequired) {
+            return;
+        }
         closeAppTour(true);
     });
 
     document.getElementById('app-tour-backdrop')?.addEventListener('click', () => {
+        if (appTourIsRequired) {
+            return;
+        }
         closeAppTour(true);
     });
 

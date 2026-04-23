@@ -921,9 +921,21 @@
                 <div class="tour-popover-footer">
                     <span id="app-tour-step-count" class="tour-step-count"></span>
                     <div class="tour-step-actions">
+                        <button type="button" class="btn btn-secondary btn-sm" id="app-tour-skip-btn">Skip Tour</button>
                         <button type="button" class="btn btn-secondary btn-sm" id="app-tour-prev-btn">Previous</button>
                         <button type="button" class="btn btn-secondary btn-sm" id="app-tour-next-btn">Next</button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="app-tour-nudge" class="tour-nudge app-hidden" aria-live="polite">
+            <div class="tour-nudge-card">
+                <p class="tour-nudge-title">Want a quick tour?</p>
+                <p class="tour-nudge-copy">You can retake the dashboard tour any time.</p>
+                <div class="tour-nudge-actions">
+                    <button type="button" class="btn btn-primary btn-sm" id="app-tour-nudge-start-btn">Take Tour</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="app-tour-nudge-skip-btn">Skip</button>
                 </div>
             </div>
         </div>
@@ -939,6 +951,7 @@
     </div>
 
     <!-- Include JavaScript Modules -->
+    <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/dist/js.cookie.min.js"></script>
     <script src="{{ url_for('static', filename='js/api-helpers.js') }}"></script>
     <script src="{{ url_for('static', filename='js/timezone-helpers.js') }}"></script>
     <script src="{{ url_for('static', filename='js/user-functions.js') }}"></script>

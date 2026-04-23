@@ -2,6 +2,7 @@ let authConfig = null;
 let firebaseAuthInstance = null;
 let googleProvider = null;
 let pendingGoogleIdToken = null;
+const AUTH_APP_TOUR_PENDING_COOKIE = 'volunteerAppTourPendingSignup';
 
 document.addEventListener('DOMContentLoaded', async () => {
     bindAuthEventListeners();
@@ -210,6 +211,9 @@ async function completeGoogleSignup() {
             phone_number: phoneNumber,
             timezone: getBrowserTimeZone()
         });
+        if (window.Cookies) {
+            window.Cookies.set(AUTH_APP_TOUR_PENDING_COOKIE, 'pending', { sameSite: 'Lax' });
+        }
         await firebaseAuthInstance?.signOut();
         window.location.reload();
     } catch (error) {
