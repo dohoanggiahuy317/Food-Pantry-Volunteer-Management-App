@@ -38,6 +38,11 @@ body {
     display: none !important;
 }
 
+.app-tour-scroll-locked {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+}
+
 .auth-shell {
     min-height: 100vh;
     padding: var(--space-xl);
@@ -3980,8 +3985,9 @@ table tr:hover {
 .tour-backdrop {
     position: fixed;
     inset: 0;
-    background: transparent
+    background: transparent;
     z-index: 1200;
+    pointer-events: auto;
 }
 
 .tour-highlighter {

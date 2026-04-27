@@ -352,6 +352,19 @@ let appTourCurrentIndex = 0;
 let appTourManagedSidebarControllerKey = null;
 let appTourResizeTimeoutId = null;
 let appTourIsRequired = false;
+let appTourScrollLockEnabled = false;
+
+const APP_TOUR_SCROLL_KEYS = new Set([
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+    'ArrowUp',
+    'End',
+    'Home',
+    'PageDown',
+    'PageUp',
+    ' '
+]);
 
 function isElementVisible(element) {
     if (!(element instanceof HTMLElement)) {
@@ -674,6 +687,44 @@ function isAppTourOpen() {
     return Boolean(popover && !popover.classList.contains('app-hidden'));
 }
 
+function preventAppTourUserScroll(event) {
+    if (isAppTourOpen()) {
+        event.preventDefault();
+    }
+}
+
+function preventAppTourKeyboardScroll(event) {
+    const popover = document.getElementById('app-tour-popover');
+    if (popover?.contains(event.target)) {
+        return;
+    }
+
+    if (isAppTourOpen() && APP_TOUR_SCROLL_KEYS.has(event.key)) {
+        event.preventDefault();
+    }
+}
+
+function setAppTourScrollLock(locked) {
+    if (locked === appTourScrollLockEnabled) {
+        return;
+    }
+
+    appTourScrollLockEnabled = locked;
+    document.documentElement.classList.toggle('app-tour-scroll-locked', locked);
+    document.body.classList.toggle('app-tour-scroll-locked', locked);
+
+    const listenerOptions = { passive: false, capture: true };
+    if (locked) {
+        window.addEventListener('wheel', preventAppTourUserScroll, listenerOptions);
+        window.addEventListener('touchmove', preventAppTourUserScroll, listenerOptions);
+        window.addEventListener('keydown', preventAppTourKeyboardScroll, true);
+    } else {
+        window.removeEventListener('wheel', preventAppTourUserScroll, listenerOptions);
+        window.removeEventListener('touchmove', preventAppTourUserScroll, listenerOptions);
+        window.removeEventListener('keydown', preventAppTourKeyboardScroll, true);
+    }
+}
+
 function scheduleAppTourReposition() {
     if (!isAppTourOpen() || !appTourSteps || appTourCurrentIndex < 0 || appTourCurrentIndex >= appTourSteps.length) {
         return;
@@ -775,6 +826,7 @@ function closeAppTour(save = true) {
         if (popover) {
             resetAppTourPopoverPlacement(popover, popoverArrow);
         }
+        setAppTourScrollLock(false);
     });
     if (save) {
         const storageKey = getAppTourStorageKey();
@@ -844,6 +896,7 @@ async function renderAppTourStep(index) {
     backdrop.classList.remove('app-hidden');
     highlight.classList.remove('app-hidden');
     popover.classList.remove('app-hidden');
+    setAppTourScrollLock(true);
     resetAppTourPopoverPlacement(popover, popoverArrow);
     popoverTitle.textContent = step.title;
     popoverBody.textContent = step.body;
@@ -3248,10 +3301,7 @@ function setupEventListeners() {
     });
 
     document.getElementById('app-tour-backdrop')?.addEventListener('click', () => {
-        if (appTourIsRequired) {
-            return;
-        }
-        closeAppTour(true);
+        // The tour must be dismissed through its own controls.
     });
 
     document.getElementById('admin-user-search-btn')?.addEventListener('click', async () => {
