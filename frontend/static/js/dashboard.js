@@ -56,6 +56,12 @@ function currentUserIsAdminCapable() {
     return currentUserHasRole('ADMIN') || currentUserHasRole('SUPER_ADMIN');
 }
 
+function currentUserCanAccessAppTour() {
+    return currentUserHasRole('VOLUNTEER')
+        && !currentUserIsAdminCapable()
+        && !currentUserHasRole('PANTRY_LEAD');
+}
+
 function getWeekdayCodeFromDateInput(value) {
     if (!value) {
         return null;
@@ -332,7 +338,597 @@ async function initializeDashboardApp() {
         }
     })();
 
+    await dashboardBootPromise;
+    await maybeStartAppTour();
     return dashboardBootPromise;
+}
+
+const APP_TOUR_STORAGE_KEY_PREFIX = 'volunteerAppTourCompleted';
+const APP_TOUR_PENDING_COOKIE = 'volunteerAppTourPendingSignup';
+const APP_TOUR_NUDGE_DISMISSED_KEY_PREFIX = 'volunteerAppTourNudgeDismissed';
+const APP_TOUR_FILTERS_SELECTOR = '[data-app-tour-target="available-calendar-filters"]';
+let appTourSteps = null;
+let appTourCurrentIndex = 0;
+let appTourManagedSidebarControllerKey = null;
+let appTourResizeTimeoutId = null;
+let appTourIsRequired = false;
+let appTourScrollLockEnabled = false;
+
+const APP_TOUR_SCROLL_KEYS = new Set([
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+    'ArrowUp',
+    'End',
+    'Home',
+    'PageDown',
+    'PageUp',
+    ' '
+]);
+
+function isElementVisible(element) {
+    if (!(element instanceof HTMLElement)) {
+        return false;
+    }
+    const style = window.getComputedStyle(element);
+    return style.visibility !== 'hidden' && style.display !== 'none' && element.offsetWidth > 0 && element.offsetHeight > 0;
+}
+
+function getAppTourSteps() {
+    const steps = [
+        {
+            title: 'Welcome',
+            body: 'This tour will walk you through the main sections of the volunteer dashboard.',
+            selector: '.header-left h1',
+            tab: null
+        },
+        {
+            title: 'Navigation',
+            body: 'Use these tabs to jump between the calendar, your shifts, pantries, admin features, and your account.',
+            selector: '.nav-tabs-container',
+            tab: null
+        },
+        {
+            title: 'Calendar',
+            body: 'Browse all available volunteer shifts and use the calendar filters to find a time that works for you.',
+            selector: '.calendar-shell-card',
+            tab: 'calendar'
+        },
+        {
+            title: 'Calendar Views',
+            body: 'You can view the calendar in month, week, and day modes here.',
+            selector: '#content-calendar .calendar-view-switch',
+            tab: 'calendar'
+        },
+        {
+            title: 'Filters',
+            body: 'Use these filters to search by pantry, date range, or time bucket.',
+            selector: APP_TOUR_FILTERS_SELECTOR,
+            tab: 'calendar',
+            requiresAvailableCalendarSidebar: true
+        },
+        {
+            title: 'My Shifts',
+            body: 'Review the shifts you already signed up for and switch between calendar and list views.',
+            selector: '#tab-my-shifts',
+            tab: 'my-shifts',
+            optional: true
+        },
+        {
+            title: 'Pantry Directory',
+            body: 'Use the Pantry tab to browse pantry details, preview upcoming shifts, and manage your subscriptions.',
+            selector: '#tab-pantries',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Search Pantries',
+            body: 'Search by pantry name or address to quickly narrow the directory.',
+            selector: '#volunteer-pantry-search',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Sort Pantries',
+            body: 'Sort the pantry list alphabetically to scan the directory the way you prefer.',
+            selector: '#volunteer-pantry-sort',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Subscription Filters',
+            body: 'Use these filters to show all pantries, only the ones you subscribed to, or only unsubscribed ones.',
+            selector: '.volunteer-pantries-filter-row',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Pantry List',
+            body: 'Select a pantry here to review its address, upcoming shifts, and subscription status.',
+            selector: '#volunteer-pantries-list',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'Pantry Details',
+            body: 'This panel shows the selected pantry details, pantry leads, the next incoming shift, and the subscribe or unsubscribe action.',
+            selector: '#volunteer-pantry-detail .volunteer-pantry-detail-head',
+            tab: 'pantries',
+            optional: true
+        },
+        {
+            title: 'My Account',
+            body: 'Use My Account to review your saved account details and manage profile settings.',
+            selector: '#tab-my-account',
+            tab: 'my-account'
+        },
+        {
+            title: 'Account Summary',
+            body: 'This section shows your current account details, including your email, phone number, roles, and saved timezone.',
+            selector: '#my-account-summary',
+            tab: 'my-account'
+        },
+        {
+            title: 'Timezone Note',
+            body: 'This note explains which browser timezone the app is using to display times on the web.',
+            selector: '#my-account-timezone-note',
+            tab: 'my-account'
+        },
+        {
+            title: 'Basic Information',
+            body: 'Update your full name and phone number here, then save your changes.',
+            selector: '#my-account-profile-form',
+            tab: 'my-account'
+        },
+        {
+            title: 'Email Address',
+            body: 'Review your current email and start an email change request from this section when needed.',
+            selector: '#my-account-email-form',
+            tab: 'my-account'
+        },
+        {
+            title: 'Delete Account',
+            body: 'Warning: use this action only if you want to permanently remove your account. Deleting your account will sign you out and cannot be undone.',
+            selector: '#delete-account-btn',
+            tab: 'my-account'
+        }
+    ];
+
+    return steps.filter((step) => {
+        if (step.optional) {
+            return Boolean(document.querySelector(step.selector));
+        }
+        return true;
+    });
+}
+
+function getAppTourStorageKey() {
+    if (!currentUser || !currentUser.user_id) {
+        return null;
+    }
+    return `${APP_TOUR_STORAGE_KEY_PREFIX}:${currentUser.user_id}`;
+}
+
+function getAppTourNudgeDismissedKey() {
+    if (!currentUser || !currentUser.user_id) {
+        return null;
+    }
+    return `${APP_TOUR_NUDGE_DISMISSED_KEY_PREFIX}:${currentUser.user_id}`;
+}
+
+function getPendingAppTourCookie() {
+    return window.Cookies ? window.Cookies.get(APP_TOUR_PENDING_COOKIE) : null;
+}
+
+function shouldRequireAppTour() {
+    if (!currentUser || !currentUser.user_id) {
+        return false;
+    }
+
+    const pendingValue = getPendingAppTourCookie();
+    if (!pendingValue) {
+        return false;
+    }
+
+    if (pendingValue === 'pending') {
+        if (window.Cookies) {
+            window.Cookies.set(APP_TOUR_PENDING_COOKIE, String(currentUser.user_id), { sameSite: 'Lax' });
+        }
+        return true;
+    }
+
+    return pendingValue === String(currentUser.user_id);
+}
+
+function markAppTourCompleted() {
+    const storageKey = getAppTourStorageKey();
+    if (storageKey) {
+        localStorage.setItem(storageKey, 'true');
+    }
+    const nudgeDismissedKey = getAppTourNudgeDismissedKey();
+    if (nudgeDismissedKey) {
+        sessionStorage.setItem(nudgeDismissedKey, 'true');
+    }
+    if (window.Cookies) {
+        window.Cookies.remove(APP_TOUR_PENDING_COOKIE);
+    }
+}
+
+function hideAppTourNudge() {
+    document.getElementById('app-tour-nudge')?.classList.add('app-hidden');
+}
+
+function showAppTourNudge() {
+    document.getElementById('app-tour-nudge')?.classList.remove('app-hidden');
+}
+
+function dismissAppTourNudge() {
+    const nudgeDismissedKey = getAppTourNudgeDismissedKey();
+    if (nudgeDismissedKey) {
+        sessionStorage.setItem(nudgeDismissedKey, 'true');
+    }
+    hideAppTourNudge();
+}
+
+function shouldShowAppTourNudge() {
+    const storageKey = getAppTourStorageKey();
+    const nudgeDismissedKey = getAppTourNudgeDismissedKey();
+    if (!storageKey || !nudgeDismissedKey) {
+        return false;
+    }
+
+    const hasCompletedTour = localStorage.getItem(storageKey) === 'true';
+    const cookiePresent = Boolean(getPendingAppTourCookie());
+    const dismissedForSession = sessionStorage.getItem(nudgeDismissedKey) === 'true';
+
+    return hasCompletedTour && !cookiePresent && !dismissedForSession && !appTourIsRequired;
+}
+
+async function openAppTour(options = {}) {
+    if (!currentUserCanAccessAppTour()) {
+        return;
+    }
+    appTourIsRequired = Boolean(options.forceRequired);
+    appTourSteps = getAppTourSteps();
+    if (!appTourSteps.length) {
+        return;
+    }
+    appTourCurrentIndex = 0;
+    await renderAppTourStep(0);
+}
+
+function getAvailableCalendarTourController() {
+    if (typeof getCalendarController !== 'function') {
+        return null;
+    }
+    return getCalendarController('available');
+}
+
+function resetAppTourPopoverPlacement(popover, popoverArrow) {
+    popover.style.transform = 'none';
+    popover.style.top = '';
+    popover.style.left = '';
+    popover.style.removeProperty('--tour-arrow-left');
+    popover.style.removeProperty('--tour-arrow-top');
+    popover.classList.remove(
+        'tour-popover-placement-top',
+        'tour-popover-placement-right',
+        'tour-popover-placement-bottom',
+        'tour-popover-placement-left'
+    );
+    if (popoverArrow) {
+        popoverArrow.className = 'tour-popover-arrow';
+    }
+}
+
+async function waitForAppTourLayout() {
+    await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+    await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
+async function scrollAppTourTargetIntoView(target) {
+    if (!(target instanceof HTMLElement)) {
+        return;
+    }
+    target.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+    await waitForAppTourLayout();
+}
+
+async function cleanupAppTourManagedSidebar() {
+    if (!appTourManagedSidebarControllerKey) {
+        return;
+    }
+    if (typeof getCalendarController === 'function') {
+        getCalendarController(appTourManagedSidebarControllerKey)?.closeSidebar();
+    }
+    appTourManagedSidebarControllerKey = null;
+    await waitForAppTourLayout();
+}
+
+async function prepareAppTourStep(step) {
+    if (!step?.requiresAvailableCalendarSidebar) {
+        return;
+    }
+
+    const controller = getAvailableCalendarTourController();
+    if (!controller || !isPhoneViewport()) {
+        return;
+    }
+
+    const sidebar = controller.part?.('sidebar');
+    const sidebarWasOpen = sidebar?.classList.contains('open');
+    if (!sidebarWasOpen) {
+        controller.openSidebar();
+        appTourManagedSidebarControllerKey = 'available';
+    }
+    await waitForAppTourLayout();
+}
+
+function applyAppTourHighlight(highlight, rect) {
+    const padding = Math.min(18, Math.max(12, Math.round(Math.min(rect.width, rect.height) * 0.08)));
+    const top = Math.max(8, rect.top - padding);
+    const left = Math.max(8, rect.left - padding);
+    const width = Math.min(window.innerWidth - 16, rect.width + padding * 2);
+    const height = Math.min(window.innerHeight - 16, rect.height + padding * 2);
+
+    highlight.style.top = `${top}px`;
+    highlight.style.left = `${left}px`;
+    highlight.style.width = `${width}px`;
+    highlight.style.height = `${height}px`;
+    highlight.style.borderRadius = `${Math.min(width, height) > 120 ? 24 : 18}px`;
+}
+
+function clampAppTourValue(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+}
+
+function isAppTourOpen() {
+    const popover = document.getElementById('app-tour-popover');
+    return Boolean(popover && !popover.classList.contains('app-hidden'));
+}
+
+function preventAppTourUserScroll(event) {
+    if (isAppTourOpen()) {
+        event.preventDefault();
+    }
+}
+
+function preventAppTourKeyboardScroll(event) {
+    const popover = document.getElementById('app-tour-popover');
+    if (popover?.contains(event.target)) {
+        return;
+    }
+
+    if (isAppTourOpen() && APP_TOUR_SCROLL_KEYS.has(event.key)) {
+        event.preventDefault();
+    }
+}
+
+function setAppTourScrollLock(locked) {
+    if (locked === appTourScrollLockEnabled) {
+        return;
+    }
+
+    appTourScrollLockEnabled = locked;
+    document.documentElement.classList.toggle('app-tour-scroll-locked', locked);
+    document.body.classList.toggle('app-tour-scroll-locked', locked);
+
+    const listenerOptions = { passive: false, capture: true };
+    if (locked) {
+        window.addEventListener('wheel', preventAppTourUserScroll, listenerOptions);
+        window.addEventListener('touchmove', preventAppTourUserScroll, listenerOptions);
+        window.addEventListener('keydown', preventAppTourKeyboardScroll, true);
+    } else {
+        window.removeEventListener('wheel', preventAppTourUserScroll, listenerOptions);
+        window.removeEventListener('touchmove', preventAppTourUserScroll, listenerOptions);
+        window.removeEventListener('keydown', preventAppTourKeyboardScroll, true);
+    }
+}
+
+function scheduleAppTourReposition() {
+    if (!isAppTourOpen() || !appTourSteps || appTourCurrentIndex < 0 || appTourCurrentIndex >= appTourSteps.length) {
+        return;
+    }
+
+    if (appTourResizeTimeoutId) {
+        window.clearTimeout(appTourResizeTimeoutId);
+    }
+
+    appTourResizeTimeoutId = window.setTimeout(() => {
+        appTourResizeTimeoutId = null;
+        if (isAppTourOpen()) {
+            renderAppTourStep(appTourCurrentIndex);
+        }
+    }, 120);
+}
+
+function positionAppTourPopover(popover, popoverArrow, rect) {
+    const margin = 16;
+    const arrowSize = 14;
+    const spaceAbove = rect.top - margin;
+    const spaceBelow = window.innerHeight - rect.bottom - margin;
+    const spaceLeft = rect.left - margin;
+    const spaceRight = window.innerWidth - rect.right - margin;
+    const popoverWidth = popover.offsetWidth;
+    const popoverHeight = popover.offsetHeight;
+
+    let placement = 'bottom';
+    if (spaceRight >= popoverWidth + arrowSize) {
+        placement = 'right';
+    } else if (spaceBelow >= popoverHeight + arrowSize) {
+        placement = 'bottom';
+    } else if (spaceAbove >= popoverHeight + arrowSize) {
+        placement = 'top';
+    } else if (spaceLeft >= popoverWidth + arrowSize) {
+        placement = 'left';
+    } else if (spaceBelow >= spaceAbove) {
+        placement = 'bottom';
+    } else {
+        placement = 'top';
+    }
+
+    let top = margin;
+    let left = margin;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    if (placement === 'right') {
+        left = clampAppTourValue(rect.right + arrowSize, margin, window.innerWidth - popoverWidth - margin);
+        top = clampAppTourValue(centerY - popoverHeight / 2, margin, window.innerHeight - popoverHeight - margin);
+    } else if (placement === 'left') {
+        left = clampAppTourValue(rect.left - popoverWidth - arrowSize, margin, window.innerWidth - popoverWidth - margin);
+        top = clampAppTourValue(centerY - popoverHeight / 2, margin, window.innerHeight - popoverHeight - margin);
+    } else if (placement === 'top') {
+        top = clampAppTourValue(rect.top - popoverHeight - arrowSize, margin, window.innerHeight - popoverHeight - margin);
+        left = clampAppTourValue(centerX - popoverWidth / 2, margin, window.innerWidth - popoverWidth - margin);
+    } else {
+        top = clampAppTourValue(rect.bottom + arrowSize, margin, window.innerHeight - popoverHeight - margin);
+        left = clampAppTourValue(centerX - popoverWidth / 2, margin, window.innerWidth - popoverWidth - margin);
+    }
+
+    popover.style.top = `${top}px`;
+    popover.style.left = `${left}px`;
+    popover.classList.add(`tour-popover-placement-${placement}`);
+
+    if (!popoverArrow) {
+        return;
+    }
+
+    popoverArrow.classList.add(`tour-popover-arrow-${placement}`);
+    if (placement === 'top' || placement === 'bottom') {
+        const arrowLeft = clampAppTourValue(centerX - left, 24, popoverWidth - 24);
+        popover.style.setProperty('--tour-arrow-left', `${arrowLeft}px`);
+    } else {
+        const arrowTop = clampAppTourValue(centerY - top, 24, popoverHeight - 24);
+        popover.style.setProperty('--tour-arrow-top', `${arrowTop}px`);
+    }
+}
+
+function closeAppTour(save = true) {
+    if (appTourIsRequired && !save) {
+        return;
+    }
+
+    const highlight = document.getElementById('app-tour-highlighter');
+    const backdrop = document.getElementById('app-tour-backdrop');
+    const popover = document.getElementById('app-tour-popover');
+    const popoverArrow = document.getElementById('app-tour-popover-arrow');
+
+    if (appTourResizeTimeoutId) {
+        window.clearTimeout(appTourResizeTimeoutId);
+        appTourResizeTimeoutId = null;
+    }
+
+    cleanupAppTourManagedSidebar().finally(() => {
+        highlight?.classList.add('app-hidden');
+        backdrop?.classList.add('app-hidden');
+        popover?.classList.add('app-hidden');
+        if (popover) {
+            resetAppTourPopoverPlacement(popover, popoverArrow);
+        }
+        setAppTourScrollLock(false);
+    });
+    if (save) {
+        const storageKey = getAppTourStorageKey();
+        if (storageKey) {
+            localStorage.setItem(storageKey, 'true');
+        }
+        if (appTourIsRequired) {
+            markAppTourCompleted();
+        }
+    }
+    appTourIsRequired = false;
+}
+
+async function maybeStartAppTour() {
+    if (!currentUserCanAccessAppTour()) {
+        hideAppTourNudge();
+        return;
+    }
+
+    if (shouldRequireAppTour()) {
+        appTourSteps = getAppTourSteps();
+        if (appTourSteps.length) {
+            await openAppTour({ forceRequired: true });
+        }
+        hideAppTourNudge();
+        return;
+    }
+
+    if (shouldShowAppTourNudge()) {
+        showAppTourNudge();
+    } else {
+        hideAppTourNudge();
+    }
+}
+
+async function renderAppTourStep(index) {
+    if (!appTourSteps || index < 0 || index >= appTourSteps.length) {
+        closeAppTour(true);
+        return;
+    }
+
+    appTourCurrentIndex = index;
+    const step = appTourSteps[index];
+    if (step.tab) {
+        await activateTab(step.tab);
+    }
+
+    const highlight = document.getElementById('app-tour-highlighter');
+    const backdrop = document.getElementById('app-tour-backdrop');
+    const popover = document.getElementById('app-tour-popover');
+    const popoverTitle = document.getElementById('app-tour-popover-title');
+    const popoverBody = document.getElementById('app-tour-popover-body');
+    const stepCount = document.getElementById('app-tour-step-count');
+    const skipBtn = document.getElementById('app-tour-skip-btn');
+    const prevBtn = document.getElementById('app-tour-prev-btn');
+    const nextBtn = document.getElementById('app-tour-next-btn');
+    const popoverArrow = document.getElementById('app-tour-popover-arrow');
+    const closeBtn = document.getElementById('app-tour-close-btn');
+
+    if (!highlight || !backdrop || !popover || !popoverTitle || !popoverBody || !stepCount || !skipBtn || !prevBtn || !nextBtn) {
+        return;
+    }
+
+    await cleanupAppTourManagedSidebar();
+    await prepareAppTourStep(step);
+
+    backdrop.classList.remove('app-hidden');
+    highlight.classList.remove('app-hidden');
+    popover.classList.remove('app-hidden');
+    setAppTourScrollLock(true);
+    resetAppTourPopoverPlacement(popover, popoverArrow);
+    popoverTitle.textContent = step.title;
+    popoverBody.textContent = step.body;
+    stepCount.textContent = `${index + 1} of ${appTourSteps.length}`;
+    prevBtn.disabled = index === 0;
+    nextBtn.textContent = index === appTourSteps.length - 1 ? 'Finish' : 'Next';
+    if (closeBtn) {
+        closeBtn.hidden = appTourIsRequired;
+        closeBtn.disabled = appTourIsRequired;
+    }
+
+    skipBtn.onclick = () => closeAppTour(true);
+    prevBtn.onclick = () => renderAppTourStep(index - 1);
+    nextBtn.onclick = () => renderAppTourStep(index + 1);
+
+    const target = step.selector ? document.querySelector(step.selector) : null;
+    if (target && isElementVisible(target)) {
+        await scrollAppTourTargetIntoView(target);
+        const rect = target.getBoundingClientRect();
+        applyAppTourHighlight(highlight, rect);
+        positionAppTourPopover(popover, popoverArrow, rect);
+    } else {
+        highlight.style.top = '50%';
+        highlight.style.left = '50%';
+        highlight.style.width = '0px';
+        highlight.style.height = '0px';
+        highlight.style.borderRadius = '50%';
+        resetAppTourPopoverPlacement(popover, popoverArrow);
+        popover.style.transform = 'translate(-50%, -50%)';
+        popover.style.top = '50%';
+        popover.style.left = '50%';
+    }
 }
 
 // Setup UI based on role
@@ -346,6 +942,7 @@ function setupRoleBasedUI() {
     const adminTab = document.getElementById('tab-admin');
     const pantriesTab = document.getElementById('tab-pantries');
     const myShiftsTab = document.getElementById('tab-my-shifts');
+    const startTourButton = document.getElementById('start-tour-btn');
     let defaultTab = 'calendar';
 
     const hideCalendarForLead = isPantryLead && !isAdmin && !isVolunteer;
@@ -361,6 +958,14 @@ function setupRoleBasedUI() {
     adminTab?.classList.toggle('hidden', !isAdmin);
     pantriesTab?.classList.toggle('hidden', !isVolunteer);
     myShiftsTab?.classList.toggle('hidden', !isVolunteer);
+    if (startTourButton) {
+        const canAccessAppTour = currentUserCanAccessAppTour();
+        startTourButton.hidden = !canAccessAppTour;
+        startTourButton.classList.toggle('app-hidden', !canAccessAppTour);
+    }
+    if (!currentUserCanAccessAppTour()) {
+        hideAppTourNudge();
+    }
 
     return defaultTab;
 }
@@ -2491,6 +3096,7 @@ function setupEventListeners() {
     lastVolunteerPantriesCompactViewport = isVolunteerPantryCompactViewport();
     window.addEventListener('resize', handleAdminUsersViewportChange);
     window.addEventListener('resize', handleVolunteerPantriesViewportChange);
+    window.addEventListener('resize', scheduleAppTourReposition);
     if (typeof initializeCalendarUi === 'function') {
         initializeCalendarUi();
     }
@@ -2679,6 +3285,23 @@ function setupEventListeners() {
         tab.addEventListener('click', async () => {
             await activateTab(tab.dataset.tab);
         });
+    });
+
+    document.getElementById('start-tour-btn')?.addEventListener('click', () => {
+        openAppTour({ forceRequired: false });
+    });
+
+    document.getElementById('app-tour-nudge-start-btn')?.addEventListener('click', async () => {
+        dismissAppTourNudge();
+        await openAppTour({ forceRequired: false });
+    });
+
+    document.getElementById('app-tour-nudge-skip-btn')?.addEventListener('click', () => {
+        dismissAppTourNudge();
+    });
+
+    document.getElementById('app-tour-backdrop')?.addEventListener('click', () => {
+        // The tour must be dismissed through its own controls.
     });
 
     document.getElementById('admin-user-search-btn')?.addEventListener('click', async () => {
