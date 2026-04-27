@@ -56,6 +56,12 @@ function currentUserIsAdminCapable() {
     return currentUserHasRole('ADMIN') || currentUserHasRole('SUPER_ADMIN');
 }
 
+function currentUserCanAccessAppTour() {
+    return currentUserHasRole('VOLUNTEER')
+        && !currentUserIsAdminCapable()
+        && !currentUserHasRole('PANTRY_LEAD');
+}
+
 function getWeekdayCodeFromDateInput(value) {
     if (!value) {
         return null;
@@ -566,6 +572,9 @@ function shouldShowAppTourNudge() {
 }
 
 async function openAppTour(options = {}) {
+    if (!currentUserCanAccessAppTour()) {
+        return;
+    }
     appTourIsRequired = Boolean(options.forceRequired);
     appTourSteps = getAppTourSteps();
     if (!appTourSteps.length) {
@@ -780,6 +789,11 @@ function closeAppTour(save = true) {
 }
 
 async function maybeStartAppTour() {
+    if (!currentUserCanAccessAppTour()) {
+        hideAppTourNudge();
+        return;
+    }
+
     if (shouldRequireAppTour()) {
         appTourSteps = getAppTourSteps();
         if (appTourSteps.length) {
@@ -875,6 +889,7 @@ function setupRoleBasedUI() {
     const adminTab = document.getElementById('tab-admin');
     const pantriesTab = document.getElementById('tab-pantries');
     const myShiftsTab = document.getElementById('tab-my-shifts');
+    const startTourButton = document.getElementById('start-tour-btn');
     let defaultTab = 'calendar';
 
     const hideCalendarForLead = isPantryLead && !isAdmin && !isVolunteer;
@@ -890,6 +905,14 @@ function setupRoleBasedUI() {
     adminTab?.classList.toggle('hidden', !isAdmin);
     pantriesTab?.classList.toggle('hidden', !isVolunteer);
     myShiftsTab?.classList.toggle('hidden', !isVolunteer);
+    if (startTourButton) {
+        const canAccessAppTour = currentUserCanAccessAppTour();
+        startTourButton.hidden = !canAccessAppTour;
+        startTourButton.classList.toggle('app-hidden', !canAccessAppTour);
+    }
+    if (!currentUserCanAccessAppTour()) {
+        hideAppTourNudge();
+    }
 
     return defaultTab;
 }
