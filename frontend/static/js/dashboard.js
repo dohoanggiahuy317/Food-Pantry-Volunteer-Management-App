@@ -11,9 +11,26 @@ let activeAdminSubtab = 'pantries';
 let managedShifts = [];
 let manageShiftsSearchQuery = '';
 let manageShiftsStatusFilter = 'incoming';
+let managedShiftPanelMode = 'create';
+let managedShiftMobileView = 'queue';
+let selectedManagedShiftId = null;
+let helpBroadcastShift = null;
+let helpBroadcastSelected = [];
+let helpBroadcastCandidateMap = new Map();
+let helpBroadcastCandidateCache = [];
+let helpBroadcastCandidateQuery = '';
+let helpBroadcastSearchTimer = null;
+let helpBroadcastRequestToken = 0;
+let attendanceModalShiftId = null;
+let attendanceModalRegistrations = null;
+let attendanceModalSearchQuery = '';
 let selectedAssignPantryId = null;
 let pantryLeadUsers = [];
 let selectedPantryLeadId = null;
+let adminPantrySearchQuery = '';
+let selectedAdminPantryId = null;
+let adminPantryLeadSearchQuery = '';
+let adminPantryLeadActionInFlight = false;
 let adminRoles = [];
 let adminUsers = [];
 let selectedAdminUserId = null;
@@ -47,6 +64,8 @@ const RECURRING_WEEKDAY_LABELS = {
     SA: 'Sat',
     SU: 'Sun'
 };
+const HELP_BROADCAST_MAX_RECIPIENTS = 25;
+const MANAGE_SHIFTS_PHONE_QUERY = '(max-width: 767px)';
 
 function currentUserHasRole(roleName) {
     return Boolean(currentUser && Array.isArray(currentUser.roles) && currentUser.roles.includes(roleName));
@@ -1020,6 +1039,7 @@ async function loadPantries() {
 
         if (allPantries.length === 0) {
             currentPantryId = null;
+            selectedAdminPantryId = null;
             select.innerHTML = '<option value="">No pantries available</option>';
             clearSelectedAssignPantry(false);
             if (typeof syncCalendarPantryOptions === 'function') {
@@ -1039,6 +1059,10 @@ async function loadPantries() {
         });
 
         currentPantryId = selectedPantryStillExists ? currentPantryId : allPantries[0].pantry_id;
+        if (currentUserIsAdminCapable()) {
+            const selectedAdminPantryStillExists = allPantries.some(pantry => intValue(pantry.pantry_id) === intValue(selectedAdminPantryId));
+            selectedAdminPantryId = selectedAdminPantryStillExists ? selectedAdminPantryId : allPantries[0].pantry_id;
+        }
         select.value = currentPantryId;
         clearSelectedAssignPantry(false);
         renderAssignPantrySearchResults();
@@ -1504,70 +1528,283 @@ function clearSelectedPantryLead(shouldRefocus = false) {
     }
 }
 
-// Update pantries table
-async function updatePantriesTable() {
-    const tbody = document.getElementById('pantries-table-body');
-    tbody.innerHTML = '';
+function getAdminPantryById(pantryId) {
+    return allPantries.find((pantry) => intValue(pantry.pantry_id) === intValue(pantryId)) || null;
+}
 
-    if (allPantries.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="table-empty-cell">No pantries yet</td></tr>';
+function getAdminPantryLeadIds(pantry) {
+    return new Set((Array.isArray(pantry?.leads) ? pantry.leads : []).map((lead) => intValue(lead.user_id)));
+}
+
+function getFilteredAdminPantries() {
+    const normalizedQuery = String(adminPantrySearchQuery || '').trim().toLowerCase();
+    const pantries = normalizedQuery
+        ? allPantries.filter((pantry) => {
+            const name = String(pantry.name || '').toLowerCase();
+            const address = String(pantry.location_address || '').toLowerCase();
+            return name.includes(normalizedQuery) || address.includes(normalizedQuery);
+        })
+        : allPantries.slice();
+
+    return pantries.sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), undefined, { sensitivity: 'base' }));
+}
+
+function getAvailableAdminPantryLeadMatches() {
+    const selectedPantry = getAdminPantryById(selectedAdminPantryId);
+    if (!selectedPantry) {
+        return [];
+    }
+
+    const assignedLeadIds = getAdminPantryLeadIds(selectedPantry);
+    const normalizedQuery = String(adminPantryLeadSearchQuery || '').trim().toLowerCase();
+    return pantryLeadUsers
+        .filter((lead) => !assignedLeadIds.has(intValue(lead.user_id)))
+        .filter((lead) => {
+            if (!normalizedQuery) {
+                return true;
+            }
+            const fullName = String(lead.full_name || '').toLowerCase();
+            const email = String(lead.email || '').toLowerCase();
+            return fullName.includes(normalizedQuery) || email.includes(normalizedQuery);
+        })
+        .slice(0, 8);
+}
+
+function renderAdminPantryList() {
+    const listEl = document.getElementById('admin-pantries-list');
+    if (!listEl) {
         return;
     }
 
-    allPantries.forEach(pantry => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-                    <td data-label="Pantry Name">${pantry.name}</td>
-                    <td data-label="Location">${pantry.location_address || '—'}</td>
-                    <td data-label="Assigned Leads">${pantry.leads && pantry.leads.length > 0
-                ? pantry.leads.map(l => `<span class="lead-pill">${l.full_name}</span>`).join('')
-                : '<span class="muted-text">No leads assigned</span>'}</td>
-                    <td data-label="Actions">
-                        <div class="action-group">
-                            <button class="btn btn-secondary btn-sm edit-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}" data-address="${pantry.location_address || ''}">Edit</button>
-                            <button class="btn btn-danger btn-sm delete-pantry-btn" data-id="${pantry.pantry_id}" data-name="${pantry.name}">Delete</button>
-                        </div>
-                    </td>
-                `;
-        tbody.appendChild(tr);
-    });
+    const filteredPantries = getFilteredAdminPantries();
+    if (!selectedAdminPantryId && filteredPantries.length > 0) {
+        selectedAdminPantryId = intValue(filteredPantries[0].pantry_id);
+    }
+    if (selectedAdminPantryId && !allPantries.some((pantry) => intValue(pantry.pantry_id) === intValue(selectedAdminPantryId))) {
+        selectedAdminPantryId = filteredPantries.length > 0 ? intValue(filteredPantries[0].pantry_id) : null;
+    }
 
-    document.querySelectorAll('.edit-pantry-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.getElementById('edit-pantry-id').value = btn.dataset.id;
-            document.getElementById('edit-pantry-name').value = btn.dataset.name;
-            document.getElementById('edit-pantry-address').value = btn.dataset.address;
-            document.getElementById('edit-pantry-modal').classList.remove('app-hidden');
-        });
-    });
+    if (allPantries.length === 0) {
+        listEl.innerHTML = '<p class="empty-state">No pantries yet. Create a pantry above to start assigning leads.</p>';
+        return;
+    }
 
-    document.querySelectorAll('.delete-pantry-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            const pantryId = parseInt(btn.dataset.id);
-            const pantryName = btn.dataset.name;
-            const confirmed = window.confirm(
-                `Delete pantry "${pantryName}"? This will also remove its shifts, roles, signups, and lead assignments.`
-            );
+    if (filteredPantries.length === 0) {
+        listEl.innerHTML = '<p class="empty-state">No pantries match the current search.</p>';
+        return;
+    }
 
-            if (!confirmed) {
-                return;
-            }
+    listEl.innerHTML = filteredPantries.map((pantry) => {
+        const leads = Array.isArray(pantry.leads) ? pantry.leads : [];
+        const isSelected = intValue(pantry.pantry_id) === intValue(selectedAdminPantryId);
+        return `
+            <button type="button" class="admin-pantry-card ${isSelected ? 'selected' : ''}" data-admin-pantry-id="${pantry.pantry_id}">
+                <div class="admin-pantry-card-main">
+                    <span class="admin-pantry-card-name">${escapeHtml(pantry.name || 'Unnamed Pantry')}</span>
+                    <span class="admin-pantry-card-address">${escapeHtml(pantry.location_address || 'No address')}</span>
+                </div>
+                <span class="admin-pantry-card-count">${leads.length} lead${leads.length === 1 ? '' : 's'}</span>
+            </button>
+        `;
+    }).join('');
+}
 
-            try {
-                await deletePantry(pantryId);
+function renderAdminPantryLeadSearchResults() {
+    const resultsEl = document.getElementById('admin-pantry-lead-results');
+    const searchInput = document.getElementById('admin-pantry-lead-search');
+    if (!resultsEl || !searchInput) {
+        return;
+    }
 
-                if (currentPantryId === pantryId) {
-                    currentPantryId = null;
-                    resetEditShiftForm();
-                }
+    if (!String(searchInput.value || '').trim()) {
+        resultsEl.innerHTML = '';
+        resultsEl.classList.add('app-hidden');
+        return;
+    }
 
-                showMessage('pantry', 'Pantry deleted successfully!', 'success');
-                await loadPantries();
-            } catch (error) {
-                showMessage('pantry', `Error: ${error.message}`, 'error');
-            }
-        });
-    });
+    const matches = getAvailableAdminPantryLeadMatches();
+    if (matches.length === 0) {
+        const selectedPantry = getAdminPantryById(selectedAdminPantryId);
+        const assignedLeadIds = getAdminPantryLeadIds(selectedPantry);
+        const allEligibleAssigned = pantryLeadUsers.length > 0 && assignedLeadIds.size >= pantryLeadUsers.length;
+        resultsEl.innerHTML = `<p class="admin-pantry-lead-empty">${allEligibleAssigned ? 'All pantry leads are already assigned here.' : 'No pantry leads match that search.'}</p>`;
+        resultsEl.classList.remove('app-hidden');
+        return;
+    }
+
+    resultsEl.innerHTML = matches.map((lead) => `
+        <button type="button" class="admin-pantry-lead-option" data-add-admin-pantry-lead="${lead.user_id}" ${adminPantryLeadActionInFlight ? 'disabled' : ''}>
+            <span class="admin-pantry-lead-name">${escapeHtml(lead.full_name || 'Unnamed User')}</span>
+            <span class="admin-pantry-lead-email">${escapeHtml(lead.email || 'No email')}</span>
+        </button>
+    `).join('');
+    resultsEl.classList.remove('app-hidden');
+}
+
+function buildAdminPantryLeadListMarkup(pantry) {
+    const leads = Array.isArray(pantry.leads) ? pantry.leads : [];
+    if (leads.length === 0) {
+        return '<p class="admin-pantry-lead-empty">No leads assigned yet. Search below to add pantry leads.</p>';
+    }
+
+    return `
+        <div class="admin-pantry-assigned-leads">
+            ${leads.map((lead) => `
+                <div class="admin-pantry-assigned-lead">
+                    <div>
+                        <div class="admin-pantry-lead-name">${escapeHtml(lead.full_name || 'Unnamed User')}</div>
+                        <div class="admin-pantry-lead-email">${escapeHtml(lead.email || 'No email')}</div>
+                    </div>
+                    <button type="button" class="btn btn-danger btn-sm" data-remove-admin-pantry-lead="${lead.user_id}" ${adminPantryLeadActionInFlight ? 'disabled' : ''}>Remove</button>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderAdminPantryDetail() {
+    const panel = document.getElementById('admin-pantry-detail-panel');
+    if (!panel) {
+        return;
+    }
+
+    const pantry = getAdminPantryById(selectedAdminPantryId);
+    if (!pantry) {
+        panel.innerHTML = '<p class="auth-empty">Select a pantry to view and manage its assigned leads.</p>';
+        return;
+    }
+
+    const leads = Array.isArray(pantry.leads) ? pantry.leads : [];
+    panel.innerHTML = `
+        <div class="admin-pantry-detail">
+            <div class="admin-pantry-detail-header">
+                <div>
+                    <h3>${escapeHtml(pantry.name || 'Unnamed Pantry')}</h3>
+                    <p>${escapeHtml(pantry.location_address || 'No address')}</p>
+                </div>
+                <div class="admin-pantry-detail-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" data-edit-admin-pantry="${pantry.pantry_id}">Edit</button>
+                    <button type="button" class="btn btn-danger btn-sm" data-delete-admin-pantry="${pantry.pantry_id}">Delete</button>
+                </div>
+            </div>
+            <div class="admin-pantry-lead-section">
+                <div class="admin-pantry-section-heading">
+                    <h4>Assigned Leads</h4>
+                    <span>${leads.length} total</span>
+                </div>
+                ${buildAdminPantryLeadListMarkup(pantry)}
+            </div>
+            <div class="admin-pantry-lead-section">
+                <div class="form-group">
+                    <label for="admin-pantry-lead-search">Add Pantry Lead</label>
+                    <input type="search" id="admin-pantry-lead-search" placeholder="Search by full name or email" autocomplete="off" value="${escapeHtml(adminPantryLeadSearchQuery)}" ${adminPantryLeadActionInFlight ? 'disabled' : ''}>
+                </div>
+                <div id="admin-pantry-lead-results" class="admin-pantry-lead-results"></div>
+            </div>
+        </div>
+    `;
+
+    renderAdminPantryLeadSearchResults();
+}
+
+function renderAdminPantryWorkspace() {
+    renderAdminPantryList();
+    renderAdminPantryDetail();
+}
+
+function openEditPantryModal(pantry) {
+    if (!pantry) {
+        return;
+    }
+    document.getElementById('edit-pantry-id').value = pantry.pantry_id;
+    document.getElementById('edit-pantry-name').value = pantry.name || '';
+    document.getElementById('edit-pantry-address').value = pantry.location_address || '';
+    document.getElementById('edit-pantry-modal').classList.remove('app-hidden');
+}
+
+async function deleteAdminPantry(pantryId) {
+    const pantry = getAdminPantryById(pantryId);
+    if (!pantry) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Delete pantry "${pantry.name || 'Unnamed Pantry'}"? This will also remove its shifts, roles, signups, and lead assignments.`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+        await deletePantry(pantryId);
+
+        if (intValue(currentPantryId) === intValue(pantryId)) {
+            currentPantryId = null;
+            resetEditShiftForm();
+        }
+        if (intValue(selectedAdminPantryId) === intValue(pantryId)) {
+            selectedAdminPantryId = null;
+        }
+
+        showMessage('pantry', 'Pantry deleted successfully!', 'success');
+        await loadPantries();
+    } catch (error) {
+        showMessage('pantry', `Error: ${error.message}`, 'error');
+    }
+}
+
+async function assignAdminPantryLead(leadId) {
+    if (!selectedAdminPantryId || !leadId || adminPantryLeadActionInFlight) {
+        return;
+    }
+
+    adminPantryLeadActionInFlight = true;
+    renderAdminPantryDetail();
+
+    try {
+        await addPantryLead(selectedAdminPantryId, leadId);
+        adminPantryLeadSearchQuery = '';
+        showMessage('assign', 'Lead assigned successfully!', 'success');
+        await loadPantries();
+    } catch (error) {
+        showMessage('assign', `Error: ${error.message}`, 'error');
+    } finally {
+        adminPantryLeadActionInFlight = false;
+        renderAdminPantryWorkspace();
+    }
+}
+
+async function removeAdminPantryLead(leadId) {
+    if (!selectedAdminPantryId || !leadId || adminPantryLeadActionInFlight) {
+        return;
+    }
+
+    const selectedPantry = getAdminPantryById(selectedAdminPantryId);
+    const lead = (selectedPantry?.leads || []).find((item) => intValue(item.user_id) === intValue(leadId));
+    const confirmed = window.confirm(`Remove ${lead?.full_name || lead?.email || 'this lead'} from this pantry?`);
+    if (!confirmed) {
+        return;
+    }
+
+    adminPantryLeadActionInFlight = true;
+    renderAdminPantryDetail();
+
+    try {
+        await removePantryLead(selectedAdminPantryId, leadId);
+        showMessage('assign', 'Lead removed successfully!', 'success');
+        await loadPantries();
+    } catch (error) {
+        showMessage('assign', `Error: ${error.message}`, 'error');
+    } finally {
+        adminPantryLeadActionInFlight = false;
+        renderAdminPantryWorkspace();
+    }
+}
+
+// Update admin pantry workspace
+async function updatePantriesTable() {
+    renderAdminPantryWorkspace();
 }
 
 // Signup for role
@@ -1676,22 +1913,52 @@ function getManagedShiftBuckets(shifts, now = new Date()) {
     return buckets;
 }
 
+function isManageShiftsPhoneViewport() {
+    return window.matchMedia(MANAGE_SHIFTS_PHONE_QUERY).matches;
+}
+
+function setManageShiftsMobileView(view = 'queue') {
+    const normalized = ['queue', 'create', 'detail', 'edit'].includes(view) ? view : 'queue';
+    managedShiftMobileView = normalized;
+    const workspace = document.querySelector('.manage-shifts-workspace');
+    if (workspace) {
+        workspace.dataset.mobileView = normalized;
+    }
+}
+
+function syncManageShiftsResponsiveView() {
+    const workspace = document.querySelector('.manage-shifts-workspace');
+    if (!workspace) return;
+    workspace.dataset.mobileView = managedShiftMobileView;
+}
+
+function backToManagedShiftQueue() {
+    if (managedShiftPanelMode === 'edit') {
+        resetEditShiftForm({ preserveSelection: true });
+    }
+    setManageShiftsMobileView('queue');
+    renderManageShiftsTable();
+}
+
 function setManageShiftsSubtab(target) {
-    const normalized = target === 'view' ? 'view' : 'create';
+    const normalized = ['detail', 'edit'].includes(target) ? target : (target === 'view' ? 'detail' : 'create');
     activeManageShiftsSubtab = normalized;
+    managedShiftPanelMode = normalized;
+    syncManageShiftsResponsiveView();
 
     document.querySelectorAll('.manage-shifts-subtab').forEach((btn) => {
-        btn.classList.toggle('active', btn.dataset.manageSubtab === normalized);
+        btn.classList.toggle('active', btn.dataset.manageSubtab === (normalized === 'create' ? 'create' : 'view'));
     });
 
-    const createContent = document.getElementById('manage-shifts-subcontent-create');
-    const viewContent = document.getElementById('manage-shifts-subcontent-view');
-    if (createContent) {
-        createContent.classList.toggle('active', normalized === 'create');
-    }
-    if (viewContent) {
-        viewContent.classList.toggle('active', normalized === 'view');
-    }
+    const createCard = document.getElementById('create-shift-card');
+    const detailCard = document.getElementById('manage-shift-detail-card');
+    const editCard = document.getElementById('edit-shift-card');
+    createCard?.classList.toggle('app-hidden', normalized !== 'create');
+    createCard?.classList.toggle('active', normalized === 'create');
+    detailCard?.classList.toggle('app-hidden', normalized !== 'detail');
+    detailCard?.classList.toggle('active', normalized === 'detail');
+    editCard?.classList.toggle('app-hidden', normalized !== 'edit');
+    editCard?.classList.toggle('active', normalized === 'edit');
 }
 
 function setAdminSubtab(target) {
@@ -1728,7 +1995,7 @@ async function loadAdminTab() {
         await loadAdminUsers();
         return;
     }
-    await updatePantriesTable();
+    await loadPantries();
 }
 
 function isPhoneViewport() {
@@ -2574,6 +2841,15 @@ async function markSignupAttendance(signupId, attendanceStatus, shiftId) {
         if (typeof shiftId === 'number') {
             delete registrationsCache[shiftId];
         }
+        if (Number(attendanceModalShiftId) === Number(shiftId)) {
+            attendanceModalRegistrations = await getShiftRegistrations(shiftId);
+            registrationsCache[shiftId] = attendanceModalRegistrations;
+            renderTakeAttendanceModalList();
+        }
+
+        if (managedShiftPanelMode === 'detail' && Number(selectedManagedShiftId) === Number(shiftId)) {
+            await loadSelectedShiftRegistrations(shiftId);
+        }
 
         if (expandedShiftContext && expandedShiftContext.shiftId === shiftId) {
             const activeTbody = document.getElementById(expandedShiftContext.tbodyId);
@@ -2596,10 +2872,12 @@ async function markSignupAttendance(signupId, attendanceStatus, shiftId) {
     }
 }
 
-function renderRegistrationsRowContent(shiftRegistrations) {
+function renderRegistrationsRowContent(shiftRegistrations, options = {}) {
     const roles = shiftRegistrations.roles || [];
     const windowInfo = getAttendanceWindowInfo(shiftRegistrations.start_time, shiftRegistrations.end_time);
-    const canMarkAttendance = currentUser && (currentUserIsAdminCapable() || currentUserHasRole('PANTRY_LEAD'));
+    const canMarkAttendance = options.showAttendanceActions !== false
+        && currentUser
+        && (currentUserIsAdminCapable() || currentUserHasRole('PANTRY_LEAD'));
 
     if (roles.length === 0) {
         return `
@@ -2783,9 +3061,378 @@ function collapseExpandedRegistrations() {
     expandedShiftContext = null;
 }
 
-function setShiftBucketEmptyState(tbody, text) {
-    if (!tbody) return;
-    tbody.innerHTML = `<tr><td colspan="4" class="table-empty-cell">${escapeHtml(text)}</td></tr>`;
+function getHelpBroadcastModalElements() {
+    return {
+        modal: document.getElementById('help-broadcast-modal'),
+        summary: document.getElementById('help-broadcast-shift-summary'),
+        search: document.getElementById('help-broadcast-search'),
+        selected: document.getElementById('help-broadcast-selected'),
+        count: document.getElementById('help-broadcast-count'),
+        results: document.getElementById('help-broadcast-results'),
+        resultsTitle: document.getElementById('help-broadcast-results-title'),
+        error: document.getElementById('help-broadcast-error'),
+        send: document.getElementById('help-broadcast-send')
+    };
+}
+
+function setHelpBroadcastError(message = '') {
+    const { error } = getHelpBroadcastModalElements();
+    if (!error) return;
+    error.textContent = message;
+    error.classList.toggle('app-hidden', !message);
+}
+
+function renderHelpBroadcastSelected() {
+    const { selected, count, send } = getHelpBroadcastModalElements();
+    if (!selected) return;
+
+    if (helpBroadcastSelected.length === 0) {
+        selected.innerHTML = '<span class="help-broadcast-selected-empty">No volunteers selected.</span>';
+    } else {
+        selected.innerHTML = helpBroadcastSelected.map((candidate) => `
+            <span class="help-broadcast-chip">
+                ${escapeHtml(candidate.full_name || candidate.email || 'Volunteer')}
+                <button type="button" aria-label="Remove ${escapeHtml(candidate.full_name || 'volunteer')}" onclick="removeHelpBroadcastRecipient(${candidate.user_id})">&times;</button>
+            </span>
+        `).join('');
+    }
+
+    if (count) {
+        count.textContent = `${helpBroadcastSelected.length}/${HELP_BROADCAST_MAX_RECIPIENTS} selected`;
+    }
+    if (send) {
+        send.disabled = helpBroadcastSelected.length === 0;
+    }
+}
+
+function addHelpBroadcastRecipient(candidate) {
+    if (!candidate || !candidate.user_id) return;
+    if (helpBroadcastSelected.some((selected) => Number(selected.user_id) === Number(candidate.user_id))) {
+        return;
+    }
+    if (helpBroadcastSelected.length >= HELP_BROADCAST_MAX_RECIPIENTS) {
+        setHelpBroadcastError(`Select at most ${HELP_BROADCAST_MAX_RECIPIENTS} volunteers.`);
+        return;
+    }
+    helpBroadcastSelected.push(candidate);
+    setHelpBroadcastError('');
+    renderHelpBroadcastSelected();
+    renderHelpBroadcastCandidates(helpBroadcastCandidateCache, helpBroadcastCandidateQuery);
+}
+
+function addHelpBroadcastRecipientById(userId) {
+    const candidate = helpBroadcastCandidateMap.get(Number(userId));
+    addHelpBroadcastRecipient(candidate);
+}
+
+function removeHelpBroadcastRecipient(userId) {
+    helpBroadcastSelected = helpBroadcastSelected.filter((candidate) => Number(candidate.user_id) !== Number(userId));
+    setHelpBroadcastError('');
+    renderHelpBroadcastSelected();
+    renderHelpBroadcastCandidates(helpBroadcastCandidateCache, helpBroadcastCandidateQuery);
+}
+
+function renderHelpBroadcastCandidates(candidates, query = '') {
+    const { results, resultsTitle } = getHelpBroadcastModalElements();
+    if (!results) return;
+
+    if (resultsTitle) {
+        resultsTitle.textContent = query ? 'Search Results' : 'Suggested Volunteers';
+    }
+
+    const selectedIds = new Set(helpBroadcastSelected.map((candidate) => Number(candidate.user_id)));
+    const visibleCandidates = (Array.isArray(candidates) ? candidates : [])
+        .filter((candidate) => !selectedIds.has(Number(candidate.user_id)))
+        .slice(0, query ? 20 : 5);
+    helpBroadcastCandidateMap = new Map(
+        (Array.isArray(candidates) ? candidates : []).map((candidate) => [Number(candidate.user_id), candidate])
+    );
+
+    if (visibleCandidates.length === 0) {
+        results.innerHTML = `<p class="help-broadcast-empty">${query ? 'No volunteers match this search.' : 'No suggested volunteers found.'}</p>`;
+        return;
+    }
+
+    results.innerHTML = visibleCandidates.map((candidate) => {
+        const attendedText = candidate.has_attended_pantry ? 'Attended this pantry' : 'Volunteer';
+        return `
+            <button type="button" class="help-broadcast-candidate" onclick="addHelpBroadcastRecipientById(${Number(candidate.user_id)})">
+                <span class="help-broadcast-candidate-main">
+                    <strong>${escapeHtml(candidate.full_name || 'Unnamed volunteer')}</strong>
+                    <span>${escapeHtml(candidate.email || 'No email')}</span>
+                </span>
+                <span class="help-broadcast-candidate-meta">
+                    <span>${Number(candidate.attendance_score || 0)}%</span>
+                    <span>${escapeHtml(attendedText)}</span>
+                </span>
+            </button>
+        `;
+    }).join('');
+}
+
+async function loadHelpBroadcastCandidates() {
+    if (!helpBroadcastShift) return;
+    const { search, results } = getHelpBroadcastModalElements();
+    const query = search ? search.value.trim() : '';
+    const requestToken = ++helpBroadcastRequestToken;
+
+    if (results) {
+        results.innerHTML = '<p class="help-broadcast-empty">Loading volunteers...</p>';
+    }
+
+    try {
+        const candidates = await getHelpBroadcastCandidates(helpBroadcastShift.shift_id, query);
+        if (requestToken !== helpBroadcastRequestToken) return;
+        helpBroadcastCandidateCache = Array.isArray(candidates) ? candidates : [];
+        helpBroadcastCandidateQuery = query;
+        renderHelpBroadcastCandidates(candidates, query);
+    } catch (error) {
+        if (requestToken !== helpBroadcastRequestToken) return;
+        if (results) {
+            results.innerHTML = `<p class="help-broadcast-empty">Failed to load volunteers: ${escapeHtml(error.message || 'Unknown error')}</p>`;
+        }
+    }
+}
+
+function closeHelpBroadcastModal() {
+    const { modal } = getHelpBroadcastModalElements();
+    if (modal) {
+        modal.classList.add('app-hidden');
+    }
+    helpBroadcastShift = null;
+    helpBroadcastSelected = [];
+    helpBroadcastCandidateMap = new Map();
+    helpBroadcastCandidateCache = [];
+    helpBroadcastCandidateQuery = '';
+    helpBroadcastRequestToken += 1;
+    if (helpBroadcastSearchTimer) {
+        clearTimeout(helpBroadcastSearchTimer);
+        helpBroadcastSearchTimer = null;
+    }
+}
+
+function getTakeAttendanceModalElements() {
+    return {
+        modal: document.getElementById('take-attendance-modal'),
+        summary: document.getElementById('take-attendance-shift-summary'),
+        search: document.getElementById('take-attendance-search'),
+        note: document.getElementById('take-attendance-window-note'),
+        list: document.getElementById('take-attendance-list')
+    };
+}
+
+function flattenShiftRegistrants(shiftRegistrations) {
+    const rows = [];
+    (shiftRegistrations?.roles || []).forEach((role) => {
+        (role.signups || []).forEach((signup) => {
+            rows.push({
+                ...signup,
+                role_title: role.role_title || signup.role_title || 'Untitled Role',
+                required_count: role.required_count,
+                filled_count: role.filled_count
+            });
+        });
+    });
+    return rows;
+}
+
+function renderTakeAttendanceModalList() {
+    const { list, note } = getTakeAttendanceModalElements();
+    if (!list) return;
+
+    if (!attendanceModalRegistrations) {
+        list.innerHTML = '<p class="help-broadcast-empty">Loading registrants...</p>';
+        return;
+    }
+
+    const windowInfo = getAttendanceWindowInfo(attendanceModalRegistrations.start_time, attendanceModalRegistrations.end_time);
+    if (note) {
+        note.textContent = windowInfo.message;
+        note.classList.toggle('attendance-window-open', windowInfo.canMark);
+        note.classList.toggle('attendance-window-closed', !windowInfo.canMark);
+    }
+
+    const query = attendanceModalSearchQuery.toLowerCase();
+    const rows = flattenShiftRegistrants(attendanceModalRegistrations).filter((signup) => {
+        if (!query) return true;
+        const user = signup.user || {};
+        const haystack = [
+            user.full_name,
+            user.email,
+            signup.role_title,
+            signup.signup_status
+        ].map((value) => String(value || '').toLowerCase()).join(' ');
+        return haystack.includes(query);
+    });
+
+    if (rows.length === 0) {
+        list.innerHTML = `<p class="help-broadcast-empty">${query ? 'No registrants match this search.' : 'No registrants for this shift.'}</p>`;
+        return;
+    }
+
+    const disabledAttr = windowInfo.canMark ? '' : 'disabled';
+    const disabledReason = escapeHtml(windowInfo.message);
+    list.innerHTML = rows.map((signup) => {
+        const user = signup.user || {};
+        const attendanceInfo = getAttendanceInfo(signup.signup_status);
+        return `
+            <div class="take-attendance-row">
+                <div class="take-attendance-main">
+                    <strong>${escapeHtml(user.full_name || 'Unknown volunteer')}</strong>
+                    <span>${escapeHtml(user.email || 'No email')}</span>
+                    <span>${escapeHtml(signup.role_title || 'Untitled Role')}</span>
+                </div>
+                <div class="take-attendance-actions">
+                    <span class="registrant-status ${attendanceInfo.className}">${escapeHtml(attendanceInfo.label)}</span>
+                    <button
+                        type="button"
+                        class="btn btn-secondary btn-compact btn-attendance btn-attendance-showup"
+                        onclick="markSignupAttendance(${signup.signup_id}, 'SHOW_UP', ${attendanceModalRegistrations.shift_id})"
+                        ${disabledAttr}
+                        title="${disabledReason}"
+                    >
+                        Mark Show Up
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-secondary btn-compact btn-attendance btn-attendance-noshow"
+                        onclick="markSignupAttendance(${signup.signup_id}, 'NO_SHOW', ${attendanceModalRegistrations.shift_id})"
+                        ${disabledAttr}
+                        title="${disabledReason}"
+                    >
+                        Mark No Show
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function openTakeAttendanceModal(shiftId) {
+    const shift = managedShifts.find((candidate) => Number(candidate.shift_id) === Number(shiftId));
+    if (!shift) {
+        showMessage('shifts', 'Shift not found. Reload the shifts table and try again.', 'error');
+        return;
+    }
+
+    attendanceModalShiftId = Number(shiftId);
+    attendanceModalRegistrations = registrationsCache[attendanceModalShiftId] || null;
+    attendanceModalSearchQuery = '';
+    const { modal, summary, search } = getTakeAttendanceModalElements();
+    if (!modal) return;
+
+    if (summary) {
+        const startDate = safeDateValue(shift.start_time);
+        const endDate = safeDateValue(shift.end_time);
+        const timeText = startDate && endDate ? formatLocalTimeRange(startDate, endDate) : 'Time unavailable';
+        summary.innerHTML = `
+            <strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong>
+            <span>${escapeHtml(timeText)}</span>
+        `;
+    }
+    if (search) {
+        search.value = '';
+    }
+
+    modal.classList.remove('app-hidden');
+    renderTakeAttendanceModalList();
+    search?.focus();
+
+    try {
+        attendanceModalRegistrations = await getShiftRegistrations(attendanceModalShiftId);
+        registrationsCache[attendanceModalShiftId] = attendanceModalRegistrations;
+        if (Number(attendanceModalShiftId) === Number(shiftId)) {
+            renderTakeAttendanceModalList();
+        }
+    } catch (error) {
+        const { list } = getTakeAttendanceModalElements();
+        if (list) {
+            list.innerHTML = `<p class="help-broadcast-empty">Failed to load registrants: ${escapeHtml(error.message || 'Unknown error')}</p>`;
+        }
+    }
+}
+
+function closeTakeAttendanceModal() {
+    const { modal } = getTakeAttendanceModalElements();
+    modal?.classList.add('app-hidden');
+    attendanceModalShiftId = null;
+    attendanceModalRegistrations = null;
+    attendanceModalSearchQuery = '';
+}
+
+async function openHelpBroadcastModal(shiftId) {
+    const shift = managedShifts.find((candidate) => Number(candidate.shift_id) === Number(shiftId));
+    if (!shift) {
+        showMessage('shifts', 'Shift not found. Reload the shifts table and try again.', 'error');
+        return;
+    }
+
+    helpBroadcastShift = shift;
+    helpBroadcastSelected = [];
+    const { modal, summary, search, results } = getHelpBroadcastModalElements();
+    if (!modal) return;
+
+    if (summary) {
+        const startDate = safeDateValue(shift.start_time);
+        const endDate = safeDateValue(shift.end_time);
+        const timeText = startDate && endDate ? formatLocalTimeRange(startDate, endDate) : 'Time unavailable';
+        summary.innerHTML = `
+            <strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong>
+            <span>${escapeHtml(timeText)}</span>
+        `;
+    }
+    if (search) {
+        search.value = '';
+    }
+    if (results) {
+        results.innerHTML = '<p class="help-broadcast-empty">Loading volunteers...</p>';
+    }
+    setHelpBroadcastError('');
+    renderHelpBroadcastSelected();
+    modal.classList.remove('app-hidden');
+    if (search) {
+        search.focus();
+    }
+    await loadHelpBroadcastCandidates();
+}
+
+async function submitHelpBroadcast() {
+    if (!helpBroadcastShift || helpBroadcastSelected.length === 0) return;
+    const { send } = getHelpBroadcastModalElements();
+    if (send) {
+        send.disabled = true;
+        send.textContent = 'Sending...';
+    }
+    setHelpBroadcastError('');
+
+    try {
+        const recipientIds = helpBroadcastSelected.map((candidate) => Number(candidate.user_id));
+        const response = await sendHelpBroadcast(helpBroadcastShift.shift_id, recipientIds);
+        const sentCount = Number(response.sent_count || 0);
+        const failedCount = Number(response.failed_count || 0);
+        closeHelpBroadcastModal();
+        showMessage(
+            'shifts',
+            failedCount > 0
+                ? `Help broadcast sent to ${sentCount} volunteer(s); ${failedCount} failed.`
+                : `Help broadcast sent to ${sentCount} volunteer(s).`,
+            failedCount > 0 ? 'info' : 'success'
+        );
+    } catch (error) {
+        const cooldownEndsAt = error.body?.cooldown_ends_at;
+        if (error.status === 429 && cooldownEndsAt) {
+            const cooldownDate = new Date(cooldownEndsAt);
+            const seconds = Math.max(1, Math.ceil((cooldownDate.getTime() - Date.now()) / 1000));
+            setHelpBroadcastError(`Please wait ${seconds} second(s) before sending another help broadcast.`);
+        } else {
+            setHelpBroadcastError(error.message || 'Failed to send help broadcast.');
+        }
+    } finally {
+        if (send) {
+            send.textContent = 'Send Broadcast';
+            send.disabled = helpBroadcastSelected.length === 0;
+        }
+    }
 }
 
 function getManageShiftsStatusLabel(statusKey) {
@@ -2796,6 +3443,43 @@ function getManageShiftsStatusLabel(statusKey) {
         cancelled: 'canceled',
     };
     return labels[statusKey] || 'incoming';
+}
+
+function getShiftCoverage(shift) {
+    const activeRoles = (Array.isArray(shift?.roles) ? shift.roles : [])
+        .filter((role) => String(role.status || 'OPEN').toUpperCase() !== 'CANCELLED');
+    const totalRequired = activeRoles.reduce((sum, role) => sum + Number(role.required_count || 0), 0);
+    const totalFilled = activeRoles.reduce((sum, role) => sum + Number(role.filled_count || 0), 0);
+    const openSlots = Math.max(totalRequired - totalFilled, 0);
+    const roleGaps = activeRoles
+        .map((role) => ({
+            ...role,
+            filled: Number(role.filled_count || 0),
+            required: Number(role.required_count || 0),
+            gap: Math.max(Number(role.required_count || 0) - Number(role.filled_count || 0), 0)
+        }))
+        .filter((role) => role.gap > 0);
+
+    return {
+        totalRequired,
+        totalFilled,
+        openSlots,
+        roleGaps,
+        hasRoles: activeRoles.length > 0
+    };
+}
+
+function getShiftCoverageLabel(shift, bucketKey = null) {
+    const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
+    const bucket = bucketKey || classifyManagedShiftBucket(shift, new Date());
+    const coverage = getShiftCoverage(shift);
+
+    if (shiftStatus === 'CANCELLED') return { label: 'Canceled', className: 'coverage-canceled' };
+    if (bucket === 'past') return { label: 'Past', className: 'coverage-past' };
+    if (bucket === 'ongoing') return { label: 'Ongoing', className: coverage.openSlots > 0 ? 'coverage-needs' : 'coverage-ongoing' };
+    if (!coverage.hasRoles) return { label: 'No roles', className: 'coverage-neutral' };
+    if (coverage.openSlots > 0) return { label: `Needs ${coverage.openSlots}`, className: 'coverage-needs' };
+    return { label: 'Filled', className: 'coverage-filled' };
 }
 
 function updateManageShiftsFilterUi() {
@@ -2813,14 +3497,16 @@ function updateManageShiftsFilterUi() {
         return;
     }
 
-    const baseLabel = `Showing ${getManageShiftsStatusLabel(manageShiftsStatusFilter)} shifts`;
-    summary.textContent = manageShiftsSearchQuery
-        ? `${baseLabel} matching "${manageShiftsSearchQuery}".`
-        : `${baseLabel}.`;
+    const filteredShifts = getFilteredManagedShifts(managedShifts, new Date());
+    const needingHelp = filteredShifts.filter((shift) => getShiftCoverage(shift).openSlots > 0).length;
+    const baseLabel = `${filteredShifts.length} ${getManageShiftsStatusLabel(manageShiftsStatusFilter)} shift(s)`;
+    const searchLabel = manageShiftsSearchQuery ? ` matching "${manageShiftsSearchQuery}"` : '';
+    const gapLabel = needingHelp > 0 ? ` · ${needingHelp} need coverage` : '';
+    summary.textContent = `${baseLabel}${searchLabel}${gapLabel}.`;
 }
 
 function getFilteredManagedShifts(shifts, now = new Date()) {
-    return (Array.isArray(shifts) ? shifts : []).filter((shift) => {
+    const filtered = (Array.isArray(shifts) ? shifts : []).filter((shift) => {
         const bucket = classifyManagedShiftBucket(shift, now);
         if (bucket !== manageShiftsStatusFilter) {
             return false;
@@ -2831,21 +3517,39 @@ function getFilteredManagedShifts(shifts, now = new Date()) {
         }
 
         const shiftName = String(shift.shift_name || '').toLowerCase();
-        return shiftName.includes(manageShiftsSearchQuery.toLowerCase());
+        const roleText = (shift.roles || []).map((role) => String(role.role_title || '')).join(' ').toLowerCase();
+        const query = manageShiftsSearchQuery.toLowerCase();
+        return shiftName.includes(query) || roleText.includes(query);
     });
+
+    filtered.sort((a, b) => {
+        if (manageShiftsStatusFilter === 'incoming') {
+            const aNeeds = getShiftCoverage(a).openSlots > 0 ? 0 : 1;
+            const bNeeds = getShiftCoverage(b).openSlots > 0 ? 0 : 1;
+            if (aNeeds !== bNeeds) return aNeeds - bNeeds;
+            return sortByDate(a, b, 'start_time', 'asc');
+        }
+        if (manageShiftsStatusFilter === 'ongoing') return sortByDate(a, b, 'end_time', 'asc');
+        if (manageShiftsStatusFilter === 'past') return sortByDate(a, b, 'end_time', 'desc');
+        return sortByDate(a, b, 'start_time', 'desc');
+    });
+    return filtered;
 }
 
 function renderManageShiftsTable() {
-    const tbody = document.getElementById('shifts-filtered-table-body');
-    if (!tbody) {
+    const list = document.getElementById('manage-shifts-card-list');
+    if (!list) {
         return;
     }
 
     collapseExpandedRegistrations();
     updateManageShiftsFilterUi();
+    setManageShiftsSubtab(managedShiftPanelMode);
+    syncManageShiftsResponsiveView();
 
     if (!currentPantryId) {
-        setShiftBucketEmptyState(tbody, 'Please select a pantry first.');
+        list.innerHTML = '<div class="empty-state">Please select a pantry first.</div>';
+        renderManagedShiftDetailPanel();
         return;
     }
 
@@ -2853,90 +3557,232 @@ function renderManageShiftsTable() {
     const emptyText = manageShiftsSearchQuery
         ? `No ${getManageShiftsStatusLabel(manageShiftsStatusFilter)} shifts match "${manageShiftsSearchQuery}".`
         : `No ${getManageShiftsStatusLabel(manageShiftsStatusFilter)} shifts.`;
-    renderShiftBucketRows(tbody, filteredShifts, emptyText, manageShiftsStatusFilter);
-}
 
-function renderShiftBucketRows(tbody, shifts, emptyText, bucketKey) {
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    const isPastBucket = bucketKey === 'past';
-
-    if (!shifts || shifts.length === 0) {
-        setShiftBucketEmptyState(tbody, emptyText);
+    if (!filteredShifts || filteredShifts.length === 0) {
+        list.innerHTML = `<div class="empty-state">${escapeHtml(emptyText)}</div>`;
+        renderManagedShiftDetailPanel();
         return;
     }
 
-    shifts.forEach((shift) => {
-        const startDate = safeDateValue(shift.start_time);
-        const endDate = safeDateValue(shift.end_time);
-        const timeText = startDate && endDate
-            ? formatLocalTimeRange(startDate, endDate)
-            : 'Time unavailable';
-        const rolesText = shift.roles && shift.roles.length > 0
-            ? shift.roles.map((role) => `${escapeHtml(role.role_title || 'Untitled Role')} (${role.filled_count || 0}/${role.required_count || 0})`).join(', ')
-            : 'No roles';
-        const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
-        const recurringBadge = shift.is_recurring
-            ? '<span class="status-badge recurrence-badge">Recurring</span>'
-            : '';
-        const lockHint = 'Past shifts are locked';
-        const registrationsButton = `<button
-                        class="btn btn-secondary btn-sm"
-                        data-registrations-btn="${shift.shift_id}"
-                        onclick="toggleShiftRegistrations(${shift.shift_id}, this)"
-                    >
-                        View Registrations
-                    </button>`;
-        const editButton = isPastBucket
-            ? `<button class="btn btn-primary btn-sm" disabled title="${lockHint}">Edit</button>`
-            : `<button class="btn btn-primary btn-sm" onclick="openEditShift(${shift.shift_id})">Edit</button>`;
-        let actionButton = '';
-        if (isPastBucket) {
-            actionButton = `<button class="btn btn-secondary btn-sm" disabled title="${lockHint}">Locked</button>`;
-        } else if (shiftStatus === 'CANCELLED') {
-            actionButton = `<button class="btn btn-success btn-sm" onclick="revokeShiftConfirm(${shift.shift_id})">Revoke</button>`;
-        } else {
-            actionButton = `<button class="btn btn-danger btn-sm" onclick="cancelShiftConfirm(${shift.shift_id})">Cancel Shift</button>`;
-        }
+    if (
+        managedShiftPanelMode !== 'create'
+        && selectedManagedShiftId
+        && !filteredShifts.some((shift) => Number(shift.shift_id) === Number(selectedManagedShiftId))
+    ) {
+        selectedManagedShiftId = null;
+        managedShiftPanelMode = 'create';
+        setManageShiftsSubtab('create');
+    }
 
-        const tr = document.createElement('tr');
-        tr.dataset.shiftId = String(shift.shift_id);
-        tr.innerHTML = `
-            <td data-label="Shift Name"><strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong><br><span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span> ${recurringBadge}</td>
-            <td data-label="Date & Time">${escapeHtml(timeText)}</td>
-            <td data-label="Roles">${rolesText}</td>
-            <td data-label="Actions">
-                <div class="shift-actions">
-                    ${registrationsButton}
-                    ${editButton}
-                    ${actionButton}
-                </div>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    });
+    list.innerHTML = filteredShifts.map((shift) => renderManagedShiftCard(shift)).join('');
+    renderManagedShiftDetailPanel(selectedManagedShiftId ? registrationsCache[Number(selectedManagedShiftId)] : null);
+}
+
+function renderManagedShiftCard(shift) {
+    const startDate = safeDateValue(shift.start_time);
+    const endDate = safeDateValue(shift.end_time);
+    const timeText = startDate && endDate ? formatLocalTimeRange(startDate, endDate) : 'Time unavailable';
+    const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
+    const bucket = classifyManagedShiftBucket(shift, new Date());
+    const coverage = getShiftCoverage(shift);
+    const coverageLabel = getShiftCoverageLabel(shift, bucket);
+    const selectedClass = Number(selectedManagedShiftId) === Number(shift.shift_id) && managedShiftPanelMode !== 'create'
+        ? 'selected'
+        : '';
+    const progress = coverage.totalRequired > 0
+        ? Math.min(100, Math.round((coverage.totalFilled / coverage.totalRequired) * 100))
+        : 0;
+    const gapText = coverage.roleGaps.length > 0
+        ? coverage.roleGaps.slice(0, 2).map((role) => `${escapeHtml(role.role_title || 'Role')} -${role.gap}`).join(' · ')
+        : 'No role gaps';
+    const moreGaps = coverage.roleGaps.length > 2 ? ` +${coverage.roleGaps.length - 2} more` : '';
+
+    return `
+        <button type="button" class="manage-shift-card ${selectedClass}" onclick="selectManagedShift(${Number(shift.shift_id)})">
+            <span class="manage-shift-card-top">
+                <span class="manage-shift-card-title">${escapeHtml(shift.shift_name || 'Untitled Shift')}</span>
+                <span class="coverage-pill ${coverageLabel.className}">${escapeHtml(coverageLabel.label)}</span>
+            </span>
+            <span class="manage-shift-card-meta">
+                <span>${escapeHtml(timeText)}</span>
+                <span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span>
+                ${shift.is_recurring ? '<span class="status-badge recurrence-badge">Recurring</span>' : ''}
+            </span>
+            <span class="coverage-meter" aria-hidden="true">
+                <span style="width: ${progress}%"></span>
+            </span>
+            <span class="manage-shift-card-coverage">
+                <strong>${coverage.totalFilled}/${coverage.totalRequired}</strong>
+                <span>${escapeHtml(gapText)}${escapeHtml(moreGaps)}</span>
+            </span>
+        </button>
+    `;
+}
+
+function selectManagedShift(shiftId) {
+    selectedManagedShiftId = Number(shiftId);
+    managedShiftPanelMode = 'detail';
+    setManageShiftsMobileView('detail');
+    setManageShiftsSubtab('detail');
+    resetEditShiftForm({ preserveSelection: true });
+    renderManageShiftsTable();
+    loadSelectedShiftRegistrations(shiftId);
+}
+
+function showCreateShiftPanel() {
+    selectedManagedShiftId = null;
+    managedShiftPanelMode = 'create';
+    setManageShiftsMobileView(isManageShiftsPhoneViewport() ? 'create' : 'queue');
+    resetEditShiftForm({ preserveSelection: true });
+    setManageShiftsSubtab('create');
+    renderManageShiftsTable();
+}
+
+function getSelectedManagedShift() {
+    return managedShifts.find((shift) => Number(shift.shift_id) === Number(selectedManagedShiftId)) || null;
+}
+
+function renderManagedShiftDetailPanel(registrations = null, registrationsError = '') {
+    const detailCard = document.getElementById('manage-shift-detail-card');
+    if (!detailCard || managedShiftPanelMode !== 'detail') {
+        return;
+    }
+
+    const shift = getSelectedManagedShift();
+    if (!shift) {
+        detailCard.innerHTML = '<div class="empty-state">Select a shift to inspect coverage and registrations.</div>';
+        return;
+    }
+
+    const startDate = safeDateValue(shift.start_time);
+    const endDate = safeDateValue(shift.end_time);
+    const timeText = startDate && endDate ? formatLocalTimeRange(startDate, endDate) : 'Time unavailable';
+    const bucket = classifyManagedShiftBucket(shift, new Date());
+    const isPastBucket = bucket === 'past';
+    const shiftStatus = String(shift.status || 'OPEN').toUpperCase();
+    const coverage = getShiftCoverage(shift);
+    const coverageLabel = getShiftCoverageLabel(shift, bucket);
+    const canBroadcast = !isPastBucket && shiftStatus !== 'CANCELLED' && coverage.openSlots > 0;
+    const rolesHtml = renderManagedShiftRoleCoverage(shift);
+    const registrationsHtml = registrations
+        ? renderRegistrationsRowContent(registrations, { showAttendanceActions: false })
+        : `<div class="shift-registrations shift-registrations-loading">${registrationsError ? escapeHtml(registrationsError) : 'Loading registrations...'}</div>`;
+    const cancelOrRevokeButton = isPastBucket
+        ? '<button class="btn btn-secondary btn-sm" disabled title="Past shifts are locked">Locked</button>'
+        : shiftStatus === 'CANCELLED'
+            ? `<button class="btn btn-success btn-sm" onclick="revokeShiftConfirm(${Number(shift.shift_id)})">Revoke</button>`
+            : `<button class="btn btn-sm btn-cancel-shift" onclick="cancelShiftConfirm(${Number(shift.shift_id)})">Cancel Shift</button>`;
+
+    detailCard.innerHTML = `
+        <button type="button" class="btn btn-secondary btn-sm manage-shifts-mobile-back" onclick="backToManagedShiftQueue()">Back to shifts</button>
+        <div class="manage-shift-detail-header">
+            <div>
+                <h2 class="card-title">${escapeHtml(shift.shift_name || 'Untitled Shift')}</h2>
+                <p class="shift-view-copy">${escapeHtml(timeText)}</p>
+            </div>
+            <span class="coverage-pill ${coverageLabel.className}">${escapeHtml(coverageLabel.label)}</span>
+        </div>
+        <div class="manage-shift-detail-badges">
+            <span class="status-badge ${toStatusClass('shift-status', shiftStatus)}">${escapeHtml(shiftStatus)}</span>
+            ${shift.is_recurring ? '<span class="status-badge recurrence-badge">Recurring</span>' : ''}
+        </div>
+        <div class="coverage-summary-panel">
+            <div>
+                <span class="coverage-summary-number">${coverage.totalFilled}/${coverage.totalRequired}</span>
+                <span class="coverage-summary-label">slots filled</span>
+            </div>
+            <div>
+                <span class="coverage-summary-number">${coverage.openSlots}</span>
+                <span class="coverage-summary-label">people needed</span>
+            </div>
+        </div>
+        <div class="manage-shift-panel-actions">
+            <button class="btn btn-primary btn-sm" onclick="openEditShift(${Number(shift.shift_id)})" ${isPastBucket ? 'disabled title="Past shifts are locked"' : ''}>Edit</button>
+            <button class="btn btn-sm btn-broadcast-help" onclick="openHelpBroadcastModal(${Number(shift.shift_id)})" ${canBroadcast ? '' : 'disabled title="Broadcast is available only when this open shift has coverage gaps"'}>Broadcast Help</button>
+            <button class="btn btn-sm btn-take-attendance" onclick="openTakeAttendanceModal(${Number(shift.shift_id)})" ${shiftStatus === 'CANCELLED' ? 'disabled title="Attendance is unavailable for canceled shifts"' : ''}>Take Attendance</button>
+            ${cancelOrRevokeButton}
+        </div>
+        <div class="manage-shift-section">
+            <h3>Coverage by Role</h3>
+            ${rolesHtml}
+        </div>
+    `;
+}
+
+function renderManagedShiftRoleCoverage(shift) {
+    const roles = (Array.isArray(shift.roles) ? shift.roles : [])
+        .filter((role) => String(role.status || 'OPEN').toUpperCase() !== 'CANCELLED');
+    if (roles.length === 0) {
+        return '<p class="registrations-empty">No roles configured for this shift.</p>';
+    }
+
+    return `
+        <div class="manage-shift-role-list">
+            ${roles.map((role) => {
+                const filled = Number(role.filled_count || 0);
+                const required = Number(role.required_count || 0);
+                const gap = Math.max(required - filled, 0);
+                const progress = required > 0 ? Math.min(100, Math.round((filled / required) * 100)) : 0;
+                return `
+                    <div class="manage-shift-role-row">
+                        <div>
+                            <strong>${escapeHtml(role.role_title || 'Untitled Role')}</strong>
+                            <span>${filled}/${required} filled</span>
+                        </div>
+                        <div class="manage-shift-role-right">
+                            <span class="coverage-pill ${gap > 0 ? 'coverage-needs' : 'coverage-filled'}">${gap > 0 ? `Needs ${gap}` : 'Filled'}</span>
+                            <span class="coverage-meter" aria-hidden="true"><span style="width: ${progress}%"></span></span>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+async function loadSelectedShiftRegistrations(shiftId) {
+    if (!shiftId || managedShiftPanelMode !== 'detail') return;
+    const normalizedShiftId = Number(shiftId);
+    try {
+        const registrations = await getShiftRegistrations(normalizedShiftId);
+        registrationsCache[normalizedShiftId] = registrations;
+        if (managedShiftPanelMode === 'detail' && Number(selectedManagedShiftId) === normalizedShiftId) {
+            renderManagedShiftDetailPanel(registrations);
+        }
+    } catch (error) {
+        if (managedShiftPanelMode === 'detail' && Number(selectedManagedShiftId) === normalizedShiftId) {
+            renderManagedShiftDetailPanel(null, `Failed to load registrations: ${error.message || 'Unknown error'}`);
+        }
+        showMessage('shifts', `Failed to load registrations: ${error.message}`, 'error');
+    }
 }
 
 // Load shifts table (admin)
 async function loadShiftsTable() {
-    const tbody = document.getElementById('shifts-filtered-table-body');
+    const list = document.getElementById('manage-shifts-card-list');
 
     try {
         registrationsCache = {};
 
         if (!currentPantryId) {
             managedShifts = [];
+            if (isManageShiftsPhoneViewport()) {
+                setManageShiftsMobileView('queue');
+            }
             renderManageShiftsTable();
             return;
         }
 
         managedShifts = await getShifts(currentPantryId);
         renderManageShiftsTable();
+        if (managedShiftPanelMode === 'detail' && selectedManagedShiftId) {
+            await loadSelectedShiftRegistrations(selectedManagedShiftId);
+        }
     } catch (error) {
         console.error('Failed to load shifts table:', error);
         managedShifts = [];
-        if (tbody) {
-            setShiftBucketEmptyState(tbody, `Failed to load shifts: ${error.message}`);
+        if (list) {
+            list.innerHTML = `<div class="empty-state">Failed to load shifts: ${escapeHtml(error.message)}</div>`;
         }
         showMessage('shifts', `Failed to load shifts: ${error.message}`, 'error');
     }
@@ -2972,20 +3818,27 @@ function buildEditRoleRow(role = null) {
     return roleGroup;
 }
 
-function resetEditShiftForm() {
+function resetEditShiftForm(options = {}) {
     editingShiftSnapshot = null;
     document.getElementById('edit-shift-id').value = '';
     document.getElementById('edit-shift-name').value = '';
     document.getElementById('edit-shift-start').value = '';
     document.getElementById('edit-shift-end').value = '';
     document.getElementById('edit-roles-container').innerHTML = '';
-    document.getElementById('edit-shift-card').classList.add('app-hidden');
+    if (!options.preserveSelection && managedShiftPanelMode === 'edit') {
+        managedShiftPanelMode = selectedManagedShiftId ? 'detail' : 'create';
+        setManageShiftsMobileView(managedShiftPanelMode);
+    }
+    setManageShiftsSubtab(managedShiftPanelMode);
     resetEditRecurrenceForm();
 }
 
 async function openEditShift(shiftId) {
     try {
-        setManageShiftsSubtab('view');
+        selectedManagedShiftId = Number(shiftId);
+        managedShiftPanelMode = 'edit';
+        setManageShiftsMobileView('edit');
+        setManageShiftsSubtab('edit');
         const shift = await getShift(shiftId);
         editingShiftSnapshot = shift;
 
@@ -3006,8 +3859,8 @@ async function openEditShift(shiftId) {
         }
 
         populateEditRecurrenceForm(shift);
-        document.getElementById('edit-shift-card').classList.remove('app-hidden');
-        document.getElementById('edit-shift-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        renderManageShiftsTable();
+        document.getElementById('edit-shift-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (error) {
         showMessage('shifts', `Failed to load shift for editing: ${error.message}`, 'error');
     }
@@ -3090,6 +3943,7 @@ async function revokeShiftConfirm(shiftId) {
 // Setup event listeners
 function setupEventListeners() {
     setManageShiftsSubtab(activeManageShiftsSubtab);
+    setManageShiftsMobileView('queue');
     setAdminSubtab(activeAdminSubtab);
     setMyShiftsViewMode(myShiftsViewMode);
     lastAdminUsersPhoneViewport = isPhoneViewport();
@@ -3097,9 +3951,15 @@ function setupEventListeners() {
     window.addEventListener('resize', handleAdminUsersViewportChange);
     window.addEventListener('resize', handleVolunteerPantriesViewportChange);
     window.addEventListener('resize', scheduleAppTourReposition);
+    window.addEventListener('resize', syncManageShiftsResponsiveView);
     if (typeof initializeCalendarUi === 'function') {
         initializeCalendarUi();
     }
+
+    document.getElementById('manage-shifts-create-btn')?.addEventListener('click', showCreateShiftPanel);
+    document.querySelectorAll('[data-manage-mobile-back="queue"]').forEach((button) => {
+        button.addEventListener('click', backToManagedShiftQueue);
+    });
 
     document.querySelectorAll('.manage-shifts-subtab').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -3114,6 +3974,9 @@ function setupEventListeners() {
     document.getElementById('manage-shifts-search-input')?.addEventListener('input', () => {
         manageShiftsSearchQuery = document.getElementById('manage-shifts-search-input')?.value.trim() || '';
         renderManageShiftsTable();
+        if (managedShiftPanelMode === 'detail' && selectedManagedShiftId && !registrationsCache[Number(selectedManagedShiftId)]) {
+            loadSelectedShiftRegistrations(selectedManagedShiftId);
+        }
     });
 
     document.querySelectorAll('[data-shift-status-filter]').forEach((button) => {
@@ -3124,6 +3987,9 @@ function setupEventListeners() {
             }
             manageShiftsStatusFilter = nextFilter;
             renderManageShiftsTable();
+            if (managedShiftPanelMode === 'detail' && selectedManagedShiftId && !registrationsCache[Number(selectedManagedShiftId)]) {
+                loadSelectedShiftRegistrations(selectedManagedShiftId);
+            }
         });
     });
 
@@ -3250,6 +4116,59 @@ function setupEventListeners() {
         const pantryResultsEl = document.getElementById('assign-pantry-results');
         if (pantryShell && pantryResultsEl && !pantryShell.contains(event.target)) {
             pantryResultsEl.classList.add('app-hidden');
+        }
+    });
+
+    document.getElementById('admin-pantry-search')?.addEventListener('input', (event) => {
+        adminPantrySearchQuery = event.target.value.trim();
+        const filteredPantries = getFilteredAdminPantries();
+        if (selectedAdminPantryId && !filteredPantries.some((pantry) => intValue(pantry.pantry_id) === intValue(selectedAdminPantryId))) {
+            selectedAdminPantryId = filteredPantries.length > 0 ? intValue(filteredPantries[0].pantry_id) : null;
+            adminPantryLeadSearchQuery = '';
+        }
+        renderAdminPantryWorkspace();
+    });
+
+    document.getElementById('admin-pantries-list')?.addEventListener('click', (event) => {
+        const target = event.target instanceof HTMLElement ? event.target.closest('[data-admin-pantry-id]') : null;
+        if (!(target instanceof HTMLElement)) {
+            return;
+        }
+        selectedAdminPantryId = intValue(target.dataset.adminPantryId || 0);
+        adminPantryLeadSearchQuery = '';
+        renderAdminPantryWorkspace();
+    });
+
+    document.getElementById('admin-pantry-detail-panel')?.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement) || target.id !== 'admin-pantry-lead-search') {
+            return;
+        }
+        adminPantryLeadSearchQuery = target.value.trim();
+        renderAdminPantryLeadSearchResults();
+    });
+
+    document.getElementById('admin-pantry-detail-panel')?.addEventListener('click', async (event) => {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        const editButton = target?.closest('[data-edit-admin-pantry]');
+        const deleteButton = target?.closest('[data-delete-admin-pantry]');
+        const addButton = target?.closest('[data-add-admin-pantry-lead]');
+        const removeButton = target?.closest('[data-remove-admin-pantry-lead]');
+
+        if (editButton instanceof HTMLElement) {
+            openEditPantryModal(getAdminPantryById(editButton.dataset.editAdminPantry));
+            return;
+        }
+        if (deleteButton instanceof HTMLElement) {
+            await deleteAdminPantry(intValue(deleteButton.dataset.deleteAdminPantry || 0));
+            return;
+        }
+        if (addButton instanceof HTMLElement) {
+            await assignAdminPantryLead(intValue(addButton.dataset.addAdminPantryLead || 0));
+            return;
+        }
+        if (removeButton instanceof HTMLElement) {
+            await removeAdminPantryLead(intValue(removeButton.dataset.removeAdminPantryLead || 0));
         }
     });
 
@@ -3434,6 +4353,35 @@ function setupEventListeners() {
         closeRecurringScopeModal(scopeButton.dataset.recurringScopeChoice || null);
     });
 
+    document.getElementById('help-broadcast-close')?.addEventListener('click', closeHelpBroadcastModal);
+    document.getElementById('help-broadcast-cancel')?.addEventListener('click', closeHelpBroadcastModal);
+    document.getElementById('help-broadcast-modal')?.addEventListener('click', (event) => {
+        if (event.target === event.currentTarget) {
+            closeHelpBroadcastModal();
+        }
+    });
+    document.getElementById('help-broadcast-send')?.addEventListener('click', submitHelpBroadcast);
+    document.getElementById('help-broadcast-search')?.addEventListener('input', () => {
+        if (helpBroadcastSearchTimer) {
+            clearTimeout(helpBroadcastSearchTimer);
+        }
+        helpBroadcastSearchTimer = setTimeout(() => {
+            loadHelpBroadcastCandidates();
+        }, 250);
+    });
+
+    document.getElementById('take-attendance-close')?.addEventListener('click', closeTakeAttendanceModal);
+    document.getElementById('take-attendance-cancel')?.addEventListener('click', closeTakeAttendanceModal);
+    document.getElementById('take-attendance-modal')?.addEventListener('click', (event) => {
+        if (event.target === event.currentTarget) {
+            closeTakeAttendanceModal();
+        }
+    });
+    document.getElementById('take-attendance-search')?.addEventListener('input', () => {
+        attendanceModalSearchQuery = document.getElementById('take-attendance-search')?.value.trim() || '';
+        renderTakeAttendanceModalList();
+    });
+
     // Edit pantry modal - save
     document.getElementById('save-edit-pantry-btn').addEventListener('click', async () => {
         const pantryId = parseInt(document.getElementById('edit-pantry-id').value);
@@ -3458,6 +4406,9 @@ function setupEventListeners() {
     // Pantry selection
     document.getElementById('pantry-select').addEventListener('change', async (e) => {
         currentPantryId = parseInt(e.target.value);
+        selectedManagedShiftId = null;
+        managedShiftPanelMode = 'create';
+        setManageShiftsMobileView('queue');
         resetEditShiftForm();
         await loadCalendarShifts();
         if (currentUserIsAdminCapable() || currentUserHasRole('PANTRY_LEAD')) {
@@ -3485,7 +4436,7 @@ function setupEventListeners() {
     });
 
     // Assign lead
-    document.getElementById('assign-lead-btn').addEventListener('click', async () => {
+    document.getElementById('assign-lead-btn')?.addEventListener('click', async () => {
         const pantryId = parseInt(document.getElementById('assign-pantry').value);
         const leadId = parseInt(document.getElementById('assign-lead').value);
 
@@ -3506,7 +4457,7 @@ function setupEventListeners() {
     });
 
     // Remove lead
-    document.getElementById('remove-lead-btn').addEventListener('click', async () => {
+    document.getElementById('remove-lead-btn')?.addEventListener('click', async () => {
         const pantryId = parseInt(document.getElementById('assign-pantry').value);
         const leadId = parseInt(document.getElementById('assign-lead').value);
 
@@ -3579,6 +4530,10 @@ function setupEventListeners() {
 
     document.getElementById('cancel-edit-shift-btn').addEventListener('click', () => {
         resetEditShiftForm();
+        renderManageShiftsTable();
+        if (selectedManagedShiftId) {
+            loadSelectedShiftRegistrations(selectedManagedShiftId);
+        }
     });
 
     document.getElementById('add-edit-role-btn').addEventListener('click', () => {
@@ -3785,6 +4740,13 @@ window.signupForRole = signupForRole;
 window.cancelShiftConfirm = cancelShiftConfirm;
 window.revokeShiftConfirm = revokeShiftConfirm;
 window.openEditShift = openEditShift;
+window.selectManagedShift = selectManagedShift;
+window.showCreateShiftPanel = showCreateShiftPanel;
+window.backToManagedShiftQueue = backToManagedShiftQueue;
+window.openHelpBroadcastModal = openHelpBroadcastModal;
+window.openTakeAttendanceModal = openTakeAttendanceModal;
+window.addHelpBroadcastRecipientById = addHelpBroadcastRecipientById;
+window.removeHelpBroadcastRecipient = removeHelpBroadcastRecipient;
 window.toggleShiftRegistrations = toggleShiftRegistrations;
 window.cancelMySignup = cancelMySignup;
 window.reconfirmMySignup = reconfirmMySignup;

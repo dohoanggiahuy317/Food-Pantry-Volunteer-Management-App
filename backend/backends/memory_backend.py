@@ -49,6 +49,7 @@ class MemoryBackend(StoreBackend):
             "shifts": [],
             "shift_roles": [],
             "shift_signups": [],
+            "help_broadcasts": [],
         }
         self.next_shift_series_id = 1
         self.next_shift_id = 1
@@ -125,6 +126,7 @@ class MemoryBackend(StoreBackend):
             "shifts": list(data.get("shifts", [])),
             "shift_roles": list(data.get("shift_roles", [])),
             "shift_signups": list(data.get("shift_signups", [])),
+            "help_broadcasts": list(data.get("help_broadcasts", [])),
         }
         for user in self.store["users"]:
             user.setdefault("updated_at", user.get("created_at"))
@@ -192,6 +194,59 @@ class MemoryBackend(StoreBackend):
         if role_filter:
             users = [u for u in users if role_filter in self.get_user_roles(u.get("user_id"))]
         return users
+
+    def list_help_broadcast_candidates(
+        self,
+        pantry_id: int,
+        query: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        normalized_query = str(query or "").strip().lower()
+        volunteer_users = self.list_users("VOLUNTEER")
+
+        attended_user_ids: set[int] = set()
+        pantry_shift_ids = {
+            int(shift.get("shift_id"))
+            for shift in self.store.get("shifts", [])
+            if int(shift.get("pantry_id", 0)) == pantry_id
+        }
+        pantry_role_ids = {
+            int(role.get("shift_role_id"))
+            for role in self.store.get("shift_roles", [])
+            if int(role.get("shift_id", 0)) in pantry_shift_ids
+        }
+        for signup in self.store.get("shift_signups", []):
+            if int(signup.get("shift_role_id", 0)) not in pantry_role_ids:
+                continue
+            if str(signup.get("signup_status", "")).upper() == "SHOW_UP":
+                attended_user_ids.add(int(signup.get("user_id", 0)))
+
+        candidates: list[dict[str, Any]] = []
+        for user in volunteer_users:
+            user_id = int(user.get("user_id", 0))
+            full_name = str(user.get("full_name") or "")
+            email = str(user.get("email") or "")
+            if normalized_query and normalized_query not in full_name.lower() and normalized_query not in email.lower():
+                continue
+            candidates.append(
+                {
+                    "user_id": user_id,
+                    "full_name": full_name,
+                    "email": email,
+                    "attendance_score": int(user.get("attendance_score", 100)),
+                    "has_attended_pantry": user_id in attended_user_ids,
+                }
+            )
+
+        candidates.sort(
+            key=lambda user: (
+                0 if user["has_attended_pantry"] else 1,
+                -int(user.get("attendance_score", 0)),
+                str(user.get("full_name") or "").lower(),
+                int(user.get("user_id", 0)),
+            )
+        )
+        return candidates[: max(0, int(limit))]
 
     def list_roles(self) -> list[dict[str, Any]]:
         return [dict(r) for r in self.store["roles"]]
@@ -760,6 +815,33 @@ class MemoryBackend(StoreBackend):
 
     def list_shift_signups(self, shift_role_id: int) -> list[dict[str, Any]]:
         return [dict(ss) for ss in self.store["shift_signups"] if ss.get("shift_role_id") == shift_role_id]
+
+    def get_latest_help_broadcast_for_sender(self, sender_user_id: int) -> dict[str, Any] | None:
+        broadcasts = [
+            row
+            for row in self.store.setdefault("help_broadcasts", [])
+            if int(row.get("sender_user_id", 0)) == sender_user_id
+        ]
+        if not broadcasts:
+            return None
+        latest = max(
+            broadcasts,
+            key=lambda row: _parse_iso_to_utc(row.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc),
+        )
+        return dict(latest)
+
+    def create_help_broadcast(self, shift_id: int, sender_user_id: int, recipient_count: int) -> dict[str, Any]:
+        broadcasts = self.store.setdefault("help_broadcasts", [])
+        broadcast_id = max((int(row.get("broadcast_id", 0)) for row in broadcasts), default=0) + 1
+        row = {
+            "broadcast_id": broadcast_id,
+            "shift_id": shift_id,
+            "sender_user_id": sender_user_id,
+            "recipient_count": recipient_count,
+            "created_at": _utc_now_iso(),
+        }
+        broadcasts.append(row)
+        return dict(row)
 
     def list_signups_by_user(self, user_id: int) -> list[dict[str, Any]]:
         signups = [dict(ss) for ss in self.store["shift_signups"] if ss.get("user_id") == user_id]
