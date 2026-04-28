@@ -19,6 +19,7 @@ from notifications import (
     send_new_shift_series_subscriber_notification,
     send_new_shift_subscriber_notification,
     send_shift_cancellation_notification,
+    send_shift_help_broadcast,
     send_shift_update_notification,
     send_signup_confirmation,
 )
@@ -89,6 +90,9 @@ LEAD_VISIBLE_SIGNUP_STATUSES = ACTIVE_SIGNUP_STATUSES
 RESERVATION_WINDOW_HOURS = 48
 MAX_SIGNUPS_PER_24_HOURS = 5
 SIGNUP_RATE_LIMIT_WINDOW = timedelta(hours=24)
+HELP_BROADCAST_COOLDOWN = timedelta(minutes=1)
+HELP_BROADCAST_MAX_RECIPIENTS = 25
+HELP_BROADCAST_CANDIDATE_LIMIT = 20
 ADMIN_ROLE_NAME = "ADMIN"
 SUPER_ADMIN_ROLE_NAME = "SUPER_ADMIN"
 PROTECTED_SUPER_ADMIN_USER_ID = 1
@@ -1448,6 +1452,71 @@ def set_attendance_status(signup_id: int, attendance_status: str, actor_user_id:
     return updated, None
 
 
+def serialize_help_broadcast_candidate(user: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "user_id": int(user.get("user_id")),
+        "full_name": user.get("full_name"),
+        "email": user.get("email"),
+        "attendance_score": int(user.get("attendance_score", 100)),
+        "has_attended_pantry": bool(user.get("has_attended_pantry")),
+    }
+
+
+def help_broadcast_cooldown_ends_at(sender_user_id: int, now_utc: datetime | None = None) -> datetime | None:
+    latest = backend.get_latest_help_broadcast_for_sender(sender_user_id)
+    if not latest:
+        return None
+
+    created_at = parse_iso_datetime_to_utc(latest.get("created_at"))
+    if not created_at:
+        return None
+
+    now_value = now_utc or datetime.now(timezone.utc)
+    ends_at = created_at + HELP_BROADCAST_COOLDOWN
+    return ends_at if ends_at > now_value else None
+
+
+def validate_help_broadcast_recipients(raw_recipient_ids: Any) -> tuple[list[dict[str, Any]], tuple[Any, int] | None]:
+    if not isinstance(raw_recipient_ids, list):
+        return [], (jsonify({"error": "recipient_user_ids must be an array"}), 400)
+
+    recipient_ids: list[int] = []
+    seen_ids: set[int] = set()
+    try:
+        for raw_id in raw_recipient_ids:
+            user_id = int(raw_id)
+            if user_id in seen_ids:
+                continue
+            seen_ids.add(user_id)
+            recipient_ids.append(user_id)
+    except (TypeError, ValueError):
+        return [], (jsonify({"error": "recipient_user_ids must contain integers only"}), 400)
+
+    if not recipient_ids:
+        return [], (jsonify({"error": "Select at least one volunteer"}), 400)
+    if len(recipient_ids) > HELP_BROADCAST_MAX_RECIPIENTS:
+        return [], (
+            jsonify({"error": f"Select at most {HELP_BROADCAST_MAX_RECIPIENTS} volunteers"}),
+            400,
+        )
+
+    recipients: list[dict[str, Any]] = []
+    invalid_ids: list[int] = []
+    for user_id in recipient_ids:
+        recipient = find_user_by_id(user_id)
+        if not recipient or not user_has_role(user_id, "VOLUNTEER"):
+            invalid_ids.append(user_id)
+            continue
+        recipients.append(recipient)
+
+    if invalid_ids:
+        return [], (
+            jsonify({"error": f"Recipients must be existing volunteers: {', '.join(str(user_id) for user_id in invalid_ids)}"}),
+            400,
+        )
+    return recipients, None
+
+
 # ========== API ROUTES ==========
 
 @app.get("/api/auth/config")
@@ -2276,6 +2345,127 @@ def get_shift_registrations(shift_id: int) -> Any:
         "roles": roles_with_signups,
     }
     return jsonify(response)
+
+
+@app.get("/api/shifts/<int:shift_id>/help-broadcast/candidates")
+def get_help_broadcast_candidates(shift_id: int) -> Any:
+    """Get ranked volunteer candidates for a shift help broadcast."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Forbidden"}), 403
+
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift:
+        return jsonify({"error": "Not found"}), 404
+
+    user_id = int(user.get("user_id"))
+    if not ensure_shift_manager_permission(user_id, shift):
+        return jsonify({"error": "Forbidden"}), 403
+
+    query = str(request.args.get("q", "")).strip()
+    candidates = backend.list_help_broadcast_candidates(
+        pantry_id=int(shift.get("pantry_id")),
+        query=query,
+        limit=HELP_BROADCAST_CANDIDATE_LIMIT,
+    )
+    return jsonify([serialize_help_broadcast_candidate(candidate) for candidate in candidates])
+
+
+@app.post("/api/shifts/<int:shift_id>/help-broadcast")
+def send_help_broadcast(shift_id: int) -> Any:
+    """Send an understaffed shift help email to selected volunteers."""
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Forbidden"}), 403
+
+    shift = backend.get_shift_by_id(shift_id)
+    if not shift:
+        return jsonify({"error": "Not found"}), 404
+
+    sender_user_id = int(user.get("user_id"))
+    if not ensure_shift_manager_permission(sender_user_id, shift):
+        return jsonify({"error": "Forbidden"}), 403
+    if shift_has_ended(shift):
+        return past_shift_locked_response()
+    if str(shift.get("status", "OPEN")).upper() == "CANCELLED":
+        return jsonify({"error": "Cannot broadcast help for a cancelled shift"}), 400
+
+    cooldown_ends_at = help_broadcast_cooldown_ends_at(sender_user_id)
+    if cooldown_ends_at is not None:
+        return (
+            jsonify(
+                {
+                    "error": "Help broadcast cooldown is active",
+                    "code": "HELP_BROADCAST_RATE_LIMITED",
+                    "cooldown_ends_at": cooldown_ends_at.isoformat().replace("+00:00", "Z"),
+                }
+            ),
+            429,
+        )
+
+    payload = request.get_json(silent=True) or {}
+    recipients, validation_error = validate_help_broadcast_recipients(payload.get("recipient_user_ids"))
+    if validation_error:
+        return validation_error
+
+    pantry = find_pantry_by_id(int(shift.get("pantry_id")))
+    if not pantry:
+        return jsonify({"error": "Pantry not found"}), 404
+
+    results = []
+    sent_count = 0
+    failed_count = 0
+    for recipient in recipients:
+        try:
+            result = send_shift_help_broadcast(recipient=recipient, shift=shift, pantry=pantry)
+        except Exception as exc:
+            app.logger.exception(
+                "Failed to send help broadcast for shift_id=%s recipient_user_id=%s",
+                shift_id,
+                recipient.get("user_id"),
+            )
+            result = {
+                "ok": False,
+                "code": "HELP_BROADCAST_SEND_FAILED",
+                "message": str(exc),
+                "recipient_email": recipient.get("email"),
+                "subject": None,
+                "provider": "resend",
+                "provider_response": None,
+            }
+
+        if result.get("ok"):
+            sent_count += 1
+        else:
+            failed_count += 1
+        results.append(
+            {
+                "user_id": int(recipient.get("user_id")),
+                "email": recipient.get("email"),
+                "ok": bool(result.get("ok")),
+                "code": result.get("code"),
+                "message": result.get("message"),
+            }
+        )
+
+    broadcast = backend.create_help_broadcast(
+        shift_id=shift_id,
+        sender_user_id=sender_user_id,
+        recipient_count=len(recipients),
+    )
+    return jsonify(
+        {
+            "ok": failed_count == 0,
+            "broadcast_id": broadcast.get("broadcast_id"),
+            "recipient_count": len(recipients),
+            "sent_count": sent_count,
+            "failed_count": failed_count,
+            "results": results,
+            "cooldown_ends_at": (
+                parse_iso_datetime_to_utc(broadcast.get("created_at")) + HELP_BROADCAST_COOLDOWN
+            ).isoformat().replace("+00:00", "Z"),
+        }
+    ), 200
 
 
 @app.patch("/api/shifts/<int:shift_id>")

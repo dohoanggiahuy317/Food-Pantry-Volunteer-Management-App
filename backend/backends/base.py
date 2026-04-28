@@ -30,6 +30,15 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_help_broadcast_candidates(
+        self,
+        pantry_id: int,
+        query: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def list_roles(self) -> list[dict[str, Any]]:
         raise NotImplementedError
 
@@ -212,6 +221,14 @@ class StoreBackend(ABC):
 
     @abstractmethod
     def list_shift_signups(self, shift_role_id: int) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_latest_help_broadcast_for_sender(self, sender_user_id: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def create_help_broadcast(self, shift_id: int, sender_user_id: int, recipient_count: int) -> dict[str, Any]:
         raise NotImplementedError
 
     @abstractmethod

@@ -19,9 +19,11 @@ TABLES_INSERT_ORDER = [
     "shifts",
     "shift_roles",
     "shift_signups",
+    "help_broadcasts",
 ]
 
 TABLES_TRUNCATE_ORDER = [
+    "help_broadcasts",
     "shift_signups",
     "shift_roles",
     "shifts",
@@ -327,6 +329,32 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
                 ),
             )
 
+        for broadcast in payload.get("help_broadcasts", []):
+            cursor.execute(
+                """
+                INSERT INTO help_broadcasts (
+                    broadcast_id,
+                    shift_id,
+                    sender_user_id,
+                    recipient_count,
+                    created_at
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    shift_id = VALUES(shift_id),
+                    sender_user_id = VALUES(sender_user_id),
+                    recipient_count = VALUES(recipient_count),
+                    created_at = VALUES(created_at)
+                """,
+                (
+                    broadcast["broadcast_id"],
+                    broadcast["shift_id"],
+                    broadcast["sender_user_id"],
+                    int(broadcast.get("recipient_count", 0)),
+                    parse_iso_to_dt(broadcast.get("created_at")),
+                ),
+            )
+
         recalculate_all_attendance_scores(cursor)
 
         for table, key in [
@@ -336,6 +364,7 @@ def seed_mysql_from_json(data_path: Path, truncate: bool = False) -> None:
             ("shifts", "shift_id"),
             ("shift_roles", "shift_role_id"),
             ("shift_signups", "signup_id"),
+            ("help_broadcasts", "broadcast_id"),
         ]:
             rows: list[dict[str, Any]] = payload.get(table, [])
             max_id = max((int(row.get(key, 0)) for row in rows), default=0)
