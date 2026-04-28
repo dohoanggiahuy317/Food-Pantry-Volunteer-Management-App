@@ -31,6 +31,7 @@ let selectedVolunteerPantryId = null;
 let lastVolunteerPantriesCompactViewport = null;
 let myRegisteredSignups = [];
 let myShiftsViewMode = 'calendar';
+let currentGoogleCalendarStatus = null;
 let myShiftsListFilters = {
     search: '',
     pantryId: 'all',
@@ -2381,6 +2382,73 @@ function renderMyAccountSummary() {
     }
 }
 
+function renderCalendarSyncUi() {
+    const note = document.getElementById('my-account-calendar-note');
+    const status = document.getElementById('my-account-calendar-status');
+    const connectButton = document.getElementById('connect-google-calendar-btn');
+    const disconnectButton = document.getElementById('disconnect-google-calendar-btn');
+
+    if (!note || !status || !connectButton || !disconnectButton) {
+        return;
+    }
+
+    const configured = Boolean(currentGoogleCalendarStatus?.configured);
+    const connected = Boolean(currentGoogleCalendarStatus?.connected);
+    const connectedEmail = currentGoogleCalendarStatus?.google_email || '';
+
+    if (!configured) {
+        note.className = 'account-note memory-note';
+        note.textContent = 'Server setup for Google Calendar OAuth is incomplete. Add Google OAuth client settings before volunteers can enable full sync.';
+        status.className = 'account-note';
+        status.textContent = 'Automatic Google Calendar sync is unavailable until the server is configured.';
+        connectButton.disabled = true;
+        connectButton.hidden = false;
+        connectButton.textContent = 'Google Calendar Unavailable';
+        disconnectButton.hidden = true;
+        disconnectButton.disabled = true;
+    } else if (connected) {
+        note.className = 'account-note account-note-success';
+        note.textContent = 'Automatic sync is active. New signups and later shift changes will be pushed from the app to Google Calendar.';
+        status.className = 'account-note';
+        status.textContent = connectedEmail
+            ? `Connected Google account: ${connectedEmail}`
+            : 'Google Calendar is connected.';
+        connectButton.disabled = true;
+        connectButton.hidden = false;
+        connectButton.textContent = 'Auto Sync Enabled';
+        disconnectButton.hidden = false;
+        disconnectButton.disabled = false;
+    } else {
+        note.className = 'account-note';
+        note.textContent = 'Connect Google Calendar once to let the app create, update, and remove volunteer events automatically.';
+        status.className = 'account-note';
+        status.textContent = 'Automatic sync is not connected yet.';
+        connectButton.disabled = false;
+        connectButton.hidden = false;
+        connectButton.textContent = 'Connect Google Calendar';
+        disconnectButton.hidden = true;
+        disconnectButton.disabled = true;
+    }
+}
+
+async function loadGoogleCalendarStatus() {
+    if (!currentUser || typeof getGoogleCalendarStatus !== 'function') {
+        return;
+    }
+
+    try {
+        currentGoogleCalendarStatus = await getGoogleCalendarStatus();
+    } catch (error) {
+        currentGoogleCalendarStatus = {
+            configured: false,
+            connected: false,
+            error: error.message
+        };
+    }
+
+    renderCalendarSyncUi();
+}
+
 function syncMyAccountForms() {
     if (!currentUser) {
         return;
@@ -2402,6 +2470,7 @@ function syncMyAccountForms() {
 
     updateAccountEmailUi();
     updateDeleteAccountUi();
+    renderCalendarSyncUi();
 }
 
 async function refreshCurrentUserState() {
@@ -2411,6 +2480,7 @@ async function refreshCurrentUserState() {
     setupRoleBasedUI();
     renderMyAccountSummary();
     syncMyAccountForms();
+    await loadGoogleCalendarStatus();
 }
 
 async function loadMyAccount() {
@@ -2419,6 +2489,65 @@ async function loadMyAccount() {
     }
     renderMyAccountSummary();
     syncMyAccountForms();
+    await loadGoogleCalendarStatus();
+}
+
+async function connectGoogleCalendarFromAccount() {
+    if (typeof startGoogleCalendarConnect !== 'function') {
+        throw new Error('Google Calendar sync is unavailable right now.');
+    }
+
+    const response = await startGoogleCalendarConnect();
+    if (!response?.auth_url) {
+        throw new Error('Google Calendar authorization URL was not returned by the server.');
+    }
+
+    const popup = window.open(response.auth_url, 'google-calendar-connect', 'width=620,height=760');
+    if (!popup) {
+        throw new Error('Popup blocked. Allow popups for this site and try again.');
+    }
+
+    return await new Promise((resolve, reject) => {
+        let settled = false;
+
+        const finish = async (message, isError = false) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            window.removeEventListener('message', handleMessage);
+            try {
+                await loadGoogleCalendarStatus();
+            } catch (error) {
+                console.error('Failed to refresh Google Calendar status:', error);
+            }
+            if (isError) {
+                reject(new Error(message || 'Google Calendar authorization failed.'));
+            } else {
+                resolve(message || 'Google Calendar sync connected.');
+            }
+        };
+
+        const popupPoll = window.setInterval(() => {
+            if (popup.closed) {
+                window.clearInterval(popupPoll);
+                finish('Google Calendar authorization window was closed before finishing.', true);
+            }
+        }, 500);
+
+        const handleMessage = (event) => {
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+            if (event.data?.type !== 'google-calendar-oauth-complete') {
+                return;
+            }
+            window.clearInterval(popupPoll);
+            finish(event.data.message, false);
+        };
+
+        window.addEventListener('message', handleMessage);
+    });
 }
 
 function renderMyShiftCard(signup, now) {
@@ -3368,6 +3497,30 @@ function setupEventListeners() {
         } catch (error) {
             updateAccountEmailUi();
             showMessage('my-account', `Failed to start email change: ${error.message}`, 'error');
+        }
+    });
+
+    document.getElementById('connect-google-calendar-btn')?.addEventListener('click', async () => {
+        try {
+            const message = await connectGoogleCalendarFromAccount();
+            showMessage('my-account', message || 'Google Calendar sync connected.', 'success');
+        } catch (error) {
+            showMessage('my-account', `Failed to connect Google Calendar: ${error.message}`, 'error');
+        }
+    });
+
+    document.getElementById('disconnect-google-calendar-btn')?.addEventListener('click', async () => {
+        const confirmed = confirm('Turn off automatic Google Calendar sync for this account? Existing synced events will be removed from Google Calendar.');
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            await disconnectGoogleCalendar();
+            await loadGoogleCalendarStatus();
+            showMessage('my-account', 'Automatic Google Calendar sync has been disconnected.', 'success');
+        } catch (error) {
+            showMessage('my-account', `Failed to disconnect Google Calendar: ${error.message}`, 'error');
         }
     });
 
