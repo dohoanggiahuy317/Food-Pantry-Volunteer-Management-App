@@ -1,5 +1,7 @@
 # Data Model and Database Flow
 
+This document describes the data model, database schema, and runtime behavior of the volunteer management app backend, including how shifts, users, signups, and notifications are structured and managed in MySQL. It also covers concurrency safety measures for critical operations like signup creation and shift editing, as well as handling for recurring shifts and pantry subscriptions. The goal is to provide a clear reference for developers working on the backend and to explain the rationale behind key design decisions.
+
 ## Goal
 Run the app on MySQL by default, with automatic schema creation and automatic seed data load when the database is empty.
 
@@ -13,7 +15,7 @@ At backend startup:
    - `backend/backends/mysql_backend.py` is initialized.
    - If DB is empty and `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`, seed data is loaded from `backend/data/mysql.json`.
 4. API routes continue using the same request/response contract as before.
-5. `backend/app.py` can call `backend/notifications/notifications.py` to send Resend emails for confirmed signups, shift updates that require reconfirmation, shift cancellations, and pantry-subscriber new-shift notifications.
+5. `backend/app.py` can call `backend/notifications/notifications.py` to send Resend emails for confirmed signups, shift updates that require reconfirmation, shift cancellations, pantry-subscriber new-shift notifications, and shift help broadcasts.
 6. User timezone is detected in the browser, persisted on the `users` row, and reused by the backend when rendering email times.
 
 ## Configuration (`backend/.env`)
@@ -45,6 +47,7 @@ At backend startup:
   - shift update / reconfirmation required
   - shift cancellation
   - pantry subscriber notified when a pantry creates a new one-off shift or recurring series
+  - shift help broadcast to selected volunteers when a shift needs extra coverage
 - Notification times are localized with Python `zoneinfo` from the saved `users.timezone` value, with `America/New_York` as the fallback.
 
 ## Resend domain note
@@ -65,6 +68,7 @@ Defined in `backend/db/migrations/001_initial.sql`:
 - `shifts`
 - `shift_roles`
 - `shift_signups`
+- `help_broadcasts`
 
 Important constraints:
 - `roles.role_id` is seeded explicitly; the protected `SUPER_ADMIN` role uses `role_id = 0`.
@@ -75,6 +79,7 @@ Important constraints:
 - `shift_signups` has unique `(shift_role_id, user_id)` to prevent duplicate signups.
 - `shift_signups` stores `reservation_expires_at` for 48-hour reconfirmation reservation windows.
 - `shift_signups` has index `idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at)` for reservation-aware capacity checks.
+- `help_broadcasts` stores shift help broadcast history with the sender, target shift, recipient count, and send timestamp.
 - `shift_series` stores recurring weekly schedule metadata (`timezone`, `interval_weeks`, `weekdays_csv`, finite end rule).
 - `shifts.shift_series_id` is nullable so one-off shifts remain simple while recurring occurrences link back to a series.
 - `shifts.series_position` preserves the occurrence order inside the current recurring slice.
@@ -118,7 +123,7 @@ Pantry-subscription note:
 - `backend/backends/memory_backend.py`: legacy in-memory backend.
 - `backend/backends/mysql_backend.py`: MySQL backend.
 - `backend/backends/factory.py`: backend selection + startup initialization/seed.
-- `backend/notifications/notifications.py`: volunteer email notification service and structured notification result builder.
+- `backend/notifications/notifications.py`: volunteer email notification service and structured notification result builder, including help broadcasts.
 - `backend/db/mysql.py`: MySQL connection pool.
 - `backend/db/init_schema.py`: schema application at startup.
 - `backend/db/migrations/001_initial.sql`: table/index/FK definitions.
