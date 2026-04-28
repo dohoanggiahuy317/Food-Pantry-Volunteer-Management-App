@@ -1,5 +1,7 @@
 # Product goal and MVP definition
 
+This document defines the product goal, MVP scope, user personas, functional requirements, and primary user journeys for the volunteer management app focused on reducing no-shows and understaffing at food pantries. It serves as a guide for development and a reference for stakeholders to align on expectations and priorities.
+
 ## 1. Goal
 Reduce volunteer no-shows and last-minute understaffing at food pantries by making shifts easy to publish, easy to claim, and hard to forget (via reminders + confirmations), while giving managers visibility and backup coverage.  
 
@@ -174,60 +176,6 @@ Use:
 - As the System, I send reminder messages at configured times.
 - As the System, I update signup status when a volunteer confirms/cancels.
 - As the System, I log message delivery + link clicks for troubleshooting/auditing.
- 
- 
-<!-- ## 7) Data model (tables / collections)
-
-Pantry
-- id, name, timezone, public_signup_slug, created_at
-
-User (Admin/Lead)
-- id, pantry_id, name, email, role (ADMIN/LEAD), password_hash/oauth, created_at
-
-Volunteer
-- id, pantry_id, name, phone, email, on_call (bool), reliability_score, stats_json, created_at
-
-Shift
-- id, pantry_id, role, title, start_at, end_at, required_count, max_count, status, created_at
-
-Signup
-- id, shift_id, volunteer_id
-- status: Pending | Confirmed | Cancelled | CheckedIn | NoShow | Excused | Late
-- created_at, confirmed_at, cancelled_at
-- manage_token_hash (or separate token table)
-
-MessageLog
-- id, pantry_id, volunteer_id, shift_id, channel (SMS/Email)
-- type: Confirmation | Reminder48h | ReminderDayOf | OnCallRequest
-- provider_message_id, status, error, sent_at -->
- 
-<!-- ## 8) API specification (example endpoints)
-
-Public
-- GET /p/{public_slug}/shifts?from=...&to=...
-- POST /shifts/{shift_id}/signups
-  - body: name, phone, email
-- GET /signups/manage/{token} (shows details)
-- POST /signups/{signup_id}/confirm (token-based)
-- POST /signups/{signup_id}/cancel (token-based)
-
-Admin
-- POST /admin/shifts
-- PATCH /admin/shifts/{id}
-- GET /admin/shifts/{id}/roster
-- POST /admin/shifts/{id}/attendance
-- POST /admin/shifts/{id}/oncall/broadcast -->
- 
-
-<!-- 
-## What to build first (MVP build order)
-1.	Shift CRUD + public list
-2.	Signup + confirmation message
-3.	Tokenized confirm/cancel links
-4.	Reminder scheduler + MessageLog
-5.	Admin roster + attendance marking
-6.	Reliability scoring
-7.	On-call broadcast + responder capture -->
 
 ## Attendance + Credibility (Implemented Rules)
 

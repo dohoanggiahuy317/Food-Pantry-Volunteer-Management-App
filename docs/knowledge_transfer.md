@@ -1,8 +1,14 @@
 # Transfer Documentation
 
+This document captures key technical details about the backend data model, concurrency safety, recurring shift handling, pantry subscriptions, and file roles to help onboard new developers and preserve institutional knowledge. It also includes a table of contents for easy navigation. The goal is to provide a comprehensive reference for understanding the architecture and design decisions behind the volunteer management system.
+
 ## Table of Contents
 
-- A. Backend
+- A. System design 
+  - Current architecture
+  - Service boundaries
+  - Microservice migration plan
+- B. Backend
   - I. Backends
     - base.py
     - factory.py
@@ -19,7 +25,7 @@
   - IV. Notifications
     - notifications.py
   - V. app.py
-- B. Frontend
+- C. Frontend
   - I. css
     - dashboard.css
   - II. js
@@ -35,7 +41,155 @@
 
 ---
 
-# A. Backend
+# A. System design
+
+## Current architecture
+
+The application is a modular monolith today:
+
+- One Flask backend (`backend/app.py`) serves both the REST API and the dashboard UI.
+- One browser-based frontend (`frontend/templates/dashboard.html` + `frontend/static/js/*.js`) manages all tab state and calls the API.
+- One shared relational data store persists users, pantries, shifts, roles, signups, subscriptions, and notifications.
+- Backend modules are already separated by domain, which makes later service extraction feasible without rewriting the UI first.
+
+High-level runtime shape:
+
+```mermaid
+flowchart LR
+    Browser[Browser / Dashboard UI]
+    Flask[Flask app.py]
+    Auth[Auth and session logic]
+    Pantry[Pantry and admin logic]
+    Shift[Shift and attendance logic]
+    Notify[Notification helpers]
+    DB[(MySQL)]
+    Email[Resend]
+
+    Browser --> Flask
+    Flask --> Auth
+    Flask --> Pantry
+    Flask --> Shift
+    Flask --> Notify
+    Auth --> DB
+    Pantry --> DB
+    Shift --> DB
+    Notify --> Email
+```
+
+Core responsibilities:
+
+- `dashboard.js` bootstraps the UI, applies role-based tab visibility, and coordinates manage-shifts/admin-pantry interactions.
+- `app.py` owns the request lifecycle, permission checks, and API orchestration.
+- `mysql_backend.py` is the primary persistence layer for production data.
+- `notifications.py` handles outbound email formatting and delivery.
+
+## Service boundaries
+
+Even though the app is deployed as one backend today, the code already groups by business capability:
+
+- Identity and account management
+  - users, roles, current-user session, timezone persistence, account changes
+- Pantry administration
+  - pantry CRUD, pantry leads, pantry subscription directory, pantry-specific views
+- Shift scheduling
+  - shift creation and edits, recurring series, capacity rules, role filling, cancellations
+- Attendance and reliability
+  - attendance marking, signup states, reservation windows, attendance score updates
+- Notifications
+  - signup confirmation, shift update/cancellation, new-shift subscriber emails, help broadcasts
+
+Recommended ownership model if the backend is split later:
+
+- Identity service owns `users` and `user_roles`.
+- Pantry service owns `pantries`, `pantry_leads`, and `pantry_subscriptions`.
+- Shift service owns `shift_series`, `shifts`, `shift_roles`, and `shift_signups`.
+- Notification service owns outbound email templates, throttling, and delivery history.
+- Frontend stays mostly unchanged and talks to a gateway or BFF.
+
+## Microservice migration plan
+
+This codebase should move to microservices in phases, not by a big-bang rewrite.
+
+### Phase 1: prepare the monolith for extraction
+
+- Keep the current UI and route contract stable.
+- Introduce explicit domain service classes or modules behind the existing Flask routes.
+- Stop sharing domain logic directly across routes; route handlers should call a service boundary.
+- Add correlation/request IDs in logs so future service calls are traceable.
+- Make notification delivery and database writes easier to observe with structured logging.
+
+### Phase 2: extract read-heavy services first
+
+Best first candidates are the least coupled, mostly read-only flows:
+
+- Pantry directory service for public pantry data and subscription state.
+- Notification service for outbound email rendering and send throttling.
+- Admin lookup service for role and user search.
+
+These can be extracted behind the current API without changing the dashboard behavior.
+
+### Phase 3: split the shift domain
+
+Shift management is the core business area and should be extracted next:
+
+- Shift service owns shift lifecycle, recurring series, roles, signups, and capacity recalculation.
+- Attendance endpoints move with the shift service because they depend on signup state.
+- The service should publish events when shifts are created, updated, cancelled, or when attendance changes.
+
+### Phase 4: introduce an API gateway or BFF
+
+- Add a gateway in front of the services so the frontend still sees one logical API.
+- Let the gateway handle auth/session translation, request routing, and cross-service aggregation.
+- Keep the dashboard on the current contract as much as possible while the backend changes underneath it.
+
+### Phase 5: decouple data stores
+
+- Give each service its own schema or database.
+- Remove direct cross-service SQL joins.
+- Replace synchronous cross-domain writes with events or dedicated API calls.
+- Treat MySQL as a per-service implementation detail instead of one shared database.
+
+### Phase 6: harden operations
+
+- Add health checks, metrics, and alerts per service.
+- Add message retries and dead-letter handling for notification work.
+- Add integration tests for the gateway and service contracts.
+- Add deployment automation so services can be rolled out independently.
+
+### Suggested end-state services
+
+- Identity service
+- Pantry service
+- Shift service
+- Attendance service if attendance grows beyond the shift domain
+- Notification service
+- Admin/reporting service if analytics becomes separate from operational flows
+
+### Tradeoffs to expect
+
+- More operational complexity: networking, retries, tracing, and deployments become mandatory.
+- More data consistency work: signups and capacity checks need transactional boundaries or event-driven compensation.
+- Better independent scaling: notifications, pantry search, and shift operations can scale separately.
+- Clearer ownership: each team can ship one domain without touching the whole backend.
+
+### Recommended migration rule
+
+Do not extract a service until the boundary is stable, the contracts are covered by tests, and the data ownership is clear.
+
+In practice, the safest order is:
+
+1. Stabilize current modules behind clean internal services.
+2. Extract notifications.
+3. Extract pantry/read-heavy endpoints.
+4. Extract shift management.
+5. Introduce a gateway.
+6. Split databases.
+
+That approach keeps the existing dashboard working while the architecture evolves.
+
+---
+
+# B. Backend
 
 ## I. Backends
 
@@ -876,7 +1030,7 @@ Attendance helpers:
 
 Running `backend/app.py` directly starts the Flask development server on port `5000`.
 
-# B. Frontend
+# C. Frontend
 
 ## I. css
 

@@ -1,5 +1,9 @@
 # Setup Guide
 
+This document provides step-by-step instructions to set up the volunteer management application locally for development and testing. It covers database setup with Docker, environment variable configuration, running the Flask server, and optional email notification setup with Resend. The guide also includes notes on the data model, authentication flow, and concurrency safety mechanisms implemented in the backend.
+
+----
+
 ## Prerequisites
 
 Make sure the following tools are installed before you begin:
@@ -10,7 +14,9 @@ Make sure the following tools are installed before you begin:
 
 ---
 
-## Step 1: Database Setup (Docker)
+## Set up Overview
+
+### Step 1: Database Setup (Docker)
 
 The application uses MySQL 8.4 running inside a Docker container. From the **repository root**, run:
 
@@ -28,9 +34,7 @@ docker compose down
 
 > Note: `docker compose down` stops and removes the container but preserves the data volume. To also wipe the data, run `docker compose down -v`.
 
----
-
-## Step 2: Environment Variables
+### Step 2: Environment Variables
 
 Inside the `backend/` folder, copy the example env file and leave the values as-is — they match the credentials defined in `docker-compose.yml` exactly.
 
@@ -78,9 +82,7 @@ RESEND_FROM_EMAIL=noreply@updates.example.com
 | `RESEND_API_KEY`                | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
 | `RESEND_FROM_EMAIL`             | Verified sender address used for outgoing email (for example `noreply@updates.example.com`)    |
 
----
-
-## Step 3: Running the Application
+### Step 3: Running the Application
 
 All commands below are run from the **repository root**.
 
@@ -121,9 +123,7 @@ python app.py
 > For dev, if you already have an older schema and pull schema changes, recreate/reset your local MySQL data volume so the new baseline schema is applied cleanly. The current baseline includes `users.timezone` for localized emails, `pantry_subscriptions` for volunteer pantry notifications, and recurring-shift support through `shift_series`, `shifts.shift_series_id`, and `shifts.series_position`.
 > The current MySQL seed includes a larger future shift dataset so the calendar and signup flows have much denser mock data out of the box.
 
----
-
-## Running Tests
+#### Running Tests
 
 Install the backend dependencies first if you have not already:
 
@@ -146,9 +146,7 @@ pytest tests/test_signup_rate_limit.py
 pytest tests/test_notifications.py
 ```
 
----
-
-## Step 4: Accessing the App & Mock Authentication
+### Step 4: Accessing the App & Mock Authentication
 
 **Open the app in your browser:**
 
@@ -163,9 +161,7 @@ Flask serves the full application — both the frontend (HTML/CSS/JS) and the AP
 - If `AUTH_PROVIDER=memory`, the first screen shows sample demo accounts for login/logout testing.
 - If `AUTH_PROVIDER=firebase`, the first screen shows Google login/signup and the app requires the Firebase variables described below.
 
----
-
-## Step 5: Optional Resend Email Setup
+### Step 5: Optional Resend Email Setup
 
 Volunteer notification emails are sent through `backend/notifications/notifications.py` for confirmed signups, shift updates that require reconfirmation, shift cancellations, and pantry subscriber notifications when a pantry posts a new shift or recurring series.
 
@@ -212,9 +208,7 @@ Timezone behavior in the current app:
 - If Resend is configured correctly, volunteers receive emails for confirmed signups, shift updates that require reconfirmation, and shift cancellations.
 - Those emails use the saved `users.timezone` value when formatting the shift time window.
 
----
-
-## Firebase Authentication
+### Step 6: Firebase Authentication
 
 When Firebase Auth is integrated, the following will be required:
 
