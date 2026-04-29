@@ -43,27 +43,29 @@ async function bootstrapAuthShell() {
 }
 
 function bindAuthEventListeners() {
-    document.getElementById('google-login-btn')?.addEventListener('click', async () => {
-        await startGoogleFlow('login');
+    document.getElementById('google-login-btn')?.addEventListener('click', async (event) => {
+        await withButtonLock(event.currentTarget, () => startGoogleFlow('login'));
     });
 
-    document.getElementById('google-signup-btn')?.addEventListener('click', async () => {
-        await startGoogleFlow('signup');
+    document.getElementById('google-signup-btn')?.addEventListener('click', async (event) => {
+        await withButtonLock(event.currentTarget, () => startGoogleFlow('signup'));
     });
 
     document.getElementById('google-signup-form')?.addEventListener('submit', async (event) => {
         event.preventDefault();
-        await completeGoogleSignup();
+        await completeGoogleSignup(getSubmitButtonFromEvent(event));
     });
 
-    document.getElementById('cancel-signup-btn')?.addEventListener('click', async () => {
-        await resetPendingGoogleSignup();
-        hideGoogleSignupForm();
-        clearAuthMessage();
+    document.getElementById('cancel-signup-btn')?.addEventListener('click', async (event) => {
+        await withButtonLock(event.currentTarget, async () => {
+            await resetPendingGoogleSignup();
+            hideGoogleSignupForm();
+            clearAuthMessage();
+        });
     });
 
-    document.getElementById('logout-btn')?.addEventListener('click', async () => {
-        await handleLogout();
+    document.getElementById('logout-btn')?.addEventListener('click', async (event) => {
+        await withButtonLock(event.currentTarget, handleLogout);
     });
 }
 
@@ -116,7 +118,7 @@ function renderMemoryAccounts(accounts) {
     container.querySelectorAll('[data-memory-account]').forEach((button) => {
         button.addEventListener('click', async () => {
             const sampleAccountId = button.dataset.memoryAccount;
-            await loginWithMemory(sampleAccountId);
+            await withButtonLock(button, () => loginWithMemory(sampleAccountId));
         });
     });
 }
@@ -188,7 +190,7 @@ function hideGoogleSignupForm() {
     form?.reset();
 }
 
-async function completeGoogleSignup() {
+async function completeGoogleSignup(buttonEl = null) {
     if (!pendingGoogleIdToken) {
         showAuthMessage('Start with Google signup first.', 'error');
         return;
@@ -201,25 +203,27 @@ async function completeGoogleSignup() {
         return;
     }
 
-    setAuthLoading(true, 'Creating your account...');
-    clearAuthMessage();
+    await withButtonLock(buttonEl, async () => {
+        setAuthLoading(true, 'Creating your account...');
+        clearAuthMessage();
 
-    try {
-        await apiPost('/api/auth/signup/google', {
-            id_token: pendingGoogleIdToken,
-            full_name: fullName,
-            phone_number: phoneNumber,
-            timezone: getBrowserTimeZone()
-        });
-        if (window.Cookies) {
-            window.Cookies.set(AUTH_APP_TOUR_PENDING_COOKIE, 'pending', { sameSite: 'Lax' });
+        try {
+            await apiPost('/api/auth/signup/google', {
+                id_token: pendingGoogleIdToken,
+                full_name: fullName,
+                phone_number: phoneNumber,
+                timezone: getBrowserTimeZone()
+            });
+            if (window.Cookies) {
+                window.Cookies.set(AUTH_APP_TOUR_PENDING_COOKIE, 'pending', { sameSite: 'Lax' });
+            }
+            await firebaseAuthInstance?.signOut();
+            window.location.reload();
+        } catch (error) {
+            showAuthMessage(error.message || 'Signup failed', 'error');
+            setAuthLoading(false);
         }
-        await firebaseAuthInstance?.signOut();
-        window.location.reload();
-    } catch (error) {
-        showAuthMessage(error.message || 'Signup failed', 'error');
-        setAuthLoading(false);
-    }
+    });
 }
 
 async function resetPendingGoogleSignup() {
