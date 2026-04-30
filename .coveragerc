@@ -1,0 +1,9 @@
+[run]
+source = backend
+
+[report]
+omit =
+    backend/backends/mysql_backend.py
+    backend/db/mysql.py
+    backend/db/init_schema.py
+    backend/db/seed.py
