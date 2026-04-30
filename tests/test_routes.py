@@ -1085,9 +1085,20 @@ class TestUpdateShift:
         assert r.get_json()["status"] == "CANCELLED"
 
     def test_lead_can_update_own_pantry_shift(self, client, reset_backend):
+        # Create a fresh future shift in pantry 2 so the test isn't tied to seed dates.
+        _login(client, SUPER_ADMIN_ID)
+        cr = client.post(f"/api/pantries/{PANTRY_2}/shifts/full-create", json={
+            "shift_name": "Lead Test Shift",
+            "start_time": "2028-01-01T10:00:00Z",
+            "end_time": "2028-01-01T11:00:00Z",
+            "roles": [{"role_title": "Helper", "required_count": 1}],
+        })
+        assert cr.status_code == 201
+        new_shift_id = cr.get_json()["first_shift"]["shift_id"]
         _login(client, LEAD_ID)
-        r = client.patch(f"/api/shifts/{SHIFT_P2_FUTURE}", json={"shift_name": "Lead Updated"})
+        r = client.patch(f"/api/shifts/{new_shift_id}", json={"shift_name": "Lead Updated"})
         assert r.status_code == 200
+        assert r.get_json()["shift_name"] == "Lead Updated"
 
     def test_lead_cannot_update_other_pantry_shift(self, client, reset_backend):
         _login(client, LEAD_ID)
