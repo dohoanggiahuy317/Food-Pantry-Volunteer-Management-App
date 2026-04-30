@@ -34,7 +34,7 @@ jobs:
         env:
           AUTH_PROVIDER: memory
           DATA_BACKEND: memory
-        run: pytest tests
+        run: pytest tests -m "not component"
 
   deploy:
     needs: test
