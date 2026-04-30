@@ -372,6 +372,7 @@ let appTourManagedSidebarControllerKey = null;
 let appTourResizeTimeoutId = null;
 let appTourIsRequired = false;
 let appTourScrollLockEnabled = false;
+let appTourStepTransitionInFlight = false;
 
 const APP_TOUR_SCROLL_KEYS = new Set([
     'ArrowDown',
@@ -928,8 +929,8 @@ async function renderAppTourStep(index) {
     }
 
     skipBtn.onclick = () => closeAppTour(true);
-    prevBtn.onclick = () => renderAppTourStep(index - 1);
-    nextBtn.onclick = () => renderAppTourStep(index + 1);
+    prevBtn.onclick = () => moveAppTourStep(index - 1, prevBtn);
+    nextBtn.onclick = () => moveAppTourStep(index + 1, nextBtn);
 
     const target = step.selector ? document.querySelector(step.selector) : null;
     if (target && isElementVisible(target)) {
@@ -947,6 +948,27 @@ async function renderAppTourStep(index) {
         popover.style.transform = 'translate(-50%, -50%)';
         popover.style.top = '50%';
         popover.style.left = '50%';
+    }
+}
+
+async function moveAppTourStep(index, button) {
+    if (appTourStepTransitionInFlight) {
+        return;
+    }
+
+    const runTransition = async () => {
+        appTourStepTransitionInFlight = true;
+        try {
+            await renderAppTourStep(index);
+        } finally {
+            appTourStepTransitionInFlight = false;
+        }
+    };
+
+    if (isLockableButton(button)) {
+        await withButtonLock(button, runTransition);
+    } else {
+        await runTransition();
     }
 }
 
@@ -1303,23 +1325,22 @@ async function toggleVolunteerPantrySubscription(buttonEl) {
         return;
     }
 
-    const isSubscribed = buttonEl.dataset.subscribed === 'true';
-    buttonEl.setAttribute('disabled', 'disabled');
-    try {
-        if (isSubscribed) {
-            await unsubscribeFromPantry(pantryId);
-            updateVolunteerPantryDirectoryState(pantryId, false);
-            showMessage('pantries', 'Pantry unsubscribed successfully.', 'success');
-        } else {
-            await subscribeToPantry(pantryId);
-            updateVolunteerPantryDirectoryState(pantryId, true);
-            showMessage('pantries', 'Pantry subscribed successfully.', 'success');
+    await withButtonLock(buttonEl, async () => {
+        const isSubscribed = buttonEl.dataset.subscribed === 'true';
+        try {
+            if (isSubscribed) {
+                await unsubscribeFromPantry(pantryId);
+                updateVolunteerPantryDirectoryState(pantryId, false);
+                showMessage('pantries', 'Pantry unsubscribed successfully.', 'success');
+            } else {
+                await subscribeToPantry(pantryId);
+                updateVolunteerPantryDirectoryState(pantryId, true);
+                showMessage('pantries', 'Pantry subscribed successfully.', 'success');
+            }
+        } catch (error) {
+            showMessage('pantries', `Subscription update failed: ${error.message}`, 'error');
         }
-    } catch (error) {
-        showMessage('pantries', `Subscription update failed: ${error.message}`, 'error');
-    } finally {
-        buttonEl.removeAttribute('disabled');
-    }
+    });
 }
 
 function handleVolunteerPantriesViewportChange() {
@@ -1722,7 +1743,7 @@ function openEditPantryModal(pantry) {
     document.getElementById('edit-pantry-modal').classList.remove('app-hidden');
 }
 
-async function deleteAdminPantry(pantryId) {
+async function deleteAdminPantry(pantryId, buttonEl = null) {
     const pantry = getAdminPantryById(pantryId);
     if (!pantry) {
         return;
@@ -1736,46 +1757,50 @@ async function deleteAdminPantry(pantryId) {
         return;
     }
 
-    try {
-        await deletePantry(pantryId);
+    await withButtonLock(buttonEl, async () => {
+        try {
+            await deletePantry(pantryId);
 
-        if (intValue(currentPantryId) === intValue(pantryId)) {
-            currentPantryId = null;
-            resetEditShiftForm();
-        }
-        if (intValue(selectedAdminPantryId) === intValue(pantryId)) {
-            selectedAdminPantryId = null;
-        }
+            if (intValue(currentPantryId) === intValue(pantryId)) {
+                currentPantryId = null;
+                resetEditShiftForm();
+            }
+            if (intValue(selectedAdminPantryId) === intValue(pantryId)) {
+                selectedAdminPantryId = null;
+            }
 
-        showMessage('pantry', 'Pantry deleted successfully!', 'success');
-        await loadPantries();
-    } catch (error) {
-        showMessage('pantry', `Error: ${error.message}`, 'error');
-    }
+            showMessage('pantry', 'Pantry deleted successfully!', 'success');
+            await loadPantries();
+        } catch (error) {
+            showMessage('pantry', `Error: ${error.message}`, 'error');
+        }
+    });
 }
 
-async function assignAdminPantryLead(leadId) {
+async function assignAdminPantryLead(leadId, buttonEl = null) {
     if (!selectedAdminPantryId || !leadId || adminPantryLeadActionInFlight) {
         return;
     }
 
-    adminPantryLeadActionInFlight = true;
-    renderAdminPantryDetail();
+    await withButtonLock(buttonEl, async () => {
+        adminPantryLeadActionInFlight = true;
+        renderAdminPantryDetail();
 
-    try {
-        await addPantryLead(selectedAdminPantryId, leadId);
-        adminPantryLeadSearchQuery = '';
-        showMessage('assign', 'Lead assigned successfully!', 'success');
-        await loadPantries();
-    } catch (error) {
-        showMessage('assign', `Error: ${error.message}`, 'error');
-    } finally {
-        adminPantryLeadActionInFlight = false;
-        renderAdminPantryWorkspace();
-    }
+        try {
+            await addPantryLead(selectedAdminPantryId, leadId);
+            adminPantryLeadSearchQuery = '';
+            showMessage('assign', 'Lead assigned successfully!', 'success');
+            await loadPantries();
+        } catch (error) {
+            showMessage('assign', `Error: ${error.message}`, 'error');
+        } finally {
+            adminPantryLeadActionInFlight = false;
+            renderAdminPantryWorkspace();
+        }
+    });
 }
 
-async function removeAdminPantryLead(leadId) {
+async function removeAdminPantryLead(leadId, buttonEl = null) {
     if (!selectedAdminPantryId || !leadId || adminPantryLeadActionInFlight) {
         return;
     }
@@ -1787,19 +1812,21 @@ async function removeAdminPantryLead(leadId) {
         return;
     }
 
-    adminPantryLeadActionInFlight = true;
-    renderAdminPantryDetail();
+    await withButtonLock(buttonEl, async () => {
+        adminPantryLeadActionInFlight = true;
+        renderAdminPantryDetail();
 
-    try {
-        await removePantryLead(selectedAdminPantryId, leadId);
-        showMessage('assign', 'Lead removed successfully!', 'success');
-        await loadPantries();
-    } catch (error) {
-        showMessage('assign', `Error: ${error.message}`, 'error');
-    } finally {
-        adminPantryLeadActionInFlight = false;
-        renderAdminPantryWorkspace();
-    }
+        try {
+            await removePantryLead(selectedAdminPantryId, leadId);
+            showMessage('assign', 'Lead removed successfully!', 'success');
+            await loadPantries();
+        } catch (error) {
+            showMessage('assign', `Error: ${error.message}`, 'error');
+        } finally {
+            adminPantryLeadActionInFlight = false;
+            renderAdminPantryWorkspace();
+        }
+    });
 }
 
 // Update admin pantry workspace
@@ -1808,32 +1835,34 @@ async function updatePantriesTable() {
 }
 
 // Signup for role
-async function signupForRole(roleId) {
+async function signupForRole(roleId, buttonEl = null) {
     if (!currentUser || !currentUser.user_id) {
         showMessage('calendar', 'Signup failed: Missing current user context', 'error');
         return false;
     }
 
-    try {
-        await signupForShift(roleId, currentUser.user_id);
-    } catch (error) {
-        showMessage('calendar', `Signup failed: ${error.message}`, 'error');
-        await loadCalendarShifts(); 
-        return false;
-    }
-
-    try {
-        const isVolunteer = currentUserHasRole('VOLUNTEER');
-        if (isVolunteer) {
-            await loadMyRegisteredShifts();
+    return withButtonLock(buttonEl, async () => {
+        try {
+            await signupForShift(roleId, currentUser.user_id);
+        } catch (error) {
+            showMessage('calendar', `Signup failed: ${error.message}`, 'error');
+            await loadCalendarShifts();
+            return false;
         }
-        showMessage('calendar', 'Successfully signed up!', 'success');
-    } catch (error) {
-        showMessage('calendar', `Signup completed, but refresh failed: ${error.message}`, 'error');
-    }
 
-    await loadCalendarShifts(); // Reload to show updated counts no matter the error or success
-    return true;
+        try {
+            const isVolunteer = currentUserHasRole('VOLUNTEER');
+            if (isVolunteer) {
+                await loadMyRegisteredShifts();
+            }
+            showMessage('calendar', 'Successfully signed up!', 'success');
+        } catch (error) {
+            showMessage('calendar', `Signup completed, but refresh failed: ${error.message}`, 'error');
+        }
+
+        await loadCalendarShifts(); // Reload to show updated counts no matter the error or success
+        return true;
+    });
 }
 
 function escapeHtml(value) {
@@ -2100,7 +2129,7 @@ function renderAdminUserTable() {
 
     tbody.querySelectorAll('[data-open-admin-user]').forEach((button) => {
         button.addEventListener('click', async () => {
-            await openAdminUserProfile(Number(button.dataset.openAdminUser));
+            await withButtonLock(button, () => openAdminUserProfile(Number(button.dataset.openAdminUser)));
         });
     });
 
@@ -2197,21 +2226,23 @@ function bindAdminUserProfileInteractions(container, userProfile) {
         const selectedRoleIds = [Number(selectedRoleInput.value)];
         const editingSelf = currentUser && currentUser.user_id === userProfile.user_id;
 
-        try {
-            const updatedProfile = await updateUserRoles(userProfile.user_id, selectedRoleIds);
-            showMessage('admin-users', 'User roles updated successfully.', 'success');
-            await refreshCurrentUserState();
-            if (editingSelf) {
-                await loadPantries();
-                if (!currentUserIsAdminCapable()) {
-                    await activateTab(setupRoleBasedUI());
-                    return;
+        await withButtonLock(getSubmitButtonFromEvent(event), async () => {
+            try {
+                const updatedProfile = await updateUserRoles(userProfile.user_id, selectedRoleIds);
+                showMessage('admin-users', 'User roles updated successfully.', 'success');
+                await refreshCurrentUserState();
+                if (editingSelf) {
+                    await loadPantries();
+                    if (!currentUserIsAdminCapable()) {
+                        await activateTab(setupRoleBasedUI());
+                        return;
+                    }
                 }
+                await loadAdminUsers({ preserveSelection: true, preferredUserId: updatedProfile.user_id });
+            } catch (error) {
+                showMessage('admin-users', `Failed to update roles: ${error.message}`, 'error');
             }
-            await loadAdminUsers({ preserveSelection: true, preferredUserId: updatedProfile.user_id });
-        } catch (error) {
-            showMessage('admin-users', `Failed to update roles: ${error.message}`, 'error');
-        }
+        });
     });
 }
 
@@ -2706,16 +2737,16 @@ function renderMyShiftCard(signup, now) {
         actionsHtml = `
             <div class="my-shift-actions">
                 ${reconfirmAvailable
-                ? `<button class="btn btn-success btn-compact" onclick="reconfirmMySignup(${signup.signup_id}, 'CONFIRM')">Confirm</button>`
+                ? `<button class="btn btn-success btn-compact" onclick="reconfirmMySignup(${signup.signup_id}, 'CONFIRM', this)">Confirm</button>`
                 : `<span class="reconfirm-note">Role is full or unavailable for reconfirmation.</span>`
             }
-                <button class="btn btn-danger btn-compact" onclick="reconfirmMySignup(${signup.signup_id}, 'CANCEL')">Cancel</button>
+                <button class="btn btn-danger btn-compact" onclick="reconfirmMySignup(${signup.signup_id}, 'CANCEL', this)">Cancel</button>
             </div>
         `;
     } else if (showCancel) {
         actionsHtml = `
             <div class="my-shift-actions">
-                <button class="btn btn-danger btn-compact" onclick="cancelMySignup(${signup.signup_id})">Cancel Signup</button>
+                <button class="btn btn-danger btn-compact" onclick="cancelMySignup(${signup.signup_id}, this)">Cancel Signup</button>
             </div>
         `;
     }
@@ -2795,81 +2826,87 @@ async function loadMyRegisteredShifts() {
     }
 }
 
-async function cancelMySignup(signupId) {
+async function cancelMySignup(signupId, buttonEl = null) {
     if (!confirm('Cancel this signup?')) return false;
 
-    try {
-        await cancelSignup(signupId);
-        showMessage('my-shifts', 'Signup cancelled successfully!', 'success');
-        await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
-        return true;
-    } catch (error) {
-        showMessage('my-shifts', `Cancel failed: ${error.message}`, 'error');
-        return false;
-    }
+    return withButtonLock(buttonEl, async () => {
+        try {
+            await cancelSignup(signupId);
+            showMessage('my-shifts', 'Signup cancelled successfully!', 'success');
+            await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
+            return true;
+        } catch (error) {
+            showMessage('my-shifts', `Cancel failed: ${error.message}`, 'error');
+            return false;
+        }
+    });
 }
 
-async function reconfirmMySignup(signupId, action) {
+async function reconfirmMySignup(signupId, action, buttonEl = null) {
     const normalizedAction = String(action || '').toUpperCase();
     const actionLabel = normalizedAction === 'CONFIRM' ? 'confirm this updated shift' : 'cancel this updated shift signup';
     if (!confirm(`Do you want to ${actionLabel}?`)) return false;
 
-    try {
-        await reconfirmSignup(signupId, normalizedAction);
-        showMessage('my-shifts', normalizedAction === 'CONFIRM' ? 'Shift reconfirmed successfully!' : 'Signup cancelled successfully!', 'success');
-        await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
-        return true;
-    } catch (error) {
-        const details = parseApiErrorDetails(error);
-        if (details && details.code === 'ROLE_FULL_OR_UNAVAILABLE') {
-            showMessage('my-shifts', 'This role is full or unavailable. Please cancel or pick another shift.', 'error');
-        } else if (details && details.code === 'RESERVATION_EXPIRED') {
-            showMessage('my-shifts', 'Your reservation expired. Please sign up again if slots are available.', 'error');
-        } else {
-            showMessage('my-shifts', `Action failed: ${error.message}`, 'error');
+    return withButtonLock(buttonEl, async () => {
+        try {
+            await reconfirmSignup(signupId, normalizedAction);
+            showMessage('my-shifts', normalizedAction === 'CONFIRM' ? 'Shift reconfirmed successfully!' : 'Signup cancelled successfully!', 'success');
+            await Promise.all([loadMyRegisteredShifts(), loadCalendarShifts()]);
+            return true;
+        } catch (error) {
+            const details = parseApiErrorDetails(error);
+            if (details && details.code === 'ROLE_FULL_OR_UNAVAILABLE') {
+                showMessage('my-shifts', 'This role is full or unavailable. Please cancel or pick another shift.', 'error');
+            } else if (details && details.code === 'RESERVATION_EXPIRED') {
+                showMessage('my-shifts', 'Your reservation expired. Please sign up again if slots are available.', 'error');
+            } else {
+                showMessage('my-shifts', `Action failed: ${error.message}`, 'error');
+            }
+            await loadMyRegisteredShifts();
+            return false;
         }
-        await loadMyRegisteredShifts();
-        return false;
-    }
+    });
 }
 
-async function markSignupAttendance(signupId, attendanceStatus, shiftId) {
-    try {
-        await markAttendance(signupId, attendanceStatus);
-        showMessage('shifts', 'Attendance updated successfully!', 'success');
+async function markSignupAttendance(signupId, attendanceStatus, shiftId, buttonEl = null) {
+    await withButtonLock(buttonEl, async () => {
+        try {
+            await markAttendance(signupId, attendanceStatus);
+            showMessage('shifts', 'Attendance updated successfully!', 'success');
 
-        if (typeof shiftId === 'number') {
-            delete registrationsCache[shiftId];
-        }
-        if (Number(attendanceModalShiftId) === Number(shiftId)) {
-            attendanceModalRegistrations = await getShiftRegistrations(shiftId);
-            registrationsCache[shiftId] = attendanceModalRegistrations;
-            renderTakeAttendanceModalList();
-        }
-
-        if (managedShiftPanelMode === 'detail' && Number(selectedManagedShiftId) === Number(shiftId)) {
-            await loadSelectedShiftRegistrations(shiftId);
-        }
-
-        if (expandedShiftContext && expandedShiftContext.shiftId === shiftId) {
-            const activeTbody = document.getElementById(expandedShiftContext.tbodyId);
-            const detailsRow = activeTbody
-                ? activeTbody.querySelector(`.shift-registrations-row[data-shift-id="${shiftId}"]`)
-                : null;
-            if (detailsRow) {
-                const refreshedRegistrations = await getShiftRegistrations(shiftId);
-                registrationsCache[shiftId] = refreshedRegistrations;
-                detailsRow.innerHTML = `<td colspan="4">${renderRegistrationsRowContent(refreshedRegistrations)}</td>`;
+            if (typeof shiftId === 'number') {
+                delete registrationsCache[shiftId];
             }
-        }
+            if (Number(attendanceModalShiftId) === Number(shiftId)) {
+                attendanceModalRegistrations = await getShiftRegistrations(shiftId);
+                registrationsCache[shiftId] = attendanceModalRegistrations;
+                renderTakeAttendanceModalList();
+            }
 
-        const myShiftsTab = document.getElementById('content-my-shifts');
-        if (myShiftsTab && myShiftsTab.classList.contains('active')) {
-            await loadMyRegisteredShifts();
+            if (managedShiftPanelMode === 'detail' && Number(selectedManagedShiftId) === Number(shiftId)) {
+                await loadSelectedShiftRegistrations(shiftId);
+            }
+
+            if (expandedShiftContext && expandedShiftContext.shiftId === shiftId) {
+                const activeTbody = document.getElementById(expandedShiftContext.tbodyId);
+                const detailsRow = activeTbody
+                    ? activeTbody.querySelector(`.shift-registrations-row[data-shift-id="${shiftId}"]`)
+                    : null;
+                if (detailsRow) {
+                    const refreshedRegistrations = await getShiftRegistrations(shiftId);
+                    registrationsCache[shiftId] = refreshedRegistrations;
+                    detailsRow.innerHTML = `<td colspan="4">${renderRegistrationsRowContent(refreshedRegistrations)}</td>`;
+                }
+            }
+
+            const myShiftsTab = document.getElementById('content-my-shifts');
+            if (myShiftsTab && myShiftsTab.classList.contains('active')) {
+                await loadMyRegisteredShifts();
+            }
+        } catch (error) {
+            showMessage('shifts', `Attendance update failed: ${error.message}`, 'error');
         }
-    } catch (error) {
-        showMessage('shifts', `Attendance update failed: ${error.message}`, 'error');
-    }
+    });
 }
 
 function renderRegistrationsRowContent(shiftRegistrations, options = {}) {
@@ -2909,7 +2946,7 @@ function renderRegistrationsRowContent(shiftRegistrations, options = {}) {
                         <div class="registrant-actions">
                             <button
                                 class="btn btn-secondary btn-compact btn-attendance btn-attendance-showup"
-                                onclick="markSignupAttendance(${signup.signup_id}, 'SHOW_UP', ${shiftRegistrations.shift_id})"
+                                onclick="markSignupAttendance(${signup.signup_id}, 'SHOW_UP', ${shiftRegistrations.shift_id}, this)"
                                 ${disabledAttr}
                                 title="${disabledReason}"
                             >
@@ -2917,7 +2954,7 @@ function renderRegistrationsRowContent(shiftRegistrations, options = {}) {
                             </button>
                             <button
                                 class="btn btn-secondary btn-compact btn-attendance btn-attendance-noshow"
-                                onclick="markSignupAttendance(${signup.signup_id}, 'NO_SHOW', ${shiftRegistrations.shift_id})"
+                                onclick="markSignupAttendance(${signup.signup_id}, 'NO_SHOW', ${shiftRegistrations.shift_id}, this)"
                                 ${disabledAttr}
                                 title="${disabledReason}"
                             >
@@ -3287,7 +3324,7 @@ function renderTakeAttendanceModalList() {
                     <button
                         type="button"
                         class="btn btn-secondary btn-compact btn-attendance btn-attendance-showup"
-                        onclick="markSignupAttendance(${signup.signup_id}, 'SHOW_UP', ${attendanceModalRegistrations.shift_id})"
+                        onclick="markSignupAttendance(${signup.signup_id}, 'SHOW_UP', ${attendanceModalRegistrations.shift_id}, this)"
                         ${disabledAttr}
                         title="${disabledReason}"
                     >
@@ -3296,7 +3333,7 @@ function renderTakeAttendanceModalList() {
                     <button
                         type="button"
                         class="btn btn-secondary btn-compact btn-attendance btn-attendance-noshow"
-                        onclick="markSignupAttendance(${signup.signup_id}, 'NO_SHOW', ${attendanceModalRegistrations.shift_id})"
+                        onclick="markSignupAttendance(${signup.signup_id}, 'NO_SHOW', ${attendanceModalRegistrations.shift_id}, this)"
                         ${disabledAttr}
                         title="${disabledReason}"
                     >
@@ -3308,48 +3345,50 @@ function renderTakeAttendanceModalList() {
     }).join('');
 }
 
-async function openTakeAttendanceModal(shiftId) {
+async function openTakeAttendanceModal(shiftId, buttonEl = null) {
     const shift = managedShifts.find((candidate) => Number(candidate.shift_id) === Number(shiftId));
     if (!shift) {
         showMessage('shifts', 'Shift not found. Reload the shifts table and try again.', 'error');
         return;
     }
 
-    attendanceModalShiftId = Number(shiftId);
-    attendanceModalRegistrations = registrationsCache[attendanceModalShiftId] || null;
-    attendanceModalSearchQuery = '';
-    const { modal, summary, search } = getTakeAttendanceModalElements();
-    if (!modal) return;
+    await withButtonLock(buttonEl, async () => {
+        attendanceModalShiftId = Number(shiftId);
+        attendanceModalRegistrations = registrationsCache[attendanceModalShiftId] || null;
+        attendanceModalSearchQuery = '';
+        const { modal, summary, search } = getTakeAttendanceModalElements();
+        if (!modal) return;
 
-    if (summary) {
-        const startDate = safeDateValue(shift.start_time);
-        const endDate = safeDateValue(shift.end_time);
-        const timeText = startDate && endDate ? formatLocalTimeRange(startDate, endDate) : 'Time unavailable';
-        summary.innerHTML = `
-            <strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong>
-            <span>${escapeHtml(timeText)}</span>
-        `;
-    }
-    if (search) {
-        search.value = '';
-    }
-
-    modal.classList.remove('app-hidden');
-    renderTakeAttendanceModalList();
-    search?.focus();
-
-    try {
-        attendanceModalRegistrations = await getShiftRegistrations(attendanceModalShiftId);
-        registrationsCache[attendanceModalShiftId] = attendanceModalRegistrations;
-        if (Number(attendanceModalShiftId) === Number(shiftId)) {
-            renderTakeAttendanceModalList();
+        if (summary) {
+            const startDate = safeDateValue(shift.start_time);
+            const endDate = safeDateValue(shift.end_time);
+            const timeText = startDate && endDate ? formatLocalTimeRange(startDate, endDate) : 'Time unavailable';
+            summary.innerHTML = `
+                <strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong>
+                <span>${escapeHtml(timeText)}</span>
+            `;
         }
-    } catch (error) {
-        const { list } = getTakeAttendanceModalElements();
-        if (list) {
-            list.innerHTML = `<p class="help-broadcast-empty">Failed to load registrants: ${escapeHtml(error.message || 'Unknown error')}</p>`;
+        if (search) {
+            search.value = '';
         }
-    }
+
+        modal.classList.remove('app-hidden');
+        renderTakeAttendanceModalList();
+        search?.focus();
+
+        try {
+            attendanceModalRegistrations = await getShiftRegistrations(attendanceModalShiftId);
+            registrationsCache[attendanceModalShiftId] = attendanceModalRegistrations;
+            if (Number(attendanceModalShiftId) === Number(shiftId)) {
+                renderTakeAttendanceModalList();
+            }
+        } catch (error) {
+            const { list } = getTakeAttendanceModalElements();
+            if (list) {
+                list.innerHTML = `<p class="help-broadcast-empty">Failed to load registrants: ${escapeHtml(error.message || 'Unknown error')}</p>`;
+            }
+        }
+    });
 }
 
 function closeTakeAttendanceModal() {
@@ -3360,78 +3399,82 @@ function closeTakeAttendanceModal() {
     attendanceModalSearchQuery = '';
 }
 
-async function openHelpBroadcastModal(shiftId) {
+async function openHelpBroadcastModal(shiftId, buttonEl = null) {
     const shift = managedShifts.find((candidate) => Number(candidate.shift_id) === Number(shiftId));
     if (!shift) {
         showMessage('shifts', 'Shift not found. Reload the shifts table and try again.', 'error');
         return;
     }
 
-    helpBroadcastShift = shift;
-    helpBroadcastSelected = [];
-    const { modal, summary, search, results } = getHelpBroadcastModalElements();
-    if (!modal) return;
+    await withButtonLock(buttonEl, async () => {
+        helpBroadcastShift = shift;
+        helpBroadcastSelected = [];
+        const { modal, summary, search, results } = getHelpBroadcastModalElements();
+        if (!modal) return;
 
-    if (summary) {
-        const startDate = safeDateValue(shift.start_time);
-        const endDate = safeDateValue(shift.end_time);
-        const timeText = startDate && endDate ? formatLocalTimeRange(startDate, endDate) : 'Time unavailable';
-        summary.innerHTML = `
-            <strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong>
-            <span>${escapeHtml(timeText)}</span>
-        `;
-    }
-    if (search) {
-        search.value = '';
-    }
-    if (results) {
-        results.innerHTML = '<p class="help-broadcast-empty">Loading volunteers...</p>';
-    }
-    setHelpBroadcastError('');
-    renderHelpBroadcastSelected();
-    modal.classList.remove('app-hidden');
-    if (search) {
-        search.focus();
-    }
-    await loadHelpBroadcastCandidates();
+        if (summary) {
+            const startDate = safeDateValue(shift.start_time);
+            const endDate = safeDateValue(shift.end_time);
+            const timeText = startDate && endDate ? formatLocalTimeRange(startDate, endDate) : 'Time unavailable';
+            summary.innerHTML = `
+                <strong>${escapeHtml(shift.shift_name || 'Untitled Shift')}</strong>
+                <span>${escapeHtml(timeText)}</span>
+            `;
+        }
+        if (search) {
+            search.value = '';
+        }
+        if (results) {
+            results.innerHTML = '<p class="help-broadcast-empty">Loading volunteers...</p>';
+        }
+        setHelpBroadcastError('');
+        renderHelpBroadcastSelected();
+        modal.classList.remove('app-hidden');
+        if (search) {
+            search.focus();
+        }
+        await loadHelpBroadcastCandidates();
+    });
 }
 
-async function submitHelpBroadcast() {
+async function submitHelpBroadcast(buttonEl = null) {
     if (!helpBroadcastShift || helpBroadcastSelected.length === 0) return;
+
+    await withButtonLock(buttonEl || getHelpBroadcastModalElements().send, async () => {
+        const { send } = getHelpBroadcastModalElements();
+        if (send) {
+            send.textContent = 'Sending...';
+        }
+        setHelpBroadcastError('');
+
+        try {
+            const recipientIds = helpBroadcastSelected.map((candidate) => Number(candidate.user_id));
+            const response = await sendHelpBroadcast(helpBroadcastShift.shift_id, recipientIds);
+            const sentCount = Number(response.sent_count || 0);
+            const failedCount = Number(response.failed_count || 0);
+            closeHelpBroadcastModal();
+            showMessage(
+                'shifts',
+                failedCount > 0
+                    ? `Help broadcast sent to ${sentCount} volunteer(s); ${failedCount} failed.`
+                    : `Help broadcast sent to ${sentCount} volunteer(s).`,
+                failedCount > 0 ? 'info' : 'success'
+            );
+        } catch (error) {
+            const cooldownEndsAt = error.body?.cooldown_ends_at;
+            if (error.status === 429 && cooldownEndsAt) {
+                const cooldownDate = new Date(cooldownEndsAt);
+                const seconds = Math.max(1, Math.ceil((cooldownDate.getTime() - Date.now()) / 1000));
+                setHelpBroadcastError(`Please wait ${seconds} second(s) before sending another help broadcast.`);
+            } else {
+                setHelpBroadcastError(error.message || 'Failed to send help broadcast.');
+            }
+        }
+    });
     const { send } = getHelpBroadcastModalElements();
     if (send) {
-        send.disabled = true;
-        send.textContent = 'Sending...';
-    }
-    setHelpBroadcastError('');
-
-    try {
-        const recipientIds = helpBroadcastSelected.map((candidate) => Number(candidate.user_id));
-        const response = await sendHelpBroadcast(helpBroadcastShift.shift_id, recipientIds);
-        const sentCount = Number(response.sent_count || 0);
-        const failedCount = Number(response.failed_count || 0);
-        closeHelpBroadcastModal();
-        showMessage(
-            'shifts',
-            failedCount > 0
-                ? `Help broadcast sent to ${sentCount} volunteer(s); ${failedCount} failed.`
-                : `Help broadcast sent to ${sentCount} volunteer(s).`,
-            failedCount > 0 ? 'info' : 'success'
-        );
-    } catch (error) {
-        const cooldownEndsAt = error.body?.cooldown_ends_at;
-        if (error.status === 429 && cooldownEndsAt) {
-            const cooldownDate = new Date(cooldownEndsAt);
-            const seconds = Math.max(1, Math.ceil((cooldownDate.getTime() - Date.now()) / 1000));
-            setHelpBroadcastError(`Please wait ${seconds} second(s) before sending another help broadcast.`);
-        } else {
-            setHelpBroadcastError(error.message || 'Failed to send help broadcast.');
-        }
-    } finally {
-        if (send) {
-            send.textContent = 'Send Broadcast';
-            send.disabled = helpBroadcastSelected.length === 0;
-        }
+        send.textContent = 'Send Broadcast';
+        send.disabled = helpBroadcastSelected.length === 0;
     }
 }
 
@@ -3598,7 +3641,7 @@ function renderManagedShiftCard(shift) {
     const moreGaps = coverage.roleGaps.length > 2 ? ` +${coverage.roleGaps.length - 2} more` : '';
 
     return `
-        <button type="button" class="manage-shift-card ${selectedClass}" onclick="selectManagedShift(${Number(shift.shift_id)})">
+        <button type="button" class="manage-shift-card ${selectedClass}" onclick="selectManagedShift(${Number(shift.shift_id)}, this)">
             <span class="manage-shift-card-top">
                 <span class="manage-shift-card-title">${escapeHtml(shift.shift_name || 'Untitled Shift')}</span>
                 <span class="coverage-pill ${coverageLabel.className}">${escapeHtml(coverageLabel.label)}</span>
@@ -3619,14 +3662,16 @@ function renderManagedShiftCard(shift) {
     `;
 }
 
-function selectManagedShift(shiftId) {
-    selectedManagedShiftId = Number(shiftId);
-    managedShiftPanelMode = 'detail';
-    setManageShiftsMobileView('detail');
-    setManageShiftsSubtab('detail');
-    resetEditShiftForm({ preserveSelection: true });
-    renderManageShiftsTable();
-    loadSelectedShiftRegistrations(shiftId);
+async function selectManagedShift(shiftId, buttonEl = null) {
+    await withButtonLock(buttonEl, async () => {
+        selectedManagedShiftId = Number(shiftId);
+        managedShiftPanelMode = 'detail';
+        setManageShiftsMobileView('detail');
+        setManageShiftsSubtab('detail');
+        resetEditShiftForm({ preserveSelection: true });
+        renderManageShiftsTable();
+        await loadSelectedShiftRegistrations(shiftId);
+    });
 }
 
 function showCreateShiftPanel() {
@@ -3670,8 +3715,8 @@ function renderManagedShiftDetailPanel(registrations = null, registrationsError 
     const cancelOrRevokeButton = isPastBucket
         ? '<button class="btn btn-secondary btn-sm" disabled title="Past shifts are locked">Locked</button>'
         : shiftStatus === 'CANCELLED'
-            ? `<button class="btn btn-success btn-sm" onclick="revokeShiftConfirm(${Number(shift.shift_id)})">Revoke</button>`
-            : `<button class="btn btn-sm btn-cancel-shift" onclick="cancelShiftConfirm(${Number(shift.shift_id)})">Cancel Shift</button>`;
+            ? `<button class="btn btn-success btn-sm" onclick="revokeShiftConfirm(${Number(shift.shift_id)}, this)">Revoke</button>`
+            : `<button class="btn btn-sm btn-cancel-shift" onclick="cancelShiftConfirm(${Number(shift.shift_id)}, this)">Cancel Shift</button>`;
 
     detailCard.innerHTML = `
         <button type="button" class="btn btn-secondary btn-sm manage-shifts-mobile-back" onclick="backToManagedShiftQueue()">Back to shifts</button>
@@ -3697,9 +3742,9 @@ function renderManagedShiftDetailPanel(registrations = null, registrationsError 
             </div>
         </div>
         <div class="manage-shift-panel-actions">
-            <button class="btn btn-primary btn-sm" onclick="openEditShift(${Number(shift.shift_id)})" ${isPastBucket ? 'disabled title="Past shifts are locked"' : ''}>Edit</button>
-            <button class="btn btn-sm btn-broadcast-help" onclick="openHelpBroadcastModal(${Number(shift.shift_id)})" ${canBroadcast ? '' : 'disabled title="Broadcast is available only when this open shift has coverage gaps"'}>Broadcast Help</button>
-            <button class="btn btn-sm btn-take-attendance" onclick="openTakeAttendanceModal(${Number(shift.shift_id)})" ${shiftStatus === 'CANCELLED' ? 'disabled title="Attendance is unavailable for canceled shifts"' : ''}>Take Attendance</button>
+            <button class="btn btn-primary btn-sm" onclick="openEditShift(${Number(shift.shift_id)}, this)" ${isPastBucket ? 'disabled title="Past shifts are locked"' : ''}>Edit</button>
+            <button class="btn btn-sm btn-broadcast-help" onclick="openHelpBroadcastModal(${Number(shift.shift_id)}, this)" ${canBroadcast ? '' : 'disabled title="Broadcast is available only when this open shift has coverage gaps"'}>Broadcast Help</button>
+            <button class="btn btn-sm btn-take-attendance" onclick="openTakeAttendanceModal(${Number(shift.shift_id)}, this)" ${shiftStatus === 'CANCELLED' ? 'disabled title="Attendance is unavailable for canceled shifts"' : ''}>Take Attendance</button>
             ${cancelOrRevokeButton}
         </div>
         <div class="manage-shift-section">
@@ -3833,37 +3878,39 @@ function resetEditShiftForm(options = {}) {
     resetEditRecurrenceForm();
 }
 
-async function openEditShift(shiftId) {
-    try {
-        selectedManagedShiftId = Number(shiftId);
-        managedShiftPanelMode = 'edit';
-        setManageShiftsMobileView('edit');
-        setManageShiftsSubtab('edit');
-        const shift = await getShift(shiftId);
-        editingShiftSnapshot = shift;
+async function openEditShift(shiftId, buttonEl = null) {
+    await withButtonLock(buttonEl, async () => {
+        try {
+            selectedManagedShiftId = Number(shiftId);
+            managedShiftPanelMode = 'edit';
+            setManageShiftsMobileView('edit');
+            setManageShiftsSubtab('edit');
+            const shift = await getShift(shiftId);
+            editingShiftSnapshot = shift;
 
-        document.getElementById('edit-shift-id').value = String(shift.shift_id);
-        document.getElementById('edit-shift-name').value = shift.shift_name || '';
-        document.getElementById('edit-shift-start').value = formatDateTimeForInput(shift.start_time);
-        document.getElementById('edit-shift-end').value = formatDateTimeForInput(shift.end_time);
+            document.getElementById('edit-shift-id').value = String(shift.shift_id);
+            document.getElementById('edit-shift-name').value = shift.shift_name || '';
+            document.getElementById('edit-shift-start').value = formatDateTimeForInput(shift.start_time);
+            document.getElementById('edit-shift-end').value = formatDateTimeForInput(shift.end_time);
 
-        const container = document.getElementById('edit-roles-container');
-        container.innerHTML = '';
-        const roles = shift.roles || [];
-        if (roles.length === 0) {
-            container.appendChild(buildEditRoleRow(null));
-        } else {
-            roles.forEach(role => {
-                container.appendChild(buildEditRoleRow(role));
-            });
+            const container = document.getElementById('edit-roles-container');
+            container.innerHTML = '';
+            const roles = shift.roles || [];
+            if (roles.length === 0) {
+                container.appendChild(buildEditRoleRow(null));
+            } else {
+                roles.forEach(role => {
+                    container.appendChild(buildEditRoleRow(role));
+                });
+            }
+
+            populateEditRecurrenceForm(shift);
+            renderManageShiftsTable();
+            document.getElementById('edit-shift-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (error) {
+            showMessage('shifts', `Failed to load shift for editing: ${error.message}`, 'error');
         }
-
-        populateEditRecurrenceForm(shift);
-        renderManageShiftsTable();
-        document.getElementById('edit-shift-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    } catch (error) {
-        showMessage('shifts', `Failed to load shift for editing: ${error.message}`, 'error');
-    }
+    });
 }
 
 function collectAffectedContacts(responses) {
@@ -3887,7 +3934,7 @@ function collectAffectedContacts(responses) {
 }
 
 // Cancel shift with confirmation
-async function cancelShiftConfirm(shiftId) {
+async function cancelShiftConfirm(shiftId, buttonEl = null) {
     const shift = managedShifts.find((candidate) => Number(candidate.shift_id) === Number(shiftId)) || editingShiftSnapshot;
     let applyScope = 'single';
     if (shift && shift.is_recurring) {
@@ -3900,44 +3947,48 @@ async function cancelShiftConfirm(shiftId) {
         return;
     }
 
-    try {
-        const response = await cancelShiftWithScope(shiftId, applyScope);
-        const affected = response.affected_signup_count || 0;
-        const cancelledOccurrences = Number(response.cancelled_occurrence_count || 0);
-        const recurringText = applyScope === 'future' && cancelledOccurrences > 0
-            ? ` ${cancelledOccurrences} occurrence(s) were cancelled.`
-            : '';
-        showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation and volunteers were notified.${recurringText}`, 'success');
-        await loadShiftsTable();
-        await loadCalendarShifts(); // Update calendar view too
-        const myShiftsTab = document.getElementById('content-my-shifts');
-        if (myShiftsTab && myShiftsTab.classList.contains('active')) {
-            await loadMyRegisteredShifts();
+    await withButtonLock(buttonEl, async () => {
+        try {
+            const response = await cancelShiftWithScope(shiftId, applyScope);
+            const affected = response.affected_signup_count || 0;
+            const cancelledOccurrences = Number(response.cancelled_occurrence_count || 0);
+            const recurringText = applyScope === 'future' && cancelledOccurrences > 0
+                ? ` ${cancelledOccurrences} occurrence(s) were cancelled.`
+                : '';
+            showMessage('shifts', `Shift cancelled successfully! ${affected} volunteer signup(s) moved to pending confirmation and volunteers were notified.${recurringText}`, 'success');
+            await loadShiftsTable();
+            await loadCalendarShifts(); // Update calendar view too
+            const myShiftsTab = document.getElementById('content-my-shifts');
+            if (myShiftsTab && myShiftsTab.classList.contains('active')) {
+                await loadMyRegisteredShifts();
+            }
+        } catch (error) {
+            showMessage('shifts', `Cancel failed: ${error.message}`, 'error');
         }
-    } catch (error) {
-        showMessage('shifts', `Cancel failed: ${error.message}`, 'error');
-    }
+    });
 }
 
-async function revokeShiftConfirm(shiftId) {
+async function revokeShiftConfirm(shiftId, buttonEl = null) {
     if (!confirm('Revoke this cancelled shift? Previously signed-up volunteers will stay pending confirmation.')) return;
 
-    try {
-        const response = await updateShift(shiftId, { status: 'OPEN' });
-        const affected = response.affected_signup_count || 0;
-        const notifiedMsg = affected > 0
-            ? ` ${affected} volunteer(s) were notified to review and reconfirm.`
-            : '';
-        showMessage('shifts', `Shift revoked successfully! Volunteers remain pending confirmation until they reconfirm.${notifiedMsg}`, 'success');
-        await loadShiftsTable();
-        await loadCalendarShifts();
-        const myShiftsTab = document.getElementById('content-my-shifts');
-        if (myShiftsTab && myShiftsTab.classList.contains('active')) {
-            await loadMyRegisteredShifts();
+    await withButtonLock(buttonEl, async () => {
+        try {
+            const response = await updateShift(shiftId, { status: 'OPEN' });
+            const affected = response.affected_signup_count || 0;
+            const notifiedMsg = affected > 0
+                ? ` ${affected} volunteer(s) were notified to review and reconfirm.`
+                : '';
+            showMessage('shifts', `Shift revoked successfully! Volunteers remain pending confirmation until they reconfirm.${notifiedMsg}`, 'success');
+            await loadShiftsTable();
+            await loadCalendarShifts();
+            const myShiftsTab = document.getElementById('content-my-shifts');
+            if (myShiftsTab && myShiftsTab.classList.contains('active')) {
+                await loadMyRegisteredShifts();
+            }
+        } catch (error) {
+            showMessage('shifts', `Revoke failed: ${error.message}`, 'error');
         }
-    } catch (error) {
-        showMessage('shifts', `Revoke failed: ${error.message}`, 'error');
-    }
+    });
 }
 
 // Setup event listeners
@@ -3966,7 +4017,7 @@ function setupEventListeners() {
             const targetSubtab = button.dataset.manageSubtab === 'view' ? 'view' : 'create';
             setManageShiftsSubtab(targetSubtab);
             if (targetSubtab === 'view') {
-                await loadShiftsTable();
+                await withButtonLock(button, loadShiftsTable);
             }
         });
     });
@@ -3997,7 +4048,7 @@ function setupEventListeners() {
         button.addEventListener('click', async () => {
             const targetSubtab = button.dataset.adminSubtab === 'users' ? 'users' : 'pantries';
             setAdminSubtab(targetSubtab);
-            await loadAdminTab();
+            await withButtonLock(button, loadAdminTab);
         });
     });
 
@@ -4160,15 +4211,15 @@ function setupEventListeners() {
             return;
         }
         if (deleteButton instanceof HTMLElement) {
-            await deleteAdminPantry(intValue(deleteButton.dataset.deleteAdminPantry || 0));
+            await deleteAdminPantry(intValue(deleteButton.dataset.deleteAdminPantry || 0), deleteButton);
             return;
         }
         if (addButton instanceof HTMLElement) {
-            await assignAdminPantryLead(intValue(addButton.dataset.addAdminPantryLead || 0));
+            await assignAdminPantryLead(intValue(addButton.dataset.addAdminPantryLead || 0), addButton);
             return;
         }
         if (removeButton instanceof HTMLElement) {
-            await removeAdminPantryLead(intValue(removeButton.dataset.removeAdminPantryLead || 0));
+            await removeAdminPantryLead(intValue(removeButton.dataset.removeAdminPantryLead || 0), removeButton);
         }
     });
 
@@ -4202,17 +4253,17 @@ function setupEventListeners() {
     // Tab navigation
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', async () => {
-            await activateTab(tab.dataset.tab);
+            await withButtonLock(tab, () => activateTab(tab.dataset.tab));
         });
     });
 
-    document.getElementById('start-tour-btn')?.addEventListener('click', () => {
-        openAppTour({ forceRequired: false });
+    document.getElementById('start-tour-btn')?.addEventListener('click', async (event) => {
+        await withButtonLock(event.currentTarget, () => openAppTour({ forceRequired: false }));
     });
 
-    document.getElementById('app-tour-nudge-start-btn')?.addEventListener('click', async () => {
+    document.getElementById('app-tour-nudge-start-btn')?.addEventListener('click', async (event) => {
         dismissAppTourNudge();
-        await openAppTour({ forceRequired: false });
+        await withButtonLock(event.currentTarget, () => openAppTour({ forceRequired: false }));
     });
 
     document.getElementById('app-tour-nudge-skip-btn')?.addEventListener('click', () => {
@@ -4223,8 +4274,8 @@ function setupEventListeners() {
         // The tour must be dismissed through its own controls.
     });
 
-    document.getElementById('admin-user-search-btn')?.addEventListener('click', async () => {
-        await loadAdminUsers();
+    document.getElementById('admin-user-search-btn')?.addEventListener('click', async (event) => {
+        await withButtonLock(event.currentTarget, loadAdminUsers);
     });
 
     document.getElementById('admin-user-search')?.addEventListener('keydown', async (event) => {
@@ -4248,16 +4299,18 @@ function setupEventListeners() {
             return;
         }
 
-        try {
-            currentUser = await updateCurrentUserProfile({
-                full_name: fullName,
-                phone_number: phoneNumber
-            });
-            await refreshCurrentUserState();
-            showMessage('my-account', 'Basic information updated successfully.', 'success');
-        } catch (error) {
-            showMessage('my-account', `Failed to update profile: ${error.message}`, 'error');
-        }
+        await withButtonLock(getSubmitButtonFromEvent(event), async () => {
+            try {
+                currentUser = await updateCurrentUserProfile({
+                    full_name: fullName,
+                    phone_number: phoneNumber
+                });
+                await refreshCurrentUserState();
+                showMessage('my-account', 'Basic information updated successfully.', 'success');
+            } catch (error) {
+                showMessage('my-account', `Failed to update profile: ${error.message}`, 'error');
+            }
+        });
     });
 
     document.getElementById('my-account-email-form').addEventListener('submit', async (event) => {
@@ -4274,23 +4327,25 @@ function setupEventListeners() {
             return;
         }
 
-        try {
-            await prepareCurrentUserEmailChange(newEmail);
-            const result = await window.requestFirebaseEmailChange(currentUser, newEmail);
-            const note = document.getElementById('my-account-email-note');
-            if (note && result?.message) {
-                note.className = 'account-note account-note-success';
-                note.textContent = result.message;
+        await withButtonLock(getSubmitButtonFromEvent(event), async () => {
+            try {
+                await prepareCurrentUserEmailChange(newEmail);
+                const result = await window.requestFirebaseEmailChange(currentUser, newEmail);
+                const note = document.getElementById('my-account-email-note');
+                if (note && result?.message) {
+                    note.className = 'account-note account-note-success';
+                    note.textContent = result.message;
+                }
+                document.getElementById('account-new-email').value = '';
+                showMessage('my-account', 'Email verification started. Confirm the change from your email, then <b>log out this tab</b> and sign in again.', 'success');
+            } catch (error) {
+                updateAccountEmailUi();
+                showMessage('my-account', `Failed to start email change: ${error.message}`, 'error');
             }
-            document.getElementById('account-new-email').value = '';
-            showMessage('my-account', 'Email verification started. Confirm the change from your email, then <b>log out this tab</b> and sign in again.', 'success');
-        } catch (error) {
-            updateAccountEmailUi();
-            showMessage('my-account', `Failed to start email change: ${error.message}`, 'error');
-        }
+        });
     });
 
-    document.getElementById('delete-account-btn').addEventListener('click', async () => {
+    document.getElementById('delete-account-btn').addEventListener('click', async (event) => {
         if (!currentUser) {
             showMessage('my-account', 'No user is loaded.', 'error');
             return;
@@ -4301,18 +4356,20 @@ function setupEventListeners() {
             return;
         }
 
-        try {
-            let payload = {};
-            if (currentUser.auth_mode === 'firebase' && currentUser.auth_provider === 'firebase') {
-                const result = await window.requestFirebaseAccountDeletion(currentUser);
-                payload = { id_token: result.idToken };
-            }
+        await withButtonLock(event.currentTarget, async () => {
+            try {
+                let payload = {};
+                if (currentUser.auth_mode === 'firebase' && currentUser.auth_provider === 'firebase') {
+                    const result = await window.requestFirebaseAccountDeletion(currentUser);
+                    payload = { id_token: result.idToken };
+                }
 
-            await deleteCurrentUserAccount(payload);
-            window.location.reload();
-        } catch (error) {
-            showMessage('my-account', `Failed to delete account: ${error.message}`, 'error');
-        }
+                await deleteCurrentUserAccount(payload);
+                window.location.reload();
+            } catch (error) {
+                showMessage('my-account', `Failed to delete account: ${error.message}`, 'error');
+            }
+        });
     });
 
     // Edit pantry modal - cancel
@@ -4360,7 +4417,7 @@ function setupEventListeners() {
             closeHelpBroadcastModal();
         }
     });
-    document.getElementById('help-broadcast-send')?.addEventListener('click', submitHelpBroadcast);
+    document.getElementById('help-broadcast-send')?.addEventListener('click', (event) => submitHelpBroadcast(event.currentTarget));
     document.getElementById('help-broadcast-search')?.addEventListener('input', () => {
         if (helpBroadcastSearchTimer) {
             clearTimeout(helpBroadcastSearchTimer);
@@ -4383,7 +4440,7 @@ function setupEventListeners() {
     });
 
     // Edit pantry modal - save
-    document.getElementById('save-edit-pantry-btn').addEventListener('click', async () => {
+    document.getElementById('save-edit-pantry-btn').addEventListener('click', async (event) => {
         const pantryId = parseInt(document.getElementById('edit-pantry-id').value);
         const name = document.getElementById('edit-pantry-name').value.trim();
         const location_address = document.getElementById('edit-pantry-address').value.trim();
@@ -4393,14 +4450,16 @@ function setupEventListeners() {
             return;
         }
 
-        try {
-            await updatePantry(pantryId, { name, location_address });
-            document.getElementById('edit-pantry-modal').classList.add('app-hidden');
-            showMessage('pantry', 'Pantry updated successfully!', 'success');
-            await loadPantries();
-        } catch (error) {
-            showMessage('edit-pantry', `Error: ${error.message}`, 'error');
-        }
+        await withButtonLock(event.currentTarget, async () => {
+            try {
+                await updatePantry(pantryId, { name, location_address });
+                document.getElementById('edit-pantry-modal').classList.add('app-hidden');
+                showMessage('pantry', 'Pantry updated successfully!', 'success');
+                await loadPantries();
+            } catch (error) {
+                showMessage('edit-pantry', `Error: ${error.message}`, 'error');
+            }
+        });
     });
 
     // Pantry selection
@@ -4425,18 +4484,20 @@ function setupEventListeners() {
             location_address: formData.get('location_address')
         };
 
-        try {
-            await createPantry(data);
-            showMessage('pantry', 'Pantry created successfully!', 'success');
-            e.target.reset();
-            await loadPantries();
-        } catch (error) {
-            showMessage('pantry', `Error: ${error.message}`, 'error');
-        }
+        await withButtonLock(getSubmitButtonFromEvent(e), async () => {
+            try {
+                await createPantry(data);
+                showMessage('pantry', 'Pantry created successfully!', 'success');
+                e.target.reset();
+                await loadPantries();
+            } catch (error) {
+                showMessage('pantry', `Error: ${error.message}`, 'error');
+            }
+        });
     });
 
     // Assign lead
-    document.getElementById('assign-lead-btn')?.addEventListener('click', async () => {
+    document.getElementById('assign-lead-btn')?.addEventListener('click', async (event) => {
         const pantryId = parseInt(document.getElementById('assign-pantry').value);
         const leadId = parseInt(document.getElementById('assign-lead').value);
 
@@ -4445,19 +4506,21 @@ function setupEventListeners() {
             return;
         }
 
-        try {
-            await addPantryLead(pantryId, leadId);
-            showMessage('assign', 'Lead assigned successfully!', 'success');
-            clearSelectedAssignPantry(false);
-            clearSelectedPantryLead(false);
-            await loadPantries();
-        } catch (error) {
-            showMessage('assign', `Error: ${error.message}`, 'error');
-        }
+        await withButtonLock(event.currentTarget, async () => {
+            try {
+                await addPantryLead(pantryId, leadId);
+                showMessage('assign', 'Lead assigned successfully!', 'success');
+                clearSelectedAssignPantry(false);
+                clearSelectedPantryLead(false);
+                await loadPantries();
+            } catch (error) {
+                showMessage('assign', `Error: ${error.message}`, 'error');
+            }
+        });
     });
 
     // Remove lead
-    document.getElementById('remove-lead-btn')?.addEventListener('click', async () => {
+    document.getElementById('remove-lead-btn')?.addEventListener('click', async (event) => {
         const pantryId = parseInt(document.getElementById('assign-pantry').value);
         const leadId = parseInt(document.getElementById('assign-lead').value);
 
@@ -4468,15 +4531,17 @@ function setupEventListeners() {
 
         if (!confirm('Remove this lead from the pantry?')) return;
 
-        try {
-            await removePantryLead(pantryId, leadId);
-            showMessage('assign', 'Lead removed successfully!', 'success');
-            clearSelectedAssignPantry(false);
-            clearSelectedPantryLead(false);
-            await loadPantries();
-        } catch (error) {
-            showMessage('assign', `Error: ${error.message}`, 'error');
-        }
+        await withButtonLock(event.currentTarget, async () => {
+            try {
+                await removePantryLead(pantryId, leadId);
+                showMessage('assign', 'Lead removed successfully!', 'success');
+                clearSelectedAssignPantry(false);
+                clearSelectedPantryLead(false);
+                await loadPantries();
+            } catch (error) {
+                showMessage('assign', `Error: ${error.message}`, 'error');
+            }
+        });
     });
 
     // Add role button
@@ -4602,37 +4667,39 @@ function setupEventListeners() {
             }
         }
 
-        try {
-            const response = await updateFullShift(shiftId, {
-                ...updatedShiftPayload,
-                apply_scope: applyScope,
-                ...(recurrencePayload ? { recurrence: recurrencePayload } : {}),
-                roles: roleInputs.map(role => ({
-                    ...(role.shift_role_id ? { shift_role_id: role.shift_role_id } : {}),
-                    role_title: role.role_title,
-                    required_count: role.required_count
-                }))
-            });
+        await withButtonLock(getSubmitButtonFromEvent(e), async () => {
+            try {
+                const response = await updateFullShift(shiftId, {
+                    ...updatedShiftPayload,
+                    apply_scope: applyScope,
+                    ...(recurrencePayload ? { recurrence: recurrencePayload } : {}),
+                    roles: roleInputs.map(role => ({
+                        ...(role.shift_role_id ? { shift_role_id: role.shift_role_id } : {}),
+                        role_title: role.role_title,
+                        required_count: role.required_count
+                    }))
+                });
 
-            const impacted = collectAffectedContacts([response]);
-            const recurringSummary = response.apply_scope === 'future'
-                ? ` Updated ${Number(response.updated_occurrence_count || 0)} occurrence(s), created ${Number(response.created_occurrence_count || 0)}, cancelled ${Number(response.cancelled_occurrence_count || 0)}.`
-                : '';
-            const impactedMsg = impacted.uniqueVolunteers > 0
-                ? ` ${impacted.uniqueVolunteers} volunteer(s) need reconfirmation.`
-                : '';
-            showMessage('shifts', `Shift updated successfully.${recurringSummary}${impactedMsg}`, 'success');
+                const impacted = collectAffectedContacts([response]);
+                const recurringSummary = response.apply_scope === 'future'
+                    ? ` Updated ${Number(response.updated_occurrence_count || 0)} occurrence(s), created ${Number(response.created_occurrence_count || 0)}, cancelled ${Number(response.cancelled_occurrence_count || 0)}.`
+                    : '';
+                const impactedMsg = impacted.uniqueVolunteers > 0
+                    ? ` ${impacted.uniqueVolunteers} volunteer(s) need reconfirmation.`
+                    : '';
+                showMessage('shifts', `Shift updated successfully.${recurringSummary}${impactedMsg}`, 'success');
 
-            resetEditShiftForm();
-            await loadShiftsTable();
-            await loadCalendarShifts();
-            const myShiftsTab = document.getElementById('content-my-shifts');
-            if (myShiftsTab && myShiftsTab.classList.contains('active')) {
-                await loadMyRegisteredShifts();
+                resetEditShiftForm();
+                await loadShiftsTable();
+                await loadCalendarShifts();
+                const myShiftsTab = document.getElementById('content-my-shifts');
+                if (myShiftsTab && myShiftsTab.classList.contains('active')) {
+                    await loadMyRegisteredShifts();
+                }
+            } catch (error) {
+                showMessage('shifts', `Update failed: ${error.message}`, 'error');
             }
-        } catch (error) {
-            showMessage('shifts', `Update failed: ${error.message}`, 'error');
-        }
+        });
     });
 
     // Create shift form
@@ -4671,23 +4738,24 @@ function setupEventListeners() {
 
         const recurrence = buildRecurrencePayloadFromForm('shift', 'shift-start');
 
-        try {
-            const response = await createFullShift(currentPantryId, {
-                ...shiftData,
-                roles,
-                ...(recurrence ? { recurrence } : {})
-            });
+        await withButtonLock(getSubmitButtonFromEvent(e), async () => {
+            try {
+                const response = await createFullShift(currentPantryId, {
+                    ...shiftData,
+                    roles,
+                    ...(recurrence ? { recurrence } : {})
+                });
 
-            const createdCount = Number(response.created_shift_count || 1);
-            const recurringText = response.shift_series_id
-                ? ` Created ${createdCount} recurring shift occurrence(s).`
-                : '';
-            showMessage('shifts', `Shift created successfully with all roles!${recurringText}`, 'success');
-            e.target.reset();
-            resetCreateRecurrenceForm();
+                const createdCount = Number(response.created_shift_count || 1);
+                const recurringText = response.shift_series_id
+                    ? ` Created ${createdCount} recurring shift occurrence(s).`
+                    : '';
+                showMessage('shifts', `Shift created successfully with all roles!${recurringText}`, 'success');
+                e.target.reset();
+                resetCreateRecurrenceForm();
 
-            // Reset roles container to single role
-            document.getElementById('roles-container').innerHTML = `
+                // Reset roles container to single role
+                document.getElementById('roles-container').innerHTML = `
                         <div class="role-input-group">
                             <div class="form-grid">
                                 <div class="form-group">
@@ -4702,11 +4770,12 @@ function setupEventListeners() {
                         </div>
                     `;
 
-            await loadShiftsTable();
-            await loadCalendarShifts();
-        } catch (error) {
-            showMessage('shifts', `Error: ${error.message}`, 'error');
-        }
+                await loadShiftsTable();
+                await loadCalendarShifts();
+            } catch (error) {
+                showMessage('shifts', `Error: ${error.message}`, 'error');
+            }
+        });
     });
 }
 
