@@ -1,5 +1,45 @@
 // API Helper Functions
 
+function isLockableButton(element) {
+    return element instanceof HTMLButtonElement;
+}
+
+function getButtonLockState(button) {
+    return button?.dataset?.buttonLockInFlight === 'true';
+}
+
+function getSubmitButtonFromEvent(event) {
+    if (isLockableButton(event?.submitter)) {
+        return event.submitter;
+    }
+    return event?.target?.querySelector('button[type="submit"], button:not([type])') || null;
+}
+
+async function withButtonLock(button, callback) {
+    if (typeof callback !== 'function') {
+        return undefined;
+    }
+    if (!isLockableButton(button)) {
+        return callback();
+    }
+    if (button.disabled || getButtonLockState(button)) {
+        return undefined;
+    }
+
+    const wasDisabled = button.disabled;
+    button.dataset.buttonLockInFlight = 'true';
+    button.disabled = true;
+
+    try {
+        return await callback();
+    } finally {
+        if (button.isConnected) {
+            button.disabled = wasDisabled;
+            delete button.dataset.buttonLockInFlight;
+        }
+    }
+}
+
 /**
  * Core API call function
  */

@@ -115,20 +115,20 @@ function createCalendarController(key, root, modal, config) {
             this.part('sidebar-close')?.addEventListener('click', () => this.closeSidebar());
             this.part('sidebar-backdrop')?.addEventListener('click', () => this.closeSidebar());
 
-            this.part('today-btn')?.addEventListener('click', async () => {
+            this.part('today-btn')?.addEventListener('click', async (event) => {
                 this.state.selectedDate = startOfCalendarDay(new Date());
                 this.state.miniDate = startOfCalendarMonth(this.state.selectedDate);
-                await this.load(true);
+                await withButtonLock(event.currentTarget, () => this.load(true));
             });
 
-            this.part('prev-btn')?.addEventListener('click', async () => {
+            this.part('prev-btn')?.addEventListener('click', async (event) => {
                 shiftCalendarAnchorForController(this, -1);
-                await this.load(true);
+                await withButtonLock(event.currentTarget, () => this.load(true));
             });
 
-            this.part('next-btn')?.addEventListener('click', async () => {
+            this.part('next-btn')?.addEventListener('click', async (event) => {
                 shiftCalendarAnchorForController(this, 1);
-                await this.load(true);
+                await withButtonLock(event.currentTarget, () => this.load(true));
             });
 
             this.part('mini-prev')?.addEventListener('click', () => {
@@ -149,7 +149,7 @@ function createCalendarController(key, root, modal, config) {
                     }
                     this.state.view = nextView;
                     this.state.hasUserChangedView = true;
-                    await this.load(true);
+                    await withButtonLock(button, () => this.load(true));
                 });
             });
 
@@ -185,7 +185,7 @@ function createCalendarController(key, root, modal, config) {
                     this.state.selectedDate = parseCalendarDateKey(target.dataset.calendarMoreDay) || this.state.selectedDate;
                     this.state.view = 'day';
                     this.state.hasUserChangedView = true;
-                    await this.load(true);
+                    await withButtonLock(target, () => this.load(true));
                     return;
                 }
 
@@ -208,9 +208,7 @@ function createCalendarController(key, root, modal, config) {
                     return;
                 }
 
-                target.setAttribute('disabled', 'disabled');
                 const actionSucceeded = await this.config.handleAction(this, target);
-                target.removeAttribute('disabled');
 
                 if (actionSucceeded) {
                     this.closeModal();
@@ -330,7 +328,7 @@ function createCalendarController(key, root, modal, config) {
                     }
                     this.state.selectedDate = date;
                     this.state.miniDate = startOfCalendarMonth(date);
-                    await this.load(true);
+                    await withButtonLock(button, () => this.load(true));
                     if (isPhoneViewport()) {
                         this.closeSidebar();
                     }
@@ -588,7 +586,7 @@ function buildAvailableCalendarConfig() {
             if (!roleId) {
                 return false;
             }
-            return signupForRole(roleId);
+            return signupForRole(roleId, target);
         }
     };
 }
@@ -671,13 +669,13 @@ function buildMyShiftsCalendarConfig() {
             }
 
             if (action === 'cancel-signup') {
-                return cancelMySignup(signupId);
+                return cancelMySignup(signupId, target);
             }
             if (action === 'confirm-signup') {
-                return reconfirmMySignup(signupId, 'CONFIRM');
+                return reconfirmMySignup(signupId, 'CONFIRM', target);
             }
             if (action === 'cancel-reconfirm-signup') {
-                return reconfirmMySignup(signupId, 'CANCEL');
+                return reconfirmMySignup(signupId, 'CANCEL', target);
             }
             return false;
         }
