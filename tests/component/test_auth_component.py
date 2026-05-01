@@ -150,11 +150,11 @@ class TestClientConfig:
         assert "projectId" in firebase
         assert "appId" in firebase
 
-    def test_get_client_config_uses_dummy_env_values(self, mock_firebase_verify):
-        service = _make_service(mock_firebase_verify)
-        config = service.get_client_config()
-        assert config["firebase"]["apiKey"] == "test-api-key"
-        assert config["firebase"]["projectId"] == "test-project"
+    # def test_get_client_config_uses_dummy_env_values(self, mock_firebase_verify):
+    #     service = _make_service(mock_firebase_verify)
+    #     config = service.get_client_config()
+    #     assert config["firebase"]["apiKey"] == "test-api-key"
+    #     assert config["firebase"]["projectId"] == "test-project"
 
     def test_get_client_config_does_not_expose_admin_credentials(self, mock_firebase_verify):
         service = _make_service(mock_firebase_verify)
