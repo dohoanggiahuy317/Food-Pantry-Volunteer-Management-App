@@ -4142,6 +4142,29 @@ table tr:hover {
         align-items: stretch;
     }
 
+    .my-shifts-list-toolbar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: end;
+        gap: 0.85rem;
+    }
+
+    .my-shifts-list-search-group {
+        grid-column: 1 / -1;
+    }
+
+    .my-shifts-list-search-group,
+    .my-shifts-list-filter-group,
+    .my-shifts-list-filter-actions {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .my-shifts-list-filter-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
     .manage-shifts-ops-layout {
         grid-template-columns: minmax(250px, 0.82fr) minmax(0, 1.18fr);
         gap: 0.85rem;
@@ -4490,9 +4513,23 @@ table tr:hover {
 
     .shift-view-search-group,
     .volunteer-pantries-search-group,
-    .volunteer-pantries-sort-group {
+    .volunteer-pantries-sort-group,
+    .my-shifts-list-search-group,
+    .my-shifts-list-filter-group,
+    .my-shifts-list-filter-actions {
         flex: 1 1 auto;
         width: 100%;
+        min-width: 0;
+    }
+
+    .my-shifts-list-toolbar {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .my-shifts-list-search-group {
+        grid-column: auto;
     }
 
     .volunteer-pantry-list-head,

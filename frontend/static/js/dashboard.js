@@ -1161,7 +1161,7 @@ function updateVolunteerPantryFilterUi() {
     const filtered = getFilteredVolunteerPantries();
     const total = volunteerPantryDirectory.length;
     const qualifier = volunteerPantrySearchQuery ? ` matching "${volunteerPantrySearchQuery}"` : '';
-    summary.textContent = `${filtered.length} of ${total} pantry${total === 1 ? '' : 'ies'} shown${qualifier}.`;
+    summary.textContent = `${filtered.length} of ${total} ${total === 1 ? 'pantry' : 'pantries'} shown${qualifier}.`;
 }
 
 function isVolunteerPantryCompactViewport() {
