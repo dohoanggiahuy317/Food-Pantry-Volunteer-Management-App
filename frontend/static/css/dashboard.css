@@ -1695,6 +1695,12 @@ table tr:hover {
     margin-bottom: 1rem;
 }
 
+.my-shifts-upcoming-count {
+    font-size: 0.95rem;
+    color: #2d3748;
+    margin-bottom: 0.5rem;
+}
+
 .my-shifts-view-toggle {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3229,6 +3235,13 @@ table tr:hover {
 
 .volunteer-pantries-header {
     margin-bottom: 0.6rem;
+}
+
+.volunteer-pantries-count {
+    font-size: 0.85rem;
+    color: #718096;
+    white-space: nowrap;
+    align-self: center;
 }
 
 .volunteer-pantries-toolbar {
