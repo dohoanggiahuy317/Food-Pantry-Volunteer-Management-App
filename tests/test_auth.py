@@ -34,6 +34,26 @@ class TestAuthService:
             with pytest.raises((AuthError, ValueError, KeyError)):
                 auth_service.resolve_memory_account("nonexistent")
 
+    def test_get_client_config_includes_memory_accounts(self, auth_service):
+        """Test client auth config exposes memory account choices."""
+        config = auth_service.get_client_config()
+
+        assert config["provider"] == auth_service.mode
+        assert config["memory_accounts"] == auth_service.list_memory_accounts()
+        assert config["memory_accounts"] is not auth_service.list_memory_accounts()
+
+    def test_resolve_unknown_memory_account_raises_auth_error(self, auth_service):
+        """Test resolving an unknown memory account returns the expected auth error."""
+        with pytest.raises(AuthError) as exc_info:
+            auth_service.resolve_memory_account("missing-account")
+
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.code == "MEMORY_ACCOUNT_NOT_FOUND"
+
+    def test_delete_user_memory_mode_is_noop(self, auth_service):
+        """Test memory auth delete hook is intentionally a no-op."""
+        assert auth_service.delete_user("any-uid") is None
+
 
 class TestAuthError:
     """Test AuthError exception."""

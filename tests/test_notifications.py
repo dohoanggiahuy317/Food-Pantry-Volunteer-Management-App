@@ -8,6 +8,10 @@ from notifications import (
     send_shift_help_broadcast,
     NotificationResult
 )
+from notifications.notifications import (
+    send_new_shift_subscriber_notification,
+    send_new_shift_series_subscriber_notification,
+)
 
 
 
@@ -486,7 +490,176 @@ class TestShiftCancellationNotification:
             call_args = mock_send.call_args
             params = call_args[0][0]
             html = params["html"]
-            
+
             # Verify cancellation-specific content
             assert "cancelled" in html.lower()
             assert "flexibility" in html.lower()
+
+
+class TestNotificationHelpersExtended:
+    """Tests for uncovered notification helper functions."""
+
+    def test_normalized_role_titles_from_roles_deduplicates(self):
+        from notifications.notifications import _normalized_role_titles_from_roles
+        roles = [
+            {"role_title": "Helper"},
+            {"role_title": "Helper"},
+            {"role_title": "Greeter"},
+        ]
+        result = _normalized_role_titles_from_roles(roles)
+        assert result == "Helper, Greeter"
+
+    def test_normalized_role_titles_from_roles_empty(self):
+        from notifications.notifications import _normalized_role_titles_from_roles
+        assert _normalized_role_titles_from_roles([]) == "Roles will be announced soon"
+
+    def test_normalized_role_titles_from_roles_all_empty_titles(self):
+        from notifications.notifications import _normalized_role_titles_from_roles
+        roles = [{"role_title": None}, {"role_title": ""}]
+        assert _normalized_role_titles_from_roles(roles) == "Roles will be announced soon"
+
+    def test_resolved_timezone_name_invalid(self):
+        from notifications.notifications import _resolved_timezone_name, DEFAULT_TIMEZONE
+        assert _resolved_timezone_name("Not/A/Real/Timezone") == DEFAULT_TIMEZONE
+
+    def test_format_shift_window_multiday(self):
+        from notifications.notifications import _format_shift_window
+        shift = {
+            "start_time": "2027-01-01T23:00:00Z",
+            "end_time": "2027-01-02T01:00:00Z",
+        }
+        result = _format_shift_window(shift, "UTC")
+        assert "January 01" in result or "Jan" in result
+        assert "January 02" in result or "Jan" in result
+
+    def test_weekday_labels(self):
+        from notifications.notifications import _weekday_labels
+        assert _weekday_labels(["MO", "WE", "FR"]) == "Mon, Wed, Fri"
+        assert _weekday_labels([]) == ""
+        assert _weekday_labels(["SU"]) == "Sun"
+
+    def test_format_recurrence_summary_until(self):
+        from notifications.notifications import _format_recurrence_summary
+        recurrence = {
+            "interval_weeks": 1,
+            "weekdays": ["MO"],
+            "end_mode": "UNTIL",
+            "until_date": "2027-12-31",
+        }
+        result = _format_recurrence_summary(recurrence)
+        assert "every week" in result
+        assert "Mon" in result
+        assert "until 2027-12-31" in result
+
+    def test_format_recurrence_summary_count(self):
+        from notifications.notifications import _format_recurrence_summary
+        recurrence = {
+            "interval_weeks": 2,
+            "weekdays": ["TU", "TH"],
+            "end_mode": "COUNT",
+            "occurrence_count": 4,
+        }
+        result = _format_recurrence_summary(recurrence)
+        assert "every 2 weeks" in result
+        assert "for 4 occurrence(s)" in result
+
+    def test_format_recurrence_summary_no_end(self):
+        from notifications.notifications import _format_recurrence_summary
+        result = _format_recurrence_summary({"interval_weeks": 1, "weekdays": ["SA"]})
+        assert "for a recurring series" in result
+
+    def test_format_occurrence_preview(self):
+        from notifications.notifications import _format_occurrence_preview
+        occurrences = [
+            {"start_time": "2027-03-01T10:00:00Z", "end_time": "2027-03-01T12:00:00Z"},
+            {"start_time": "2027-03-08T10:00:00Z", "end_time": "2027-03-08T12:00:00Z"},
+        ]
+        result = _format_occurrence_preview(occurrences, "UTC")
+        assert "March" in result
+
+
+class TestNewShiftSubscriberNotification:
+    """Tests for send_new_shift_subscriber_notification."""
+
+    def test_missing_recipient_email(self):
+        result = send_new_shift_subscriber_notification(
+            recipient={"email": "", "full_name": "Vol"},
+            pantry={"name": "P", "location_address": "A"},
+            shift={"shift_name": "S", "start_time": "2027-01-01T10:00:00Z", "end_time": "2027-01-01T11:00:00Z"},
+            roles=[],
+        )
+        assert result["ok"] is False
+        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
+
+    def test_missing_sender_email(self):
+        with patch("notifications.notifications.RESEND_FROM_EMAIL", ""):
+            result = send_new_shift_subscriber_notification(
+                recipient={"email": "vol@example.com", "full_name": "Vol"},
+                pantry={"name": "P", "location_address": "A"},
+                shift={"shift_name": "S", "start_time": "2027-01-01T10:00:00Z", "end_time": "2027-01-01T11:00:00Z"},
+                roles=[{"role_title": "Helper"}],
+            )
+        assert result["ok"] is False
+        assert result["code"] == "SENDER_EMAIL_MISSING"
+
+    def test_successful_send(self):
+        with patch("notifications.notifications.RESEND_API_KEY", "key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "from@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+            mock_send.return_value = {"ok": True, "code": "NEW_SHIFT_SUBSCRIBER_NOTIFICATION_SENT"}
+            result = send_new_shift_subscriber_notification(
+                recipient={"email": "vol@example.com", "full_name": "Vol"},
+                pantry={"name": "Pantry A", "location_address": "123 St"},
+                shift={"shift_name": "Distrib", "start_time": "2027-01-01T10:00:00Z", "end_time": "2027-01-01T11:00:00Z"},
+                roles=[{"role_title": "Helper"}, {"role_title": "Helper"}, {"role_title": "Greeter"}],
+            )
+        assert result["ok"] is True
+
+
+class TestNewShiftSeriesSubscriberNotification:
+    """Tests for send_new_shift_series_subscriber_notification."""
+
+    def test_missing_recipient_email(self):
+        result = send_new_shift_series_subscriber_notification(
+            recipient={"email": None},
+            pantry={},
+            shift={},
+            roles=[],
+            recurrence={"interval_weeks": 1, "weekdays": ["MO"]},
+            created_shift_count=3,
+            preview_occurrences=[],
+        )
+        assert result["ok"] is False
+        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
+
+    def test_missing_sender_email(self):
+        with patch("notifications.notifications.RESEND_FROM_EMAIL", ""):
+            result = send_new_shift_series_subscriber_notification(
+                recipient={"email": "vol@example.com"},
+                pantry={"name": "P", "location_address": "A"},
+                shift={"shift_name": "S", "start_time": "2027-01-01T10:00:00Z", "end_time": "2027-01-01T11:00:00Z"},
+                roles=[],
+                recurrence={"interval_weeks": 1, "weekdays": ["MO"]},
+                created_shift_count=3,
+                preview_occurrences=[],
+            )
+        assert result["ok"] is False
+        assert result["code"] == "SENDER_EMAIL_MISSING"
+
+    def test_successful_send(self):
+        with patch("notifications.notifications.RESEND_API_KEY", "key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "from@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+            mock_send.return_value = {"ok": True, "code": "NEW_SHIFT_SERIES_SUBSCRIBER_NOTIFICATION_SENT"}
+            result = send_new_shift_series_subscriber_notification(
+                recipient={"email": "vol@example.com", "full_name": "Vol"},
+                pantry={"name": "P", "location_address": "A"},
+                shift={"shift_name": "Series Shift", "start_time": "2027-01-01T10:00:00Z", "end_time": "2027-01-01T11:00:00Z"},
+                roles=[{"role_title": "Helper"}],
+                recurrence={"interval_weeks": 1, "weekdays": ["MO"], "end_mode": "COUNT", "occurrence_count": 5},
+                created_shift_count=5,
+                preview_occurrences=[
+                    {"start_time": "2027-01-01T10:00:00Z", "end_time": "2027-01-01T11:00:00Z"},
+                ],
+            )
+        assert result["ok"] is True

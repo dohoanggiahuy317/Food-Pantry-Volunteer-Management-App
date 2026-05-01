@@ -155,6 +155,80 @@ class TestBackendEdgeCases:
             # Expected behavior
             pass
 
+    def test_create_and_update_user_normalizes_identity_fields(self):
+        """Test email/auth fields are normalized and searchable."""
+        backend = create_backend()
+        user = backend.create_user(
+            full_name="Identity User",
+            email="  Identity@Example.COM ",
+            phone_number=None,
+            roles=["VOLUNTEER"],
+            timezone="  America/New_York  ",
+            auth_provider="  firebase  ",
+            auth_uid="  uid-identity-1  ",
+        )
+
+        assert user["email"] == "identity@example.com"
+        assert user["timezone"] == "America/New_York"
+        assert user["auth_provider"] == "firebase"
+        assert user["auth_uid"] == "uid-identity-1"
+        assert backend.get_user_by_auth_uid(" uid-identity-1 ")["user_id"] == user["user_id"]
+        assert backend.get_user_by_auth_uid("") is None
+
+        updated = backend.update_user(user["user_id"], {
+            "email": " NEWIdentity@Example.COM ",
+            "timezone": "   ",
+            "auth_provider": None,
+            "auth_uid": "   ",
+            "ignored": "value",
+        })
+        assert updated["email"] == "newidentity@example.com"
+        assert updated["timezone"] is None
+        assert updated["auth_provider"] is None
+        assert updated["auth_uid"] is None
+        assert "ignored" not in updated
+
+    def test_update_user_rejects_duplicate_email_and_auth_uid(self):
+        """Test duplicate unique identity values are rejected on update."""
+        backend = create_backend()
+        first = backend.create_user(
+            full_name="First Identity",
+            email="first-identity@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"],
+            auth_uid="first-auth-uid",
+        )
+        second = backend.create_user(
+            full_name="Second Identity",
+            email="second-identity@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"],
+            auth_uid="second-auth-uid",
+        )
+
+        with pytest.raises(ValueError, match="Email already exists"):
+            backend.update_user(second["user_id"], {"email": first["email"].upper()})
+
+        with pytest.raises(ValueError, match="Authentication identity already exists"):
+            backend.update_user(second["user_id"], {"auth_uid": first["auth_uid"]})
+
+    def test_replace_user_roles_filters_duplicates_and_invalid_ids(self):
+        """Test replacing roles ignores duplicate/unknown roles."""
+        backend = create_backend()
+        user = backend.create_user(
+            full_name="Role Replace User",
+            email="role-replace@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"],
+        )
+        volunteer_role = backend.get_role_by_id(3)
+        admin_role = backend.get_role_by_id(1)
+
+        roles = backend.replace_user_roles(user["user_id"], [3, 1, 3, 99999])
+
+        assert roles == [admin_role["role_name"], volunteer_role["role_name"]]
+        assert backend.replace_user_roles(99999, [1]) is None
+
 
 class TestPantries:
     """Test pantry operations."""
@@ -324,6 +398,58 @@ class TestPantries:
         is_lead = backend.is_pantry_lead(pantry["pantry_id"], other_user["user_id"])
         assert is_lead is False
 
+    def test_create_pantry_assigns_only_valid_pantry_leads(self):
+        """Test pantry creation ignores missing users and non-leads."""
+        backend = create_backend()
+        lead = backend.create_user(
+            full_name="Valid Pantry Lead",
+            email="valid-pantry-lead@example.com",
+            phone_number=None,
+            roles=["PANTRY_LEAD"],
+        )
+        volunteer = backend.create_user(
+            full_name="Pantry Volunteer",
+            email="pantry-volunteer@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"],
+        )
+
+        pantry = backend.create_pantry(
+            name="Selective Lead Pantry",
+            location_address="321 Selective St",
+            lead_ids=[lead["user_id"], volunteer["user_id"], 99999],
+        )
+
+        assert [row["user_id"] for row in pantry["leads"]] == [lead["user_id"]]
+        assert backend.is_pantry_lead(pantry["pantry_id"], lead["user_id"]) is True
+        assert backend.is_pantry_lead(pantry["pantry_id"], volunteer["user_id"]) is False
+
+    def test_pantry_subscriptions_are_idempotent_and_removable(self):
+        """Test subscribe/list/unsubscribe pantry subscription helpers."""
+        backend = create_backend()
+        user = backend.create_user(
+            full_name="Subscription User",
+            email="subscription-user@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"],
+        )
+        pantry = backend.create_pantry(
+            name="Subscription Pantry",
+            location_address="444 Subscription Ave",
+            lead_ids=[],
+        )
+
+        backend.subscribe_user_to_pantry(pantry["pantry_id"], user["user_id"])
+        backend.subscribe_user_to_pantry(pantry["pantry_id"], user["user_id"])
+
+        assert backend.list_pantry_subscriptions_for_user(user["user_id"]) == [pantry["pantry_id"]]
+        assert backend.is_user_subscribed_to_pantry(pantry["pantry_id"], user["user_id"]) is True
+        assert [row["user_id"] for row in backend.list_pantry_subscribers(pantry["pantry_id"])] == [user["user_id"]]
+
+        backend.unsubscribe_user_from_pantry(pantry["pantry_id"], user["user_id"])
+        assert backend.list_pantry_subscriptions_for_user(user["user_id"]) == []
+        assert backend.is_user_subscribed_to_pantry(pantry["pantry_id"], user["user_id"]) is False
+
 
 class TestShifts:
     """Test shift operations."""
@@ -488,6 +614,168 @@ class TestShifts:
         backend.delete_shift(shift_id)
         retrieved = backend.get_shift_by_id(shift_id)
         assert retrieved is None
+
+    def test_list_non_expired_shifts_in_range_filters_and_sorts(self):
+        """Test range listing skips expired/cancelled shifts and sorts results."""
+        backend = create_backend()
+        pantry = backend.create_pantry(
+            name="Range Pantry",
+            location_address="901 Range St",
+            lead_ids=[]
+        )
+        lead = backend.create_user(
+            full_name="Range Lead",
+            email="range-lead@example.com",
+            phone_number=None,
+            roles=["PANTRY_LEAD"]
+        )
+
+        later = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Later Range Shift",
+            start_time="2030-01-03T10:00:00Z",
+            end_time="2030-01-03T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        earlier = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Earlier Range Shift",
+            start_time="2030-01-02T10:00:00Z",
+            end_time="2030-01-02T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Cancelled Range Shift",
+            start_time="2030-01-02T13:00:00Z",
+            end_time="2030-01-02T15:00:00Z",
+            status="CANCELLED",
+            created_by=lead["user_id"]
+        )
+        backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Expired Range Shift",
+            start_time="2020-01-02T10:00:00Z",
+            end_time="2020-01-02T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+
+        shifts = backend.list_non_expired_shifts_in_range(
+            "2030-01-01T00:00:00Z",
+            "2030-01-04T00:00:00Z",
+            include_cancelled=False,
+        )
+
+        assert [shift["shift_id"] for shift in shifts if shift["pantry_id"] == pantry["pantry_id"]] == [
+            earlier["shift_id"],
+            later["shift_id"],
+        ]
+        assert backend.list_non_expired_shifts_in_range("not-a-date", "2030-01-04T00:00:00Z") == []
+
+    def test_replace_shift_and_roles_updates_creates_deletes_and_cancels(self):
+        """Test replacing a shift role set handles every existing-role branch."""
+        backend = create_backend()
+        pantry = backend.create_pantry(
+            name="Replace Shift Pantry",
+            location_address="902 Replace St",
+            lead_ids=[]
+        )
+        lead = backend.create_user(
+            full_name="Replace Shift Lead",
+            email="replace-shift-lead@example.com",
+            phone_number=None,
+            roles=["PANTRY_LEAD"]
+        )
+        volunteer = backend.create_user(
+            full_name="Replace Shift Volunteer",
+            email="replace-shift-volunteer@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"]
+        )
+        shift = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Replace Original",
+            start_time="2030-02-01T10:00:00Z",
+            end_time="2030-02-01T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        kept_role = backend.create_shift_role(shift["shift_id"], "Keep Me", 2)
+        delete_role = backend.create_shift_role(shift["shift_id"], "Delete Me", 1)
+        cancel_role = backend.create_shift_role(shift["shift_id"], "Cancel Me", 1)
+        backend.create_signup(cancel_role["shift_role_id"], volunteer["user_id"], "CONFIRMED")
+
+        updated = backend.replace_shift_and_roles(
+            shift["shift_id"],
+            {"shift_name": "Replace Updated", "status": "ACTIVE"},
+            [
+                {
+                    "shift_role_id": kept_role["shift_role_id"],
+                    "role_title": "Kept Updated",
+                    "required_count": 3,
+                },
+                {"role_title": "New Role", "required_count": 4},
+            ],
+        )
+
+        assert updated["shift_name"] == "Replace Updated"
+        roles = {role["role_title"]: role for role in backend.list_shift_roles(shift["shift_id"])}
+        assert roles["Kept Updated"]["required_count"] == 3
+        assert roles["New Role"]["required_count"] == 4
+        assert backend.get_shift_role_by_id(delete_role["shift_role_id"]) is None
+        cancelled = backend.get_shift_role_by_id(cancel_role["shift_role_id"])
+        assert cancelled["status"] == "CANCELLED"
+        assert cancelled["filled_count"] == 0
+
+    def test_replace_shift_and_roles_rejects_invalid_role_payloads(self):
+        """Test role replacement validation errors."""
+        backend = create_backend()
+        pantry = backend.create_pantry(
+            name="Invalid Replace Pantry",
+            location_address="903 Replace St",
+            lead_ids=[]
+        )
+        lead = backend.create_user(
+            full_name="Invalid Replace Lead",
+            email="invalid-replace-lead@example.com",
+            phone_number=None,
+            roles=["PANTRY_LEAD"]
+        )
+        shift = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Invalid Replace Shift",
+            start_time="2030-02-02T10:00:00Z",
+            end_time="2030-02-02T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        role = backend.create_shift_role(shift["shift_id"], "Existing", 1)
+
+        with pytest.raises(ValueError, match="role_title is required"):
+            backend.replace_shift_and_roles(shift["shift_id"], {}, [{"role_title": " ", "required_count": 1}])
+
+        with pytest.raises(ValueError, match="required_count must be >= 1"):
+            backend.replace_shift_and_roles(shift["shift_id"], {}, [{"role_title": "Bad Count", "required_count": 0}])
+
+        with pytest.raises(ValueError, match="Duplicate shift_role_id"):
+            backend.replace_shift_and_roles(
+                shift["shift_id"],
+                {},
+                [
+                    {"shift_role_id": role["shift_role_id"], "role_title": "One", "required_count": 1},
+                    {"shift_role_id": role["shift_role_id"], "role_title": "Two", "required_count": 1},
+                ],
+            )
+
+        with pytest.raises(ValueError, match="Shift role not found"):
+            backend.replace_shift_and_roles(
+                shift["shift_id"],
+                {},
+                [{"shift_role_id": 99999, "role_title": "Missing", "required_count": 1}],
+            )
 
 
 class TestShiftRoles:
@@ -951,3 +1239,213 @@ class TestSignups:
         backend.delete_signup(signup["signup_id"])
         retrieved = backend.get_signup_by_id(signup["signup_id"])
         assert retrieved is None
+
+    def test_pending_signup_reserves_capacity_then_expires(self):
+        """Test pending signups count as occupied only until expiration."""
+        backend = create_backend()
+        volunteer = backend.create_user(
+            full_name="Pending Volunteer",
+            email="pending-volunteer@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"]
+        )
+        next_volunteer = backend.create_user(
+            full_name="Next Pending Volunteer",
+            email="next-pending-volunteer@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"]
+        )
+        pantry = backend.create_pantry(
+            name="Pending Pantry",
+            location_address="2100 Pending St",
+            lead_ids=[]
+        )
+        lead = backend.create_user(
+            full_name="Pending Lead",
+            email="pending-lead@example.com",
+            phone_number=None,
+            roles=["PANTRY_LEAD"]
+        )
+        shift = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Pending Shift",
+            start_time="2030-03-01T08:00:00Z",
+            end_time="2030-03-01T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        shift_role = backend.create_shift_role(shift["shift_id"], "Pending Role", 1)
+
+        signup = backend.create_signup(shift_role["shift_role_id"], volunteer["user_id"], "PENDING_CONFIRMATION")
+
+        assert signup["reservation_expires_at"] is not None
+        assert backend.get_shift_role_by_id(shift_role["shift_role_id"])["status"] == "FULL"
+        with pytest.raises(RuntimeError, match="full"):
+            backend.create_signup(shift_role["shift_role_id"], next_volunteer["user_id"], "CONFIRMED")
+
+        expired_count = backend.expire_pending_signups(shift["shift_id"], "2030-03-01T08:00:00Z")
+
+        assert expired_count == 1
+        assert backend.get_signup_by_id(signup["signup_id"])["signup_status"] == "CANCELLED"
+        assert backend.get_shift_role_by_id(shift_role["shift_role_id"])["status"] == "OPEN"
+        replacement = backend.create_signup(shift_role["shift_role_id"], next_volunteer["user_id"], "CONFIRMED")
+        assert replacement["signup_status"] == "CONFIRMED"
+
+    def test_bulk_mark_shift_signups_pending_skips_cancelled_and_waitlisted(self):
+        """Test bulk pending conversion only affects active signup statuses."""
+        backend = create_backend()
+        pantry = backend.create_pantry(
+            name="Bulk Pending Pantry",
+            location_address="2200 Pending St",
+            lead_ids=[]
+        )
+        lead = backend.create_user(
+            full_name="Bulk Pending Lead",
+            email="bulk-pending-lead@example.com",
+            phone_number=None,
+            roles=["PANTRY_LEAD"]
+        )
+        shift = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Bulk Pending Shift",
+            start_time="2030-03-02T08:00:00Z",
+            end_time="2030-03-02T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        shift_role = backend.create_shift_role(shift["shift_id"], "Bulk Pending Role", 4)
+        users = [
+            backend.create_user(
+                full_name=f"Bulk Pending User {idx}",
+                email=f"bulk-pending-user-{idx}@example.com",
+                phone_number=None,
+                roles=["VOLUNTEER"]
+            )
+            for idx in range(4)
+        ]
+        confirmed = backend.create_signup(shift_role["shift_role_id"], users[0]["user_id"], "CONFIRMED")
+        no_show = backend.create_signup(shift_role["shift_role_id"], users[1]["user_id"], "NO_SHOW")
+        cancelled = backend.create_signup(shift_role["shift_role_id"], users[2]["user_id"], "CANCELLED")
+        waitlisted = backend.create_signup(shift_role["shift_role_id"], users[3]["user_id"], "WAITLISTED")
+
+        affected = backend.bulk_mark_shift_signups_pending(shift["shift_id"], "not-a-date")
+
+        assert {row["signup_id"] for row in affected} == {confirmed["signup_id"], no_show["signup_id"]}
+        assert backend.get_signup_by_id(confirmed["signup_id"])["signup_status"] == "PENDING_CONFIRMATION"
+        assert backend.get_signup_by_id(no_show["signup_id"])["reservation_expires_at"] is not None
+        assert backend.get_signup_by_id(cancelled["signup_id"])["signup_status"] == "CANCELLED"
+        assert backend.get_signup_by_id(waitlisted["signup_id"])["signup_status"] == "WAITLISTED"
+
+    def test_reconfirm_pending_signup_confirms_waitlists_and_expires(self):
+        """Test reconfirming pending signups covers major outcomes."""
+        backend = create_backend()
+        pantry = backend.create_pantry(
+            name="Reconfirm Pantry",
+            location_address="2300 Reconfirm St",
+            lead_ids=[]
+        )
+        lead = backend.create_user(
+            full_name="Reconfirm Lead",
+            email="reconfirm-lead@example.com",
+            phone_number=None,
+            roles=["PANTRY_LEAD"]
+        )
+        shift = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Reconfirm Shift",
+            start_time="2030-03-03T08:00:00Z",
+            end_time="2030-03-03T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        confirm_role = backend.create_shift_role(shift["shift_id"], "Confirm Role", 1)
+        waitlist_role = backend.create_shift_role(shift["shift_id"], "Waitlist Role", 2)
+        expired_role = backend.create_shift_role(shift["shift_id"], "Expired Role", 1)
+        users = [
+            backend.create_user(
+                full_name=f"Reconfirm User {idx}",
+                email=f"reconfirm-user-{idx}@example.com",
+                phone_number=None,
+                roles=["VOLUNTEER"]
+            )
+            for idx in range(4)
+        ]
+        confirm_signup = backend.create_signup(confirm_role["shift_role_id"], users[0]["user_id"], "PENDING_CONFIRMATION")
+        backend.create_signup(waitlist_role["shift_role_id"], users[1]["user_id"], "CONFIRMED")
+        waitlist_signup = backend.create_signup(waitlist_role["shift_role_id"], users[2]["user_id"], "PENDING_CONFIRMATION")
+        backend.update_shift_role(waitlist_role["shift_role_id"], {"required_count": 1})
+        expired_signup = backend.create_signup(expired_role["shift_role_id"], users[3]["user_id"], "PENDING_CONFIRMATION")
+        backend.update_signup(expired_signup["signup_id"], "PENDING_CONFIRMATION")
+        for row in backend.store["shift_signups"]:
+            if row["signup_id"] == expired_signup["signup_id"]:
+                row["reservation_expires_at"] = "2030-03-01T00:00:00Z"
+
+        confirmed = backend.reconfirm_pending_signup(confirm_signup["signup_id"], "2026-05-02T00:00:00Z")
+        waitlisted = backend.reconfirm_pending_signup(waitlist_signup["signup_id"], "2026-05-02T00:00:00Z")
+        expired = backend.reconfirm_pending_signup(expired_signup["signup_id"], "2030-03-02T00:00:00Z")
+
+        assert confirmed["result"] == "CONFIRMED"
+        assert waitlisted["result"] == "WAITLISTED"
+        assert expired["result"] == "EXPIRED"
+        assert backend.reconfirm_pending_signup(99999, "2026-05-02T00:00:00Z") == {"result": "NOT_FOUND", "signup": None}
+        assert backend.reconfirm_pending_signup(confirmed["signup"]["signup_id"], "2026-05-02T00:00:00Z")["result"] == "NOT_PENDING"
+
+
+class TestGoogleCalendarStorage:
+    """Test Google Calendar storage helpers."""
+
+    def test_connection_upsert_preserves_refresh_token_when_missing(self):
+        """Test refresh_token is not overwritten by token refresh payloads."""
+        backend = create_backend()
+        user = backend.create_user(
+            full_name="Calendar User",
+            email="calendar-user@example.com",
+            phone_number=None,
+            roles=["VOLUNTEER"],
+        )
+
+        created = backend.upsert_google_calendar_connection(user["user_id"], {
+            "access_token": "access-1",
+            "refresh_token": "refresh-1",
+            "calendar_id": "primary",
+        })
+        updated = backend.upsert_google_calendar_connection(user["user_id"], {
+            "access_token": "access-2",
+            "refresh_token": None,
+            "calendar_id": "primary",
+        })
+
+        assert created["refresh_token"] == "refresh-1"
+        assert updated["access_token"] == "access-2"
+        assert updated["refresh_token"] == "refresh-1"
+        assert backend.get_google_calendar_connection(user["user_id"])["access_token"] == "access-2"
+
+        backend.delete_google_calendar_connection(user["user_id"])
+        assert backend.get_google_calendar_connection(user["user_id"]) is None
+
+    def test_event_link_upsert_and_bulk_delete(self):
+        """Test event links can be upserted and removed in bulk."""
+        backend = create_backend()
+
+        first = backend.upsert_google_calendar_event_link(101, {
+            "google_event_id": "event-101",
+            "calendar_id": "primary",
+        })
+        backend.upsert_google_calendar_event_link(101, {
+            "google_event_id": "event-101-updated",
+            "calendar_id": "primary",
+        })
+        second = backend.upsert_google_calendar_event_link(102, {
+            "google_event_id": "event-102",
+            "calendar_id": "primary",
+        })
+
+        assert first["google_event_id"] == "event-101"
+        assert backend.get_google_calendar_event_link(101)["google_event_id"] == "event-101-updated"
+
+        backend.delete_google_calendar_event_links([101, None])
+        assert backend.get_google_calendar_event_link(101) is None
+        assert backend.get_google_calendar_event_link(second["signup_id"]) is not None
+
+        backend.delete_google_calendar_event_link(second["signup_id"])
+        assert backend.get_google_calendar_event_link(second["signup_id"]) is None

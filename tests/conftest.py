@@ -71,3 +71,11 @@ def admin_user(setup_backend):
         roles=["ADMIN"]
     )
     return user
+
+
+@pytest.fixture
+def reset_backend(setup_backend):
+    """Reset the memory backend to seed-data state before each test."""
+    app_module, _ = setup_backend
+    app_module.backend._load_seed_data()
+    yield
