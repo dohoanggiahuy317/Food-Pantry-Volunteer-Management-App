@@ -2,8 +2,8 @@
 Notifications Component Tests
 
 Tests all six send_* functions in notifications/notifications.py in isolation.
-The only external dependency — resend.Emails.send — is replaced by the
-mock_resend_send fixture. No MySQL required; all inputs are plain dicts.
+The Resend module is replaced by the mock_resend_send fixture. No MySQL or
+external API access is required; all inputs are plain dicts.
 
 Run with: pytest tests/component/test_notifications_component.py -v -m component
 """

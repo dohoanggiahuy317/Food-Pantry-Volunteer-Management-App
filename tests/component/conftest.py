@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import sys
+import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -143,9 +144,14 @@ def mock_firebase_verify():
 @pytest.fixture
 def mock_resend_send():
     """
-    Patches resend.Emails.send so no real HTTP call is ever made.
+    Provides a fake resend module so no real SDK or HTTP call is ever used.
     Tests inspect mock_resend_send.call_args to assert on the email payload.
     """
-    with patch("resend.Emails.send") as mock_send:
-        mock_send.return_value = {"id": "mock-email-id-abc123"}
+    mock_send = MagicMock(return_value={"id": "mock-email-id-abc123"})
+    fake_resend = types.SimpleNamespace(
+        api_key=None,
+        Emails=types.SimpleNamespace(send=mock_send),
+    )
+
+    with patch.dict(sys.modules, {"resend": fake_resend}):
         yield mock_send
