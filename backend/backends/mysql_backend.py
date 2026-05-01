@@ -244,6 +244,64 @@ class MySQLBackend(StoreBackend):
                 cursor.execute("SELECT * FROM users ORDER BY user_id")
             return [_serialize_user(row) for row in cursor.fetchall()]
 
+    def list_help_broadcast_candidates(
+        self,
+        pantry_id: int,
+        query: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        normalized_query = str(query or "").strip().lower()
+        capped_limit = max(0, int(limit))
+        if capped_limit == 0:
+            return []
+
+        where_clauses = ["r.role_name = 'VOLUNTEER'"]
+        values: list[Any] = [pantry_id]
+        if normalized_query:
+            where_clauses.append("(LOWER(u.full_name) LIKE %s OR LOWER(u.email) LIKE %s)")
+            search_value = f"%{normalized_query}%"
+            values.extend([search_value, search_value])
+        values.append(capped_limit)
+
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                f"""
+                SELECT DISTINCT
+                    u.user_id,
+                    u.full_name,
+                    u.email,
+                    u.attendance_score,
+                    EXISTS (
+                        SELECT 1
+                        FROM shift_signups ss
+                        JOIN shift_roles sr ON sr.shift_role_id = ss.shift_role_id
+                        JOIN shifts s ON s.shift_id = sr.shift_id
+                        WHERE ss.user_id = u.user_id
+                          AND s.pantry_id = %s
+                          AND UPPER(ss.signup_status) = 'SHOW_UP'
+                        LIMIT 1
+                    ) AS has_attended_pantry
+                FROM users u
+                JOIN user_roles ur ON ur.user_id = u.user_id
+                JOIN roles r ON r.role_id = ur.role_id
+                WHERE {' AND '.join(where_clauses)}
+                ORDER BY has_attended_pantry DESC, u.attendance_score DESC, LOWER(u.full_name), u.user_id
+                LIMIT %s
+                """,
+                tuple(values),
+            )
+            return [
+                {
+                    "user_id": int(row["user_id"]),
+                    "full_name": row["full_name"],
+                    "email": row["email"],
+                    "attendance_score": int(row.get("attendance_score", 100)),
+                    "has_attended_pantry": bool(row.get("has_attended_pantry")),
+                }
+                for row in cursor.fetchall()
+            ]
+
     def list_roles(self) -> list[dict[str, Any]]:
         with get_connection() as conn:
             cursor = conn.cursor(dictionary=True)
@@ -1076,6 +1134,52 @@ class MySQLBackend(StoreBackend):
                 (shift_role_id,),
             )
             return [_serialize_signup(row) for row in cursor.fetchall()]
+
+    def get_latest_help_broadcast_for_sender(self, sender_user_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                SELECT broadcast_id, shift_id, sender_user_id, recipient_count, created_at
+                FROM help_broadcasts
+                WHERE sender_user_id = %s
+                ORDER BY created_at DESC, broadcast_id DESC
+                LIMIT 1
+                """,
+                (sender_user_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "broadcast_id": int(row["broadcast_id"]),
+                "shift_id": int(row["shift_id"]),
+                "sender_user_id": int(row["sender_user_id"]),
+                "recipient_count": int(row["recipient_count"]),
+                "created_at": _to_iso_z(row["created_at"]),
+            }
+
+    def create_help_broadcast(self, shift_id: int, sender_user_id: int, recipient_count: int) -> dict[str, Any]:
+        timestamp = _now_utc_naive()
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                """
+                INSERT INTO help_broadcasts (shift_id, sender_user_id, recipient_count, created_at)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (shift_id, sender_user_id, recipient_count, timestamp),
+            )
+            broadcast_id = int(cursor.lastrowid)
+            conn.commit()
+
+        return {
+            "broadcast_id": broadcast_id,
+            "shift_id": shift_id,
+            "sender_user_id": sender_user_id,
+            "recipient_count": recipient_count,
+            "created_at": _to_iso_z(timestamp),
+        }
 
     def list_signups_by_user(self, user_id: int) -> list[dict[str, Any]]:
         with get_connection() as conn:

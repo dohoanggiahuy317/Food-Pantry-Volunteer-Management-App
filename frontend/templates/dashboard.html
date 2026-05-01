@@ -468,230 +468,20 @@
         <div class="tab-content" id="content-shifts">
             <div id="message-shifts" class="message"></div>
 
-            <div class="manage-shifts-subtabs" id="manage-shifts-subtabs">
-                <button class="manage-shifts-subtab active" type="button" data-manage-subtab="create">Create Shifts</button>
-                <button class="manage-shifts-subtab" type="button" data-manage-subtab="view">Shifts View</button>
-            </div>
-
-            <div class="manage-shifts-subcontent active" id="manage-shifts-subcontent-create">
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="card-title">Create New Shift</h2>
-                    </div>
-                    <form id="create-shift-form">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="shift-name">Shift Name *</label>
-                                <input type="text" id="shift-name" name="shift_name" placeholder="e.g., Food Distribution"
-                                    required>
-                            </div>
-                            <div class="form-group">
-                                <label for="shift-start">Start Time *</label>
-                                <input type="datetime-local" id="shift-start" name="start_time" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="shift-end">End Time *</label>
-                                <input type="datetime-local" id="shift-end" name="end_time" required>
-                            </div>
-                        </div>
-                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC. Multi-day shifts are allowed and appear on the calendar starting on their first day.</div>
-
-                        <div class="card section-muted-card recurrence-card">
-                            <div class="card-header section-muted-header recurrence-card-header">
-                                <div>
-                                    <div class="recurrence-title-row">
-                                        <h3 class="section-muted-title">Repeat</h3>
-                                        <span class="recurrence-meta-badge">Optional</span>
-                                    </div>
-                                    <p class="shift-view-copy recurrence-copy">Create a weekly pattern for this shift.</p>
-                                </div>
-                                <label class="recurrence-toggle">
-                                    <input type="checkbox" id="shift-repeat-toggle">
-                                    <span>Recurring shift</span>
-                                </label>
-                            </div>
-                            <div id="shift-recurrence-fields" class="recurrence-fields app-hidden">
-                                <div class="form-grid recurrence-grid">
-                                    <div class="form-group">
-                                        <label for="shift-repeat-interval">Repeat every</label>
-                                        <div class="recurrence-inline-input">
-                                            <input type="number" id="shift-repeat-interval" min="1" value="1">
-                                            <span>week(s)</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Repeat on</label>
-                                    <div class="recurrence-weekday-group" id="shift-repeat-weekdays">
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="MO">Mon</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TU">Tue</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="WE">Wed</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TH">Thu</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="FR">Fri</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SA">Sat</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SU">Sun</button>
-                                    </div>
-                                    <p class="recurrence-helper">Selected days reuse the same shift time window.</p>
-                                </div>
-                                <div class="form-grid recurrence-grid">
-                                    <div class="form-group">
-                                        <label>Ends</label>
-                                        <div class="recurrence-end-options" id="shift-repeat-end-options">
-                                            <label class="recurrence-end-option">
-                                                <input type="radio" name="shift-repeat-end-mode" value="COUNT" checked>
-                                                <span>After</span>
-                                            </label>
-                                            <div class="recurrence-inline-input">
-                                                <input type="number" id="shift-repeat-count" min="1" value="4">
-                                                <span>occurrence(s)</span>
-                                            </div>
-                                            <div class="recurrence-end-date-group">
-                                                <label class="recurrence-end-option recurrence-end-option-date">
-                                                    <input type="radio" name="shift-repeat-end-mode" value="UNTIL">
-                                                    <span>On date</span>
-                                                </label>
-                                                <input type="date" id="shift-repeat-until" disabled>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card section-muted-card">
-                            <div class="card-header section-muted-header">
-                                <h3 class="section-muted-title">Roles/Positions for this Shift</h3>
-                                <button type="button" class="btn btn-secondary" id="add-role-btn">+ Add Role</button>
-                            </div>
-                            <div id="roles-container">
-                                <div class="role-input-group">
-                                    <div class="form-grid">
-                                        <div class="form-group">
-                                            <label>Role Title *</label>
-                                            <input type="text" class="role-title" placeholder="e.g., Greeter" required>
-                                        </div>
-                                        <div class="form-group">
-                                            <label>Required Count *</label>
-                                            <input type="number" class="role-count" min="1" value="1" required>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary">✓ Create Shift with Roles</button>
-                    </form>
-                </div>
-            </div>
-
-            <div class="manage-shifts-subcontent" id="manage-shifts-subcontent-view">
-                <div class="card app-hidden" id="edit-shift-card">
-                    <div class="card-header">
-                        <h2 class="card-title">Edit Shift</h2>
-                        <button type="button" class="btn btn-secondary" id="cancel-edit-shift-btn">Cancel Edit</button>
-                    </div>
-                    <form id="edit-shift-form">
-                        <input type="hidden" id="edit-shift-id">
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label for="edit-shift-name">Shift Name *</label>
-                                <input type="text" id="edit-shift-name" name="shift_name" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-shift-start">Start Time *</label>
-                                <input type="datetime-local" id="edit-shift-start" name="start_time" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-shift-end">End Time *</label>
-                                <input type="datetime-local" id="edit-shift-end" name="end_time" required>
-                            </div>
-                        </div>
-                        <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC. Multi-day shifts are allowed and appear on the calendar starting on their first day.</div>
-
-                        <div id="edit-shift-recurrence-card" class="card section-muted-card recurrence-card app-hidden">
-                            <div class="card-header section-muted-header recurrence-card-header">
-                                <div>
-                                    <div class="recurrence-title-row">
-                                        <h3 class="section-muted-title">Recurring Series</h3>
-                                        <span class="recurrence-meta-badge">Series</span>
-                                    </div>
-                                    <p id="edit-shift-recurrence-summary" class="shift-view-copy recurrence-copy"></p>
-                                </div>
-                                <span class="status-badge recurrence-badge">Recurring</span>
-                            </div>
-                            <div class="account-note recurrence-note">Pattern changes apply only if you choose <b>This and following events</b> when saving.</div>
-                            <div id="edit-shift-recurrence-fields" class="recurrence-fields">
-                                <div class="form-grid recurrence-grid">
-                                    <div class="form-group">
-                                        <label for="edit-shift-repeat-interval">Repeat every</label>
-                                        <div class="recurrence-inline-input">
-                                            <input type="number" id="edit-shift-repeat-interval" min="1" value="1">
-                                            <span>week(s)</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>Repeat on</label>
-                                    <div class="recurrence-weekday-group" id="edit-shift-repeat-weekdays">
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="MO">Mon</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TU">Tue</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="WE">Wed</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="TH">Thu</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="FR">Fri</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SA">Sat</button>
-                                        <button type="button" class="recurrence-weekday-chip" data-weekday="SU">Sun</button>
-                                    </div>
-                                    <p class="recurrence-helper">Selected days reuse the same shift time window.</p>
-                                </div>
-                                <div class="form-grid recurrence-grid">
-                                    <div class="form-group">
-                                        <label>Ends</label>
-                                        <div class="recurrence-end-options">
-                                            <label class="recurrence-end-option">
-                                                <input type="radio" name="edit-shift-repeat-end-mode" value="COUNT" checked>
-                                                <span>After</span>
-                                            </label>
-                                            <div class="recurrence-inline-input">
-                                                <input type="number" id="edit-shift-repeat-count" min="1" value="1">
-                                                <span>occurrence(s)</span>
-                                            </div>
-                                            <div class="recurrence-end-date-group">
-                                                <label class="recurrence-end-option recurrence-end-option-date">
-                                                    <input type="radio" name="edit-shift-repeat-end-mode" value="UNTIL">
-                                                    <span>On date</span>
-                                                </label>
-                                                <input type="date" id="edit-shift-repeat-until" disabled>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card section-muted-card">
-                            <div class="card-header section-muted-header">
-                                <h3 class="section-muted-title">Roles/Positions for this Shift</h3>
-                                <button type="button" class="btn btn-secondary" id="add-edit-role-btn">+ Add Role</button>
-                            </div>
-                            <div id="edit-roles-container"></div>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary">✓ Save Shift Changes</button>
-                    </form>
-                </div>
-
-                <div class="card shift-view-filter-card">
-                    <div class="card-header shift-view-header">
+            <div class="manage-shifts-workspace">
+                <div class="card manage-shifts-toolbar-card">
+                    <div class="manage-shifts-toolbar-header">
                         <div>
-                            <h2 class="card-title">Shifts View</h2>
-                            <p class="shift-view-copy">Search by shift name and filter the pantry schedule by status.</p>
+                            <h2 class="card-title">Manage Shifts</h2>
+                            <p class="shift-view-copy">Track coverage gaps, registrations, and shift actions from one workspace.</p>
                         </div>
+                        <button type="button" class="btn btn-primary" id="manage-shifts-create-btn">+ Create Shift</button>
                     </div>
 
                     <div class="shift-view-toolbar">
                         <div class="shift-view-search-group">
-                            <label for="manage-shifts-search-input">Search Shift Name</label>
-                            <input type="search" id="manage-shifts-search-input" placeholder="Search shifts by name">
+                            <label for="manage-shifts-search-input">Search Shifts</label>
+                            <input type="search" id="manage-shifts-search-input" placeholder="Search shifts or roles">
                         </div>
 
                         <div class="shift-view-filter-group" role="tablist" aria-label="Shift status filter">
@@ -703,24 +493,226 @@
                     </div>
 
                     <div id="manage-shifts-filter-summary" class="shift-view-summary">Showing incoming shifts.</div>
+                </div>
 
-                    <div class="table-container">
-                        <table class="responsive-table">
-                            <thead>
-                                <tr>
-                                    <th>Shift Name</th>
-                                    <th>Date & Time</th>
-                                    <th>Roles</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="shifts-filtered-table-body">
-                                <tr>
-                                    <td colspan="4" class="table-empty-cell">No incoming shifts.</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="manage-shifts-ops-layout">
+                    <section class="manage-shifts-queue" aria-label="Shift queue">
+                        <div id="manage-shifts-card-list" class="manage-shifts-card-list">
+                            <div class="empty-state">Select a pantry to load shifts.</div>
+                        </div>
+                    </section>
+
+                    <aside class="manage-shifts-panel" aria-label="Selected shift details">
+                        <div class="card manage-shifts-panel-card active" id="create-shift-card">
+                            <button type="button" class="btn btn-secondary btn-sm manage-shifts-mobile-back" data-manage-mobile-back="queue">Back to shifts</button>
+                            <div class="card-header">
+                                <h2 class="card-title">Create New Shift</h2>
+                            </div>
+                            <form id="create-shift-form">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="shift-name">Shift Name *</label>
+                                        <input type="text" id="shift-name" name="shift_name" placeholder="e.g., Food Distribution"
+                                            required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="shift-start">Start Time *</label>
+                                        <input type="datetime-local" id="shift-start" name="start_time" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="shift-end">End Time *</label>
+                                        <input type="datetime-local" id="shift-end" name="end_time" required>
+                                    </div>
+                                </div>
+                                <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC. Multi-day shifts are allowed and appear on the calendar starting on their first day.</div>
+
+                                <div class="card section-muted-card recurrence-card">
+                                    <div class="card-header section-muted-header recurrence-card-header">
+                                        <div>
+                                            <div class="recurrence-title-row">
+                                                <h3 class="section-muted-title">Repeat</h3>
+                                                <span class="recurrence-meta-badge">Optional</span>
+                                            </div>
+                                            <p class="shift-view-copy recurrence-copy">Create a weekly pattern for this shift.</p>
+                                        </div>
+                                        <label class="recurrence-toggle">
+                                            <input type="checkbox" id="shift-repeat-toggle">
+                                            <span>Recurring shift</span>
+                                        </label>
+                                    </div>
+                                    <div id="shift-recurrence-fields" class="recurrence-fields app-hidden">
+                                        <div class="form-grid recurrence-grid">
+                                            <div class="form-group">
+                                                <label for="shift-repeat-interval">Repeat every</label>
+                                                <div class="recurrence-inline-input">
+                                                    <input type="number" id="shift-repeat-interval" min="1" value="1">
+                                                    <span>week(s)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Repeat on</label>
+                                            <div class="recurrence-weekday-group" id="shift-repeat-weekdays">
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="MO">Mon</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="TU">Tue</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="WE">Wed</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="TH">Thu</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="FR">Fri</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="SA">Sat</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="SU">Sun</button>
+                                            </div>
+                                            <p class="recurrence-helper">Selected days reuse the same shift time window.</p>
+                                        </div>
+                                        <div class="form-grid recurrence-grid">
+                                            <div class="form-group">
+                                                <label>Ends</label>
+                                                <div class="recurrence-end-options" id="shift-repeat-end-options">
+                                                    <label class="recurrence-end-option">
+                                                        <input type="radio" name="shift-repeat-end-mode" value="COUNT" checked>
+                                                        <span>After</span>
+                                                    </label>
+                                                    <div class="recurrence-inline-input">
+                                                        <input type="number" id="shift-repeat-count" min="1" value="4">
+                                                        <span>occurrence(s)</span>
+                                                    </div>
+                                                    <div class="recurrence-end-date-group">
+                                                        <label class="recurrence-end-option recurrence-end-option-date">
+                                                            <input type="radio" name="shift-repeat-end-mode" value="UNTIL">
+                                                            <span>On date</span>
+                                                        </label>
+                                                        <input type="date" id="shift-repeat-until" disabled>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card section-muted-card">
+                                    <div class="card-header section-muted-header">
+                                        <h3 class="section-muted-title">Roles/Positions for this Shift</h3>
+                                        <button type="button" class="btn btn-secondary" id="add-role-btn">+ Add Role</button>
+                                    </div>
+                                    <div id="roles-container">
+                                        <div class="role-input-group">
+                                            <div class="form-grid">
+                                                <div class="form-group">
+                                                    <label>Role Title *</label>
+                                                    <input type="text" class="role-title" placeholder="e.g., Greeter" required>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label>Required Count *</label>
+                                                    <input type="number" class="role-count" min="1" value="1" required>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary">✓ Create Shift with Roles</button>
+                            </form>
+                        </div>
+
+                        <div class="card manage-shifts-panel-card app-hidden" id="manage-shift-detail-card">
+                            <div class="empty-state">Select a shift to inspect coverage and registrations.</div>
+                        </div>
+
+                        <div class="card manage-shifts-panel-card app-hidden" id="edit-shift-card">
+                            <button type="button" class="btn btn-secondary btn-sm manage-shifts-mobile-back" data-manage-mobile-back="queue">Back to shifts</button>
+                            <div class="card-header">
+                                <h2 class="card-title">Edit Shift</h2>
+                                <button type="button" class="btn btn-secondary" id="cancel-edit-shift-btn">Back to Details</button>
+                            </div>
+                            <form id="edit-shift-form">
+                                <input type="hidden" id="edit-shift-id">
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="edit-shift-name">Shift Name *</label>
+                                        <input type="text" id="edit-shift-name" name="shift_name" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="edit-shift-start">Start Time *</label>
+                                        <input type="datetime-local" id="edit-shift-start" name="start_time" required>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="edit-shift-end">End Time *</label>
+                                        <input type="datetime-local" id="edit-shift-end" name="end_time" required>
+                                    </div>
+                                </div>
+                                <div class="account-note">Shift times are interpreted in your current browser timezone and saved in UTC. Multi-day shifts are allowed and appear on the calendar starting on their first day.</div>
+
+                                <div id="edit-shift-recurrence-card" class="card section-muted-card recurrence-card app-hidden">
+                                    <div class="card-header section-muted-header recurrence-card-header">
+                                        <div>
+                                            <div class="recurrence-title-row">
+                                                <h3 class="section-muted-title">Recurring Series</h3>
+                                                <span class="recurrence-meta-badge">Series</span>
+                                            </div>
+                                            <p id="edit-shift-recurrence-summary" class="shift-view-copy recurrence-copy"></p>
+                                        </div>
+                                        <span class="status-badge recurrence-badge">Recurring</span>
+                                    </div>
+                                    <div class="account-note recurrence-note">Pattern changes apply only if you choose <b>This and following events</b> when saving.</div>
+                                    <div id="edit-shift-recurrence-fields" class="recurrence-fields">
+                                        <div class="form-grid recurrence-grid">
+                                            <div class="form-group">
+                                                <label for="edit-shift-repeat-interval">Repeat every</label>
+                                                <div class="recurrence-inline-input">
+                                                    <input type="number" id="edit-shift-repeat-interval" min="1" value="1">
+                                                    <span>week(s)</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Repeat on</label>
+                                            <div class="recurrence-weekday-group" id="edit-shift-repeat-weekdays">
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="MO">Mon</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="TU">Tue</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="WE">Wed</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="TH">Thu</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="FR">Fri</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="SA">Sat</button>
+                                                <button type="button" class="recurrence-weekday-chip" data-weekday="SU">Sun</button>
+                                            </div>
+                                            <p class="recurrence-helper">Selected days reuse the same shift time window.</p>
+                                        </div>
+                                        <div class="form-grid recurrence-grid">
+                                            <div class="form-group">
+                                                <label>Ends</label>
+                                                <div class="recurrence-end-options">
+                                                    <label class="recurrence-end-option">
+                                                        <input type="radio" name="edit-shift-repeat-end-mode" value="COUNT" checked>
+                                                        <span>After</span>
+                                                    </label>
+                                                    <div class="recurrence-inline-input">
+                                                        <input type="number" id="edit-shift-repeat-count" min="1" value="1">
+                                                        <span>occurrence(s)</span>
+                                                    </div>
+                                                    <div class="recurrence-end-date-group">
+                                                        <label class="recurrence-end-option recurrence-end-option-date">
+                                                            <input type="radio" name="edit-shift-repeat-end-mode" value="UNTIL">
+                                                            <span>On date</span>
+                                                        </label>
+                                                        <input type="date" id="edit-shift-repeat-until" disabled>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card section-muted-card">
+                                    <div class="card-header section-muted-header">
+                                        <h3 class="section-muted-title">Roles/Positions for this Shift</h3>
+                                        <button type="button" class="btn btn-secondary" id="add-edit-role-btn">+ Add Role</button>
+                                    </div>
+                                    <div id="edit-roles-container"></div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary">✓ Save Shift Changes</button>
+                            </form>
+                        </div>
+                    </aside>
                 </div>
             </div>
         </div>
@@ -728,8 +720,8 @@
         <!-- Admin Panel Tab (Admin Only) -->
         <div class="tab-content" id="content-admin">
             <div class="admin-subtabs" id="admin-subtabs">
-                <button class="admin-subtab active" type="button" data-admin-subtab="pantries">Pantries</button>
-                <button class="admin-subtab" type="button" data-admin-subtab="users">Users</button>
+                <button class="admin-subtab active" type="button" data-admin-subtab="pantries">Manage Pantries</button>
+                <button class="admin-subtab" type="button" data-admin-subtab="users">Manage Users</button>
             </div>
 
             <div class="admin-subcontent active" id="admin-subcontent-pantries">
@@ -756,59 +748,32 @@
                     </form>
                 </div>
 
-                <!-- Assign Pantry Leads -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="card-title">Assign Pantry Leads</h2>
-                    </div>
-                    <div id="message-assign" class="message"></div>
-                    <div class="form-grid">
-                        <div class="form-group">
-                            <label for="assign-pantry-search">Search Pantry *</label>
-                            <div class="pantry-search-shell">
-                                <input type="search" id="assign-pantry-search" placeholder="Search by pantry name or address" autocomplete="off">
-                                <input type="hidden" id="assign-pantry">
-                                <div id="assign-pantry-selected" class="pantry-search-selected app-hidden"></div>
-                                <div id="assign-pantry-results" class="pantry-search-results app-hidden"></div>
-                            </div>
+                <!-- Manage Pantry Leads -->
+                <div class="admin-pantries-layout">
+                    <div class="card admin-pantries-list-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Pantries</h2>
                         </div>
-                        <div class="form-group">
-                            <label for="assign-lead-search">Search Pantry Lead *</label>
-                            <div class="lead-search-shell">
-                                <input type="search" id="assign-lead-search" placeholder="Search by full name or email" autocomplete="off">
-                                <input type="hidden" id="assign-lead">
-                                <div id="assign-lead-selected" class="lead-search-selected app-hidden"></div>
-                                <div id="assign-lead-results" class="lead-search-results app-hidden"></div>
+                        <div id="message-assign" class="message"></div>
+                        <div class="form-group admin-pantry-search-group">
+                            <label for="admin-pantry-search">Search Pantries</label>
+                            <input type="search" id="admin-pantry-search" placeholder="Search by pantry name or address" autocomplete="off">
+                        </div>
+                        <div id="admin-pantries-list" class="admin-pantries-list" aria-live="polite">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                <p>Loading pantries...</p>
                             </div>
                         </div>
                     </div>
-                    <div class="form-action-row">
-                        <button class="btn btn-success" id="assign-lead-btn">✓ Assign Lead</button>
-                        <button class="btn btn-danger" id="remove-lead-btn">✗ Remove Lead</button>
-                    </div>
-                </div>
 
-                <!-- Pantries and Leads Table -->
-                <div class="card">
-                    <div class="card-header">
-                        <h2 class="card-title">Pantries & Their Leads</h2>
-                    </div>
-                    <div class="table-container">
-                        <table class="responsive-table">
-                            <thead>
-                                <tr>
-                                    <th>Pantry Name</th>
-                                    <th>Location</th>
-                                    <th>Assigned Leads</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="pantries-table-body">
-                                <tr>
-                                    <td colspan="4" class="table-empty-cell">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="card admin-pantry-detail-card">
+                        <div class="card-header">
+                            <h2 class="card-title">Pantry Lead Management</h2>
+                        </div>
+                        <div id="admin-pantry-detail-panel">
+                            <p class="auth-empty">Select a pantry to view and manage its assigned leads.</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -916,6 +881,57 @@
                     <button type="button" class="btn btn-primary" data-recurring-scope-choice="single">This event only</button>
                     <button type="button" class="btn btn-secondary" data-recurring-scope-choice="future">This and following events</button>
                     <button type="button" class="btn btn-danger" data-recurring-scope-choice="cancel">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="help-broadcast-modal" class="modal-overlay app-hidden">
+            <div class="modal-panel modal-panel-help-broadcast">
+                <button type="button" id="help-broadcast-close" class="modal-close-button" aria-label="Close help broadcast">&times;</button>
+                <h2 class="modal-title">Broadcast Help</h2>
+                <div id="help-broadcast-shift-summary" class="help-broadcast-summary"></div>
+                <div class="form-group modal-form-group">
+                    <label for="help-broadcast-search">Search Volunteers</label>
+                    <input type="search" id="help-broadcast-search" placeholder="Search by name or email" autocomplete="off">
+                </div>
+                <div class="help-broadcast-selected-wrap">
+                    <div class="help-broadcast-selected-label">Selected recipients</div>
+                    <div id="help-broadcast-selected" class="help-broadcast-selected">
+                        <span class="help-broadcast-selected-empty">No volunteers selected.</span>
+                    </div>
+                    <div id="help-broadcast-count" class="help-broadcast-count">0/25 selected</div>
+                </div>
+                <div class="help-broadcast-results-wrap">
+                    <div class="help-broadcast-results-header">
+                        <h3 id="help-broadcast-results-title">Suggested Volunteers</h3>
+                    </div>
+                    <div id="help-broadcast-results" class="help-broadcast-results">
+                        <p class="help-broadcast-empty">Loading volunteers...</p>
+                    </div>
+                </div>
+                <div id="help-broadcast-error" class="message error app-hidden"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="help-broadcast-cancel">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="help-broadcast-send" disabled>Send Broadcast</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="take-attendance-modal" class="modal-overlay app-hidden">
+            <div class="modal-panel modal-panel-take-attendance">
+                <button type="button" id="take-attendance-close" class="modal-close-button" aria-label="Close take attendance">&times;</button>
+                <h2 class="modal-title">Take Attendance</h2>
+                <div id="take-attendance-shift-summary" class="help-broadcast-summary"></div>
+                <div class="form-group modal-form-group">
+                    <label for="take-attendance-search">Search Registrants</label>
+                    <input type="search" id="take-attendance-search" placeholder="Search by name, email, or role" autocomplete="off">
+                </div>
+                <div id="take-attendance-window-note" class="attendance-window-note attendance-window-open"></div>
+                <div id="take-attendance-list" class="take-attendance-list">
+                    <p class="help-broadcast-empty">Loading registrants...</p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="take-attendance-cancel">Close</button>
                 </div>
             </div>
         </div>

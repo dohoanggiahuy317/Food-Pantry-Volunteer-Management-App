@@ -5,6 +5,7 @@ from notifications import (
     send_signup_confirmation,
     send_shift_update_notification,
     send_shift_cancellation_notification,
+    send_shift_help_broadcast,
     NotificationResult
 )
 
@@ -218,6 +219,60 @@ class TestSignupConfirmation:
             assert "Volunteer" in html  # Default recipient name
             assert "Pantry" in html  # Default pantry name
             assert "Volunteer role" in html  # Default role title
+
+
+class TestShiftHelpBroadcast:
+    """Test shift help broadcast notification."""
+
+    def test_missing_recipient_email(self):
+        result = send_shift_help_broadcast(
+            recipient={"full_name": "John Doe"},
+            shift={"shift_name": "Morning Shift"},
+            pantry={"name": "Food Bank"},
+        )
+
+        assert result["ok"] is False
+        assert result["code"] == "RECIPIENT_EMAIL_MISSING"
+
+    def test_successful_help_broadcast_content(self):
+        with patch("notifications.notifications.RESEND_API_KEY", "test_key"), \
+             patch("notifications.notifications.RESEND_FROM_EMAIL", "sender@example.com"), \
+             patch("notifications.notifications._send_resend_email") as mock_send:
+
+            mock_send.return_value = {
+                "ok": True,
+                "provider": "resend",
+                "code": "SHIFT_HELP_BROADCAST_SENT",
+                "message": "Shift help broadcast email sent.",
+                "recipient_email": "volunteer@example.com",
+                "subject": "Help needed: Morning Shift",
+                "provider_response": None,
+            }
+
+            result = send_shift_help_broadcast(
+                recipient={
+                    "email": "volunteer@example.com",
+                    "full_name": "John Doe",
+                    "timezone": "UTC",
+                },
+                shift={
+                    "shift_name": "Morning Shift",
+                    "start_time": "2023-05-15T08:00:00Z",
+                    "end_time": "2023-05-15T12:00:00Z",
+                },
+                pantry={
+                    "name": "Community Food Bank",
+                    "location_address": "123 Main St",
+                },
+            )
+
+            assert result["ok"] is True
+            assert result["subject"] == "Help needed: Morning Shift"
+            params = mock_send.call_args[0][0]
+            html = params["html"]
+            assert "We are understaffed and need more people for this shift." in html
+            assert "Please log in and register if you can help." in html
+            assert "Community Food Bank" in html
 
 
 class TestShiftUpdateNotification:

@@ -143,3 +143,19 @@ CREATE TABLE IF NOT EXISTS shift_signups (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS help_broadcasts (
+  broadcast_id INT AUTO_INCREMENT PRIMARY KEY,
+  shift_id INT NOT NULL,
+  sender_user_id INT NOT NULL,
+  recipient_count INT NOT NULL,
+  created_at DATETIME(6) NOT NULL,
+  INDEX idx_help_broadcasts_sender_created (sender_user_id, created_at),
+  INDEX idx_help_broadcasts_shift_id (shift_id),
+  CONSTRAINT fk_help_broadcasts_shift
+    FOREIGN KEY (shift_id) REFERENCES shifts(shift_id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_help_broadcasts_sender
+    FOREIGN KEY (sender_user_id) REFERENCES users(user_id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
