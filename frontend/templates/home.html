@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteer Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/public.css') }}">
+</head>
+
+<body>
+    <header class="public-header">
+        <a class="public-brand" href="/">Volunteer Management System</a>
+        <nav class="public-nav" aria-label="Public pages">
+            <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
+            <a href="{{ url_for('terms') }}">Terms</a>
+            <a class="public-nav-cta" href="{{ url_for('dashboard') }}">Open App</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="public-hero">
+            <div class="public-hero-inner">
+                <p class="public-kicker">Volunteer coordination for pantry teams</p>
+                <h1>Volunteer Management System</h1>
+                <p class="public-lead">
+                    Volunteer Management System helps pantry staff publish shifts, manage registrations,
+                    track attendance, and keep volunteers informed about schedule changes.
+                </p>
+                <div class="public-actions">
+                    <a class="public-button" href="{{ url_for('dashboard') }}">Open App</a>
+                    <a class="public-button public-button-secondary" href="{{ url_for('privacy_policy') }}">Read Privacy Policy</a>
+                </div>
+            </div>
+        </section>
+
+        <section class="public-section">
+            <div class="public-grid">
+                <article>
+                    <h2>What the app does</h2>
+                    <p>
+                        The app provides a shared schedule for volunteer shifts, role capacity management,
+                        pantry-specific leadership tools, and volunteer self-service signup flows.
+                    </p>
+                </article>
+                <article>
+                    <h2>Google sign-in</h2>
+                    <p>
+                        Volunteers can sign in with Google through Firebase Authentication so the app can
+                        identify their account and protect personal dashboard data.
+                    </p>
+                </article>
+                <article>
+                    <h2>Google Calendar sync</h2>
+                    <p>
+                        Google Calendar sync is optional. When a signed-in user connects Google Calendar, the app
+                        requests permission to create, update, and remove calendar events for that user's
+                        volunteer shift registrations.
+                    </p>
+                </article>
+            </div>
+        </section>
+
+        <section class="public-section public-section-muted">
+            <div class="public-narrow">
+                <h2>Use of Google user data</h2>
+                <p>
+                    Google Calendar access is used only to sync volunteer shift events requested by the user.
+                    The app stores OAuth tokens so future signup changes can keep those events up to date,
+                    and users can disconnect Calendar sync from their account page.
+                </p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="public-footer">
+        <span>&copy; Volunteer Management System</span>
+        <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
+        <a href="{{ url_for('terms') }}">Terms</a>
+    </footer>
+</body>
+
+</html>

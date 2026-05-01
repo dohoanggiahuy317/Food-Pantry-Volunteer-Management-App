@@ -28,6 +28,7 @@ This document captures key technical details about the backend data model, concu
 - C. Frontend
   - I. css
     - dashboard.css
+    - public.css
   - II. js
     - admin-functions.js
     - api-helpers.js
@@ -37,6 +38,9 @@ This document captures key technical details about the backend data model, concu
     - user-functions.js
     - volunteer-functions.js
   - III. templates
+    - home.html
+    - privacy.html
+    - terms.html
     - dashboard.html
 
 ---
@@ -47,8 +51,9 @@ This document captures key technical details about the backend data model, concu
 
 The application is a modular monolith today:
 
-- One Flask backend (`backend/app.py`) serves both the REST API and the dashboard UI.
-- One browser-based frontend (`frontend/templates/dashboard.html` + `frontend/static/js/*.js`) manages all tab state and calls the API.
+- One Flask backend (`backend/app.py`) serves the REST API, public OAuth-verification pages, and the dashboard UI.
+- Public pages (`/`, `/privacy`, `/terms`) are server-rendered templates; the authenticated dashboard is served at `/dashboard`.
+- One browser-based dashboard frontend (`frontend/templates/dashboard.html` + `frontend/static/js/*.js`) manages all app tab state and calls the API.
 - One shared relational data store persists users, pantries, shifts, roles, signups, subscriptions, and notifications.
 - Backend modules are already separated by domain, which makes later service extraction feasible without rewriting the UI first.
 
@@ -1768,7 +1773,20 @@ All API calls use shared helper functions:
 
 ## III. templates
 
-### 1. dashboard.html
+### 1. public pages
+
+Purpose:  
+Public, no-login pages for app discovery and Google OAuth verification.
+
+Files:
+
+- `home.html` at `/`
+- `privacy.html` at `/privacy`
+- `terms.html` at `/terms`
+
+These pages are server-rendered so Google's OAuth verification crawler can see the homepage and privacy policy link without JavaScript or authentication.
+
+### 2. dashboard.html
 
 Purpose:  
 Main HTML page for the dashboard UI.

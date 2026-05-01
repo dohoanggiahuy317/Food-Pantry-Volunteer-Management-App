@@ -29,7 +29,10 @@ volunteer_managing/
 │   │   ├── init_schema.py          # Runs all SQL files in db/migrations idempotently on startup
 │   │   ├── seed.py                 # Seeds MySQL from backend/data/mysql.json if empty
 │   │   └── migrations/
-│   │       └── 001_initial.sql     # CREATE TABLE statements for core schema (incl. users.timezone, pantry_subscriptions, and recurring shift series)
+│   │       ├── 001_initial.sql     # CREATE TABLE statements for core schema (incl. users.timezone, pantry_subscriptions, and recurring shift series)
+│   │       └── 002_google_calendar_sync.sql # Google Calendar OAuth connection + event-link tables
+│   │
+│   ├── google_calendar.py          # Google Calendar OAuth, token refresh, and event API helpers
 │   │
 │   └── data/
 │       ├── mysql.json              # MySQL seed data, including pantry subscriptions, recurring series, and a larger future mock shift set
@@ -37,9 +40,13 @@ volunteer_managing/
 │
 └── frontend/
     ├── templates/
-    │   └── dashboard.html          # Single HTML page — loaded by Flask's render_template()
+    │   ├── home.html               # Public homepage at / for Google OAuth verification and app discovery
+    │   ├── privacy.html            # Public privacy policy at /privacy
+    │   ├── terms.html              # Public terms page at /terms
+    │   └── dashboard.html          # Authenticated app shell at /dashboard
     └── static/
         ├── css/
+        │   ├── public.css
         │   └── dashboard.css
         └── js/
             ├── api-helpers.js      # Core fetch wrapper: apiGet/apiPost/apiPatch/apiPut/apiDelete
@@ -56,7 +63,7 @@ volunteer_managing/
 
 ## 2. Database Schema & Table Relationships
 
-All tables are created from SQL files in [backend/db/migrations/](backend/db/migrations/) via `init_schema()` on every Flask startup (idempotent — uses `CREATE TABLE IF NOT EXISTS` for the schema baseline).
+All tables are created from SQL files in [backend/db/migrations/](backend/db/migrations/) via `init_schema()` on every Flask startup (idempotent — uses `CREATE TABLE IF NOT EXISTS` for the schema baseline). Google Calendar sync tables are created by `002_google_calendar_sync.sql`.
 
 ```
 roles
@@ -321,7 +328,7 @@ lead-functions.js / volunteer-functions.js:
 
 ## 5. Frontend File Load Order & Dependencies
 
-`dashboard.html` loads all JS files as plain `<script>` tags at the bottom of `<body>` ([dashboard.html:343-348](frontend/templates/dashboard.html#L343)):
+The public pages (`/`, `/privacy`, `/terms`) are server-rendered HTML and do not require JavaScript. The authenticated dashboard is served from `/dashboard`, and `dashboard.html` loads all JS files as plain `<script>` tags at the bottom of `<body>`:
 
 ```html
 <script src=".../api-helpers.js"></script>       ← 1st: loaded first, no dependencies
@@ -361,7 +368,7 @@ api-helpers.js        →  browser fetch()
 
 ## 6. Frontend Boot Sequence
 
-When the browser finishes loading the page, `dashboard.js` fires `window.addEventListener('load', ...)` ([dashboard.js:12](frontend/static/js/dashboard.js#L12)). The full initialization sequence:
+When the browser loads `/dashboard`, `dashboard.js` fires `window.addEventListener('load', ...)`. The full initialization sequence:
 
 ```
 window 'load' event fires

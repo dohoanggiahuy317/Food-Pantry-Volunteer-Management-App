@@ -140,6 +140,18 @@ services:
         value: '${FIREBASE_ADMIN_CREDENTIALS_JSON}'
         scope: RUN_TIME
         type: SECRET
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        value: "${GOOGLE_OAUTH_CLIENT_ID}"
+        scope: RUN_TIME
+        type: GENERAL
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        value: "${GOOGLE_OAUTH_CLIENT_SECRET}"
+        scope: RUN_TIME
+        type: SECRET
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        value: "${GOOGLE_OAUTH_REDIRECT_URI}"
+        scope: RUN_TIME
+        type: GENERAL
       - key: RESEND_API_KEY
         value: "${RESEND_API_KEY}"
         scope: RUN_TIME

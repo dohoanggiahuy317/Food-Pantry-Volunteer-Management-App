@@ -33,6 +33,8 @@ import mysql.connector  # noqa: E402 — must come after path setup
 
 # ── FK-safe truncation order (child tables before parent tables) ───────────────
 _TRUNCATE_ORDER = [
+    "google_calendar_event_links",
+    "google_calendar_connections",
     "shift_signups",
     "shift_roles",
     "help_broadcasts",      # FK refs shifts.shift_id and users.user_id

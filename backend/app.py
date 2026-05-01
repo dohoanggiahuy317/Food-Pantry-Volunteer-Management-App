@@ -4,17 +4,19 @@ from datetime import date, datetime, timedelta, timezone
 import os
 from pathlib import Path
 import re
+import secrets
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
-from flask import Flask, g, jsonify, render_template, request, session
+from flask import Flask, g, jsonify, render_template, request, session, url_for
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
 from backends.factory import create_backend
+import google_calendar
 from notifications import (
     send_new_shift_series_subscriber_notification,
     send_new_shift_subscriber_notification,
@@ -324,6 +326,19 @@ def delete_current_user_account_with_identity(user: dict[str, Any], payload: dic
         except AuthError as error:
             return json_auth_error(error)
 
+    linked_signups = backend.list_signups_by_user(user_id)
+    linked_signup_ids = [int(signup.get("signup_id")) for signup in linked_signups if signup.get("signup_id") is not None]
+    try:
+        for signup in linked_signups:
+            signup_id = signup.get("signup_id")
+            if signup_id is None:
+                continue
+            sync_signup_delete_to_google_calendar(int(signup_id), user_id)
+    except Exception:
+        app.logger.exception("Failed to delete Google Calendar events before deleting user_id=%s", user_id)
+
+    backend.delete_google_calendar_event_links(linked_signup_ids)
+    backend.delete_google_calendar_connection(user_id)
     backend.delete_user(user_id)
     logout_user_session()
     return jsonify({"ok": True}), 200
@@ -893,6 +908,13 @@ def mark_shift_signups_pending(shift_id: int) -> dict[str, Any]:
 
     recalculate_shift_capacities(shift_id)
     contacts = affected_contacts_from_signups(changed_signups)
+    try:
+        sync_signup_ids_to_google_calendar(
+            [int(signup.get("signup_id")) for signup in changed_signups if signup.get("signup_id") is not None],
+            status_note="This shift changed in the app and now needs your confirmation.",
+        )
+    except Exception:
+        app.logger.exception("Failed to sync pending signup updates to Google Calendar for shift_id=%s", shift_id)
     return {
         "affected_signup_count": len(changed_signups),
         "affected_volunteer_contacts": contacts,
@@ -1209,6 +1231,13 @@ def cancel_single_shift_for_manager(shift_id: int) -> dict[str, Any] | None:
 
     affected = mark_shift_signups_pending(shift_id)
     notification_signups = affected.pop("affected_signups", [])
+    try:
+        for signup in notification_signups:
+            if signup.get("signup_id") is None:
+                continue
+            sync_signup_delete_to_google_calendar(int(signup.get("signup_id")), int(signup.get("user_id", 0) or 0))
+    except Exception:
+        app.logger.exception("Failed to remove cancelled shift signups from Google Calendar for shift_id=%s", shift_id)
     recalculate_shift_capacities(shift_id)
     response = hydrate_shift_for_manager(shift_id, include_cancelled=True, include_recurrence=True) or updated_shift
     response.update(affected)
@@ -1349,9 +1378,20 @@ def cancel_future_series_from(shift: dict[str, Any]) -> dict[str, Any]:
 
 
 def expire_pending_signups_if_started(shift_id: int) -> int:
+    pending_signup_ids = [
+        int(signup.get("signup_id"))
+        for signup, _role in collect_shift_signups(shift_id)
+        if signup.get("signup_id") is not None
+        and str(signup.get("signup_status") or "").upper() == SIGNUP_STATUS_PENDING_CONFIRMATION
+    ]
     expired = backend.expire_pending_signups(shift_id, utc_now_iso())
     if expired > 0:
         recalculate_shift_capacities(shift_id)
+        try:
+            for signup_id in pending_signup_ids:
+                sync_signup_delete_to_google_calendar(signup_id)
+        except Exception:
+            app.logger.exception("Failed to remove expired pending signups from Google Calendar for shift_id=%s", shift_id)
     return expired
 
 
@@ -1403,6 +1443,87 @@ def get_signup_shift_context(signup_id: int) -> tuple[dict[str, Any] | None, dic
     shift_id = int(shift_role.get("shift_id"))
     shift = backend.get_shift_by_id(shift_id)
     return signup, shift_role, shift
+
+
+def hydrate_signup_for_google_calendar(signup_id: int) -> dict[str, Any] | None:
+    signup, shift_role, shift = get_signup_shift_context(signup_id)
+    if not signup or not shift_role or not shift:
+        return None
+    pantry = find_pantry_by_id(int(shift.get("pantry_id")))
+    payload = dict(signup)
+    payload["shift_id"] = int(shift.get("shift_id"))
+    payload["shift_name"] = shift.get("shift_name")
+    payload["start_time"] = shift.get("start_time")
+    payload["end_time"] = shift.get("end_time")
+    payload["shift_status"] = shift.get("status")
+    payload["role_title"] = shift_role.get("role_title")
+    payload["pantry_id"] = int(shift.get("pantry_id"))
+    payload["pantry_name"] = pantry.get("name") if pantry else None
+    payload["pantry_location"] = pantry.get("location_address") if pantry else None
+    return payload
+
+
+def create_google_calendar_event_for_signup(signup: dict[str, Any], *, status_note: str | None = None) -> dict[str, Any] | None:
+    return google_calendar.create_event(
+        backend,
+        signup,
+        pending_confirmation_status=SIGNUP_STATUS_PENDING_CONFIRMATION,
+        status_note=status_note,
+    )
+
+
+def update_google_calendar_event_for_signup(
+    signup: dict[str, Any],
+    *,
+    status_note: str | None = None,
+    create_if_missing: bool = True,
+) -> dict[str, Any] | None:
+    return google_calendar.update_event(
+        backend,
+        signup,
+        pending_confirmation_status=SIGNUP_STATUS_PENDING_CONFIRMATION,
+        status_note=status_note,
+        create_if_missing=create_if_missing,
+    )
+
+
+def delete_google_calendar_event_for_signup_id(signup_id: int, user_id: int | None = None) -> None:
+    google_calendar.delete_event_for_signup_id(backend, signup_id, user_id)
+
+
+def sync_signup_create_to_google_calendar(signup_id: int) -> None:
+    signup = hydrate_signup_for_google_calendar(signup_id)
+    if not signup:
+        return
+    signup_status = str(signup.get("signup_status") or "").upper()
+    if signup_status not in ACTIVE_SIGNUP_STATUSES and signup_status != SIGNUP_STATUS_PENDING_CONFIRMATION:
+        return
+    status_note = "Please review this shift in the app and confirm your registration." if signup_status == SIGNUP_STATUS_PENDING_CONFIRMATION else None
+    create_google_calendar_event_for_signup(signup, status_note=status_note)
+
+
+def sync_signup_update_to_google_calendar(signup_id: int, *, status_note: str | None = None) -> None:
+    signup = hydrate_signup_for_google_calendar(signup_id)
+    if not signup:
+        delete_google_calendar_event_for_signup_id(signup_id)
+        return
+    signup_status = str(signup.get("signup_status") or "").upper()
+    shift_status = str(signup.get("shift_status") or "").upper()
+    if signup_status in {SIGNUP_STATUS_CANCELLED, SIGNUP_STATUS_WAITLISTED} or shift_status == "CANCELLED":
+        delete_google_calendar_event_for_signup_id(signup_id, int(signup.get("user_id", 0)))
+        return
+    if signup_status == SIGNUP_STATUS_PENDING_CONFIRMATION:
+        status_note = status_note or "This shift changed in the app and needs your confirmation."
+    update_google_calendar_event_for_signup(signup, status_note=status_note, create_if_missing=True)
+
+
+def sync_signup_delete_to_google_calendar(signup_id: int, user_id: int | None = None) -> None:
+    delete_google_calendar_event_for_signup_id(signup_id, user_id)
+
+
+def sync_signup_ids_to_google_calendar(signup_ids: list[int], *, status_note: str | None = None) -> None:
+    for signup_id in signup_ids:
+        sync_signup_update_to_google_calendar(int(signup_id), status_note=status_note)
 
 
 def check_attendance_marking_allowed(actor_user_id: int, shift: dict[str, Any]) -> tuple[bool, str | None]:
@@ -1629,6 +1750,58 @@ def get_current_user() -> Any:
     return jsonify(serialize_user_for_client(user, include_roles=True))
 
 
+@app.get("/api/google-calendar/status")
+def get_google_calendar_status() -> Any:
+    user = current_user()
+    if not user:
+        return jsonify({"error": "No user"}), 401
+    return jsonify(google_calendar.status_payload(backend, user))
+
+
+@app.post("/api/google-calendar/connect/start")
+def start_google_calendar_connect() -> Any:
+    user = current_user()
+    if not user:
+        return jsonify({"error": "No user"}), 401
+    if auth_service.mode != "firebase" or str(user.get("auth_provider") or "") != "firebase":
+        return jsonify({"error": "Google Calendar sync requires a Google/Firebase login"}), 400
+    if not google_calendar.configured():
+        return jsonify({"error": "Google Calendar OAuth is not configured on the server"}), 503
+
+    state = secrets.token_urlsafe(24)
+    session["google_calendar_oauth_state"] = state
+    session["google_calendar_oauth_user_id"] = int(user.get("user_id"))
+    return jsonify({
+        "auth_url": google_calendar.authorization_url(
+            state,
+            url_for("google_calendar_oauth_callback", _external=True),
+        )
+    })
+
+
+@app.post("/api/google-calendar/disconnect")
+def disconnect_google_calendar() -> Any:
+    user = current_user()
+    if not user:
+        return jsonify({"error": "No user"}), 401
+
+    user_id = int(user.get("user_id"))
+    linked_signups = backend.list_signups_by_user(user_id)
+    try:
+        for signup in linked_signups:
+            if signup.get("signup_id") is None:
+                continue
+            sync_signup_delete_to_google_calendar(int(signup.get("signup_id")), user_id)
+    except Exception:
+        app.logger.exception("Failed to delete Google Calendar events during disconnect for user_id=%s", user_id)
+
+    backend.delete_google_calendar_event_links(
+        [int(signup.get("signup_id")) for signup in linked_signups if signup.get("signup_id") is not None]
+    )
+    backend.delete_google_calendar_connection(user_id)
+    return jsonify({"ok": True, "status": google_calendar.status_payload(backend, user)}), 200
+
+
 @app.patch("/api/me")
 def update_current_user_profile() -> Any:
     user = current_user()
@@ -1699,6 +1872,86 @@ def delete_current_user_account() -> Any:
 
     payload = request.get_json(silent=True) or {}
     return delete_current_user_account_with_identity(user, payload)
+
+
+@app.get("/google-calendar/oauth/callback")
+def google_calendar_oauth_callback() -> Any:
+    state = str(request.args.get("state") or "").strip()
+    expected_state = str(session.get("google_calendar_oauth_state") or "").strip()
+    oauth_user_id = session.get("google_calendar_oauth_user_id")
+    current = current_user()
+    current_user_id = int(current.get("user_id")) if current else None
+
+    def popup_close_html(message: str, ok: bool) -> str:
+        safe_message = message.replace("\\", "\\\\").replace("'", "\\'")
+        ok_literal = "true" if ok else "false"
+        return (
+            "<!DOCTYPE html><html><body><script>"
+            f"if (window.opener) window.opener.postMessage({{ type: 'google-calendar-oauth-complete', ok: {ok_literal}, message: '{safe_message}' }}, window.location.origin);"
+            "window.close();"
+            "</script><p>You can close this window.</p></body></html>"
+        )
+
+    if not state or not expected_state or state != expected_state:
+        return popup_close_html("Google Calendar connection failed because the authorization state was invalid.", False), 400
+    if oauth_user_id is None or current_user_id is None or int(oauth_user_id) != current_user_id:
+        return popup_close_html("Google Calendar connection failed because your login session changed.", False), 403
+
+    if request.args.get("error"):
+        description = str(request.args.get("error_description") or request.args.get("error") or "").strip()
+        return popup_close_html(description or "Google Calendar authorization was cancelled.", False), 400
+
+    code = str(request.args.get("code") or "").strip()
+    if not code:
+        return popup_close_html("Google Calendar did not return an authorization code.", False), 400
+
+    try:
+        tokens = google_calendar.exchange_code_for_tokens(
+            code,
+            url_for("google_calendar_oauth_callback", _external=True),
+        )
+        access_token = str(tokens.get("access_token") or "").strip()
+        refresh_token = str(tokens.get("refresh_token") or "").strip()
+        if not access_token:
+            raise AuthError("Google did not return an access token", 502, "GOOGLE_ACCESS_TOKEN_MISSING")
+        if not refresh_token:
+            existing = backend.get_google_calendar_connection(current_user_id)
+            refresh_token = str(existing.get("refresh_token") or "").strip() if existing else ""
+        if not refresh_token:
+            raise AuthError(
+                "Google did not provide offline access. Reconnect and allow Calendar access again.",
+                502,
+                "GOOGLE_REFRESH_TOKEN_MISSING",
+            )
+
+        user_info = google_calendar.fetch_user_info(access_token)
+        backend.upsert_google_calendar_connection(
+            current_user_id,
+            {
+                "google_subject": str(user_info.get("sub") or "").strip() or None,
+                "google_email": str(user_info.get("email") or "").strip().lower() or None,
+                "scopes_csv": str(tokens.get("scope") or "").strip(),
+                "refresh_token": refresh_token,
+                "access_token": access_token,
+                "token_expires_at": google_calendar.token_expiry(tokens.get("expires_in")),
+            },
+        )
+
+        signups = backend.list_signups_by_user(current_user_id)
+        for signup in signups:
+            signup_id = signup.get("signup_id")
+            if signup_id is None:
+                continue
+            sync_signup_update_to_google_calendar(int(signup_id))
+    except Exception as error:
+        app.logger.exception("Failed to complete Google Calendar OAuth callback for user_id=%s", current_user_id)
+        message = error.message if isinstance(error, AuthError) else "Google Calendar connection failed."
+        return popup_close_html(message, False), 502
+    finally:
+        session.pop("google_calendar_oauth_state", None)
+        session.pop("google_calendar_oauth_user_id", None)
+
+    return popup_close_html("Google Calendar sync is now connected.", True), 200
 
 
 @app.get("/api/users")
@@ -2860,7 +3113,21 @@ def create_signup(shift_role_id: int) -> Any:
     recalculate_shift_role_capacity(shift_role_id)
     signup_user = find_user_by_id(user_id)
     signup["user"] = serialize_signup_user(signup_user)
+    pantry = find_pantry_by_id(int(shift.get("pantry_id")))
+    signup["shift_id"] = int(shift.get("shift_id"))
+    signup["shift_name"] = shift.get("shift_name")
+    signup["start_time"] = shift.get("start_time")
+    signup["end_time"] = shift.get("end_time")
+    signup["shift_status"] = shift.get("status")
+    signup["role_title"] = shift_role.get("role_title")
+    signup["pantry_id"] = int(shift.get("pantry_id"))
+    signup["pantry_name"] = pantry.get("name") if pantry else None
+    signup["pantry_location"] = pantry.get("location_address") if pantry else None
     send_signup_confirmation_if_configured(signup, signup_user, shift, shift_role)
+    try:
+        sync_signup_create_to_google_calendar(int(signup.get("signup_id")))
+    except Exception:
+        app.logger.exception("Failed to sync signup_id=%s to Google Calendar after creation", signup.get("signup_id"))
     return jsonify(signup), 201
 
 
@@ -2897,7 +3164,12 @@ def delete_signup(signup_id: int) -> Any:
     if user_id != signup_user_id and not is_admin:
         return jsonify({"error": "Forbidden"}), 403
 
+    try:
+        sync_signup_delete_to_google_calendar(signup_id, signup_user_id)
+    except Exception:
+        app.logger.exception("Failed to remove signup_id=%s from Google Calendar before deletion", signup_id)
     backend.delete_signup(signup_id)
+    backend.delete_google_calendar_event_link(signup_id)
     return jsonify({"success": True}), 200
 
 
@@ -2937,7 +3209,12 @@ def reconfirm_signup(signup_id: int) -> Any:
 
     current_status = str(signup.get("signup_status", "")).upper()
     if action == "CANCEL":
+        try:
+            sync_signup_delete_to_google_calendar(signup_id, signup_user_id)
+        except Exception:
+            app.logger.exception("Failed to remove signup_id=%s from Google Calendar during reconfirm cancel", signup_id)
         backend.delete_signup(signup_id)
+        backend.delete_google_calendar_event_link(signup_id)
         return jsonify({"success": True, "removed_signup_id": signup_id}), 200
 
     if current_status != SIGNUP_STATUS_PENDING_CONFIRMATION:
@@ -2951,13 +3228,25 @@ def reconfirm_signup(signup_id: int) -> Any:
     if result_code == "NOT_FOUND" or not updated_signup:
         return jsonify({"error": "Not found"}), 404
     if result_code == "CONFIRMED":
+        try:
+            sync_signup_update_to_google_calendar(signup_id)
+        except Exception:
+            app.logger.exception("Failed to sync reconfirmed signup_id=%s to Google Calendar", signup_id)
         return jsonify(updated_signup), 200
     if result_code == "WAITLISTED":
+        try:
+            sync_signup_delete_to_google_calendar(signup_id, signup_user_id)
+        except Exception:
+            app.logger.exception("Failed to remove waitlisted signup_id=%s from Google Calendar", signup_id)
         return (
             jsonify({"error": "ROLE_FULL_OR_UNAVAILABLE", "code": "ROLE_FULL_OR_UNAVAILABLE", "signup": updated_signup}),
             409,
         )
     if result_code == "EXPIRED":
+        try:
+            sync_signup_delete_to_google_calendar(signup_id, signup_user_id)
+        except Exception:
+            app.logger.exception("Failed to remove expired signup_id=%s from Google Calendar", signup_id)
         return (
             jsonify({"error": "RESERVATION_EXPIRED", "code": "RESERVATION_EXPIRED", "signup": updated_signup}),
             409,
@@ -3053,8 +3342,20 @@ def get_public_shifts(slug: str) -> Any:
 
 @app.get("/")
 def index() -> Any:
-    """Main dashboard - unified page for all roles."""
-    return render_template("dashboard.html")
+    """Public homepage for OAuth verification and app discovery."""
+    return render_template("home.html")
+
+
+@app.get("/privacy")
+def privacy_policy() -> Any:
+    """Public privacy policy for OAuth verification."""
+    return render_template("privacy.html")
+
+
+@app.get("/terms")
+def terms() -> Any:
+    """Public terms page for OAuth verification."""
+    return render_template("terms.html")
 
 
 @app.get("/healthz")
