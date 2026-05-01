@@ -27,6 +27,8 @@ Seed constants from backend/data/in_memory.json:
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import pytest
 
 # ---------------------------------------------------------------------------
@@ -54,6 +56,24 @@ _APP_MODULE = None
 def _store_app_ref(setup_backend):
     global _APP_MODULE
     _APP_MODULE, _ = setup_backend
+
+
+class _FrozenRouteDateTime(datetime):
+    @classmethod
+    def now(cls, tz=None):
+        frozen = cls(2026, 4, 29, 12, 0, 0, tzinfo=timezone.utc)
+        if tz is not None:
+            return frozen.astimezone(tz)
+        return frozen.replace(tzinfo=None)
+
+
+@pytest.fixture(autouse=True)
+def _freeze_route_clock(monkeypatch, setup_backend):
+    app_module, _ = setup_backend
+    import backends.memory_backend as memory_backend
+
+    monkeypatch.setattr(app_module, "datetime", _FrozenRouteDateTime)
+    monkeypatch.setattr(memory_backend, "datetime", _FrozenRouteDateTime)
 
 
 def _login(client, user_id: int) -> None:
