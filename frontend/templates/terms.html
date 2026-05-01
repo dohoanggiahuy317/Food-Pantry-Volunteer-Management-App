@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms | Volunteer Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/public.css') }}">
+</head>
+
+<body>
+    <header class="public-header">
+        <a class="public-brand" href="/">Volunteer Management System</a>
+        <nav class="public-nav" aria-label="Public pages">
+            <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
+            <a href="{{ url_for('terms') }}">Terms</a>
+            <a class="public-nav-cta" href="{{ url_for('dashboard') }}">Open App</a>
+        </nav>
+    </header>
+
+    <main class="public-document">
+        <h1>Terms</h1>
+        <p class="public-updated">Last updated: May 1, 2026</p>
+
+        <section>
+            <h2>Use of the Service</h2>
+            <p>
+                Volunteer Management System is provided to help pantry teams coordinate volunteer shifts,
+                registrations, and related communications. Users should provide accurate account and signup
+                information and use the service only for volunteer coordination.
+            </p>
+        </section>
+
+        <section>
+            <h2>Google Calendar Sync</h2>
+            <p>
+                Calendar sync is optional. Users who connect Google Calendar authorize the app to create, update,
+                and remove volunteer shift events in their Google Calendar. Users may disconnect Calendar sync from
+                the My Account page.
+            </p>
+        </section>
+
+        <section>
+            <h2>Availability</h2>
+            <p>
+                The service may change over time and may be unavailable during maintenance, deployment, or provider
+                outages.
+            </p>
+        </section>
+    </main>
+
+    <footer class="public-footer">
+        <span>&copy; Volunteer Management System</span>
+        <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
+        <a href="{{ url_for('terms') }}">Terms</a>
+    </footer>
+</body>
+
+</html>

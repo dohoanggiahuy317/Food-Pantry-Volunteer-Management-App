@@ -1,0 +1,212 @@
+:root {
+    color-scheme: light;
+    --public-text: #172033;
+    --public-muted: #5f6f86;
+    --public-border: #d8e1ec;
+    --public-bg: #f6f8fb;
+    --public-panel: #ffffff;
+    --public-accent: #0f766e;
+    --public-accent-dark: #115e59;
+    --public-secondary: #b45309;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--public-text);
+    background: var(--public-bg);
+}
+
+a {
+    color: inherit;
+}
+
+.public-header,
+.public-footer {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem clamp(1rem, 4vw, 4rem);
+    background: var(--public-panel);
+    border-bottom: 1px solid var(--public-border);
+}
+
+.public-brand {
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.public-nav,
+.public-footer {
+    flex-wrap: wrap;
+}
+
+.public-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: var(--public-muted);
+    font-size: 0.95rem;
+}
+
+.public-nav a,
+.public-footer a {
+    text-decoration: none;
+}
+
+.public-nav a:hover,
+.public-footer a:hover {
+    text-decoration: underline;
+}
+
+.public-nav-cta,
+.public-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.5rem;
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    background: var(--public-accent);
+    color: #ffffff;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.public-nav-cta:hover,
+.public-button:hover {
+    background: var(--public-accent-dark);
+    text-decoration: none;
+}
+
+.public-hero {
+    min-height: 58vh;
+    display: flex;
+    align-items: center;
+    padding: clamp(3rem, 8vw, 6rem) clamp(1rem, 4vw, 4rem);
+    background:
+        linear-gradient(rgba(246, 248, 251, 0.72), rgba(246, 248, 251, 0.95)),
+        url("https://images.unsplash.com/photo-1559027615-cd4628902d4a?auto=format&fit=crop&w=1800&q=80");
+    background-size: cover;
+    background-position: center;
+}
+
+.public-hero-inner,
+.public-narrow,
+.public-document {
+    width: min(100%, 920px);
+}
+
+.public-kicker {
+    margin: 0 0 0.75rem;
+    color: var(--public-secondary);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 0.82rem;
+}
+
+.public-hero h1,
+.public-document h1 {
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 4.8rem);
+    line-height: 1.02;
+}
+
+.public-lead {
+    width: min(100%, 680px);
+    margin: 1.25rem 0 0;
+    color: #28374d;
+    font-size: 1.2rem;
+    line-height: 1.65;
+}
+
+.public-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 1.75rem;
+}
+
+.public-button-secondary {
+    background: #ffffff;
+    color: var(--public-accent-dark);
+    border: 1px solid var(--public-border);
+}
+
+.public-button-secondary:hover {
+    background: #edf7f5;
+}
+
+.public-section {
+    padding: clamp(2.5rem, 6vw, 4.5rem) clamp(1rem, 4vw, 4rem);
+}
+
+.public-section-muted {
+    background: #eaf2f1;
+}
+
+.public-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem;
+}
+
+.public-grid article,
+.public-document {
+    background: var(--public-panel);
+    border: 1px solid var(--public-border);
+    border-radius: 8px;
+    padding: 1.25rem;
+}
+
+.public-grid h2,
+.public-document h2,
+.public-narrow h2 {
+    margin: 0 0 0.75rem;
+    font-size: 1.15rem;
+}
+
+.public-grid p,
+.public-document p,
+.public-narrow p {
+    margin: 0;
+    color: var(--public-muted);
+    line-height: 1.7;
+}
+
+.public-document {
+    margin: clamp(2rem, 5vw, 4rem) auto;
+}
+
+.public-document section {
+    margin-top: 1.75rem;
+}
+
+.public-updated {
+    margin-top: 0.75rem;
+}
+
+.public-footer {
+    border-top: 1px solid var(--public-border);
+    border-bottom: 0;
+    color: var(--public-muted);
+    font-size: 0.95rem;
+}
+
+@media (max-width: 760px) {
+    .public-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .public-grid {
+        grid-template-columns: 1fr;
+    }
+}

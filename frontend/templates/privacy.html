@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy | Volunteer Management System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/public.css') }}">
+</head>
+
+<body>
+    <header class="public-header">
+        <a class="public-brand" href="/">Volunteer Management System</a>
+        <nav class="public-nav" aria-label="Public pages">
+            <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
+            <a href="{{ url_for('terms') }}">Terms</a>
+            <a class="public-nav-cta" href="{{ url_for('dashboard') }}">Open App</a>
+        </nav>
+    </header>
+
+    <main class="public-document">
+        <h1>Privacy Policy</h1>
+        <p class="public-updated">Last updated: May 1, 2026</p>
+
+        <section>
+            <h2>Overview</h2>
+            <p>
+                Volunteer Management System helps pantry teams coordinate volunteer shifts and registrations.
+                This policy explains what information the app collects, how it uses Google user data, and how
+                users can control Calendar sync.
+            </p>
+        </section>
+
+        <section>
+            <h2>Information We Collect</h2>
+            <p>
+                The app may store a user's name, email address, phone number, timezone, app role, signup history,
+                attendance status, and account identifiers needed to authenticate the user.
+            </p>
+        </section>
+
+        <section>
+            <h2>Google Sign-In Data</h2>
+            <p>
+                When a user signs in with Google through Firebase Authentication, the app uses the verified Google
+                account identity to create or access the user's Volunteer Management System account.
+            </p>
+        </section>
+
+        <section>
+            <h2>Google Calendar Data</h2>
+            <p>
+                Google Calendar sync is optional. If a user connects Google Calendar, the app requests permission
+                to create, update, and delete events related to the user's volunteer shift registrations. The app
+                stores OAuth tokens, the connected Google email address, and Google event IDs so it can keep those
+                volunteer events synchronized.
+            </p>
+        </section>
+
+        <section>
+            <h2>How We Use Google User Data</h2>
+            <p>
+                Google user data is used only to authenticate users and sync volunteer shift events that the user
+                chooses to sync. The app does not sell Google user data and does not use Google user data for
+                advertising.
+            </p>
+        </section>
+
+        <section>
+            <h2>Sharing and Retention</h2>
+            <p>
+                User data is shared only as needed to operate the volunteer management service and its configured
+                infrastructure providers. Calendar OAuth tokens and event links are retained while Calendar sync is
+                connected. Disconnecting Calendar sync removes the stored Calendar connection and synced event links.
+            </p>
+        </section>
+
+        <section>
+            <h2>User Controls</h2>
+            <p>
+                Users can disconnect Google Calendar sync from the My Account page. Users can also delete their
+                local account from the app, which removes their local account data and connected Calendar sync data.
+            </p>
+        </section>
+
+        <section>
+            <h2>Contact</h2>
+            <p>
+                For privacy questions, contact the project administrator listed on the Google OAuth consent screen.
+            </p>
+        </section>
+    </main>
+
+    <footer class="public-footer">
+        <span>&copy; Volunteer Management System</span>
+        <a href="{{ url_for('privacy_policy') }}">Privacy Policy</a>
+        <a href="{{ url_for('terms') }}">Terms</a>
+    </footer>
+</body>
+
+</html>

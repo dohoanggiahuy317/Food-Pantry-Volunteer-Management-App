@@ -52,6 +52,10 @@ FIREBASE_PROJECT_ID=
 FIREBASE_APP_ID=
 FIREBASE_ADMIN_CREDENTIALS=backend/firebase_private_key.json
 
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:5001/google-calendar/oauth/callback
+
 FLASK_SECRET_KEY=huybeo
 
 DATA_BACKEND=mysql
@@ -81,6 +85,9 @@ RESEND_FROM_EMAIL=noreply@updates.example.com
 | `SEED_MYSQL_FROM_JSON_ON_EMPTY` | When `true`, Flask auto-populates the DB from `backend/data/mysql.json` if the tables are empty |
 | `RESEND_API_KEY`                | API key used by `backend/notifications/notifications.py` to send volunteer notification emails |
 | `RESEND_FROM_EMAIL`             | Verified sender address used for outgoing email (for example `noreply@updates.example.com`)    |
+| `GOOGLE_OAUTH_CLIENT_ID`        | Optional Google OAuth Web Application client ID for Google Calendar auto sync                  |
+| `GOOGLE_OAUTH_CLIENT_SECRET`    | Optional Google OAuth client secret for Calendar token exchange and refresh                    |
+| `GOOGLE_OAUTH_REDIRECT_URI`     | Exact Google Calendar OAuth callback URI registered in Google Cloud                            |
 
 ### Step 3: Running the Application
 
@@ -151,15 +158,16 @@ pytest tests/test_notifications.py
 **Open the app in your browser:**
 
 ```
-http://localhost:5000
+http://localhost:5000/dashboard
 ```
 
-Flask serves the full application — both the frontend (HTML/CSS/JS) and the API — from this single address. There is no separate frontend server to run.
+Flask serves the public homepage at `/`, the authenticated dashboard at `/dashboard`, and the API from the same server. There is no separate frontend server to run.
 
 **How authentication works now:**
 
 - If `AUTH_PROVIDER=memory`, the first screen shows sample demo accounts for login/logout testing.
 - If `AUTH_PROVIDER=firebase`, the first screen shows Google login/signup and the app requires the Firebase variables described below.
+- The public homepage and privacy policy are intentionally visible without login so Google OAuth verification can crawl them.
 
 ### Step 5: Optional Resend Email Setup
 
@@ -250,3 +258,46 @@ FIREBASE_ADMIN_CREDENTIALS=path/to/serviceAccountKey.json
 - Do **not** commit `serviceAccountKey.json` to version control — it is a secret.
 
 Once these steps are complete, the app will use the pre-dashboard auth gate instead of the old mock `?user_id=` flow.
+
+### Step 7: Google Calendar Auto Sync
+
+Google Calendar sync is optional and only works for users who sign in through Firebase/Google. Firebase proves the user identity for this app; Google Calendar OAuth separately grants permission to create, update, and remove that user's calendar events.
+
+**1. Enable the Calendar API**
+- In [Google Cloud Console](https://console.cloud.google.com/), open the same project used for Firebase/Auth or a dedicated OAuth project.
+- Go to **APIs & Services → Library** and enable **Google Calendar API**.
+
+**2. Configure OAuth consent**
+- Go to **Google Auth Platform / OAuth consent** and configure the app branding, support email, audience, and contact email.
+- For local development or staging, keep the app in **Testing** and add each developer/test account as a test user.
+- For public production use, submit OAuth verification before launch. The app requests `https://www.googleapis.com/auth/calendar.events`, and Google Calendar scopes that access user data can show unverified-app warnings or user caps until approved.
+- Use a custom domain you own for verification. Do not submit the default `ondigitalocean.app` URL as the OAuth homepage because Google requires ownership of the homepage domain.
+- For this deployment, use `https://app.vmswedenison.site` as the app URL. The Google authorized domain is still the top private domain, `vmswedenison.site`.
+- Set the OAuth homepage URL to `https://app.vmswedenison.site/`, the privacy policy URL to `https://app.vmswedenison.site/privacy`, and the terms URL to `https://app.vmswedenison.site/terms`. The public homepage links to the privacy policy and the app dashboard is available at `/dashboard`.
+
+**3. Create an OAuth Web Application client**
+- Go to **APIs & Services → Credentials → Create Credentials → OAuth client ID**.
+- Choose **Web application**.
+- Add authorized redirect URIs:
+  - Local: `http://localhost:<port>/google-calendar/oauth/callback`
+  - Production: `https://<your-domain>/google-calendar/oauth/callback`
+
+**4. Add Calendar OAuth variables to `backend/.env`**
+
+```env
+GOOGLE_OAUTH_CLIENT_ID=
+GOOGLE_OAUTH_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URI=https://app.vmswedenison.site/google-calendar/oauth/callback
+```
+
+If `GOOGLE_OAUTH_REDIRECT_URI` is omitted, the server builds one from the current request host. In production, set it explicitly so it exactly matches the URI registered in Google Cloud.
+
+**5. Verify the custom domain before resubmitting to Google**
+- Add `app.vmswedenison.site` to DigitalOcean App Platform and configure the GoDaddy CNAME record `app -> <your DigitalOcean ondigitalocean.app target>`.
+- Verify `vmswedenison.site` in Google Search Console using the same Google account, or a project owner/editor account, used for the OAuth project.
+- In Google Cloud Console, add `vmswedenison.site` under OAuth authorized domains.
+- Resubmit OAuth verification only after `https://app.vmswedenison.site/`, `https://app.vmswedenison.site/privacy`, and the Calendar OAuth callback URL are live.
+
+If Google returns `Error 403: access_denied` and the request details show `redirect_uri=http://localhost:5000/google-calendar/oauth/callback`, production is still using the local redirect URI. Update the GitHub repository variable `GOOGLE_OAUTH_REDIRECT_URI` to `https://app.vmswedenison.site/google-calendar/oauth/callback`, redeploy, and make sure the same URI is registered on the Google OAuth Web Application client.
+
+If Google still shows "Google hasn't verified this app", branding alone is not complete. In **Google Auth Platform -> Data access**, add the scope justification and demo video for `https://www.googleapis.com/auth/calendar.events`, then submit verification.

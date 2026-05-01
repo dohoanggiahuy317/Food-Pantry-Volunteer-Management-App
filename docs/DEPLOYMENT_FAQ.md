@@ -16,7 +16,7 @@ The app is deployed to **DigitalOcean App Platform** as:
 
 Production domain:
 
-- `https://vmswedenison.site`
+- `https://app.vmswedenison.site`
 
 CI/CD:
 
@@ -57,7 +57,7 @@ The following platform work was completed during setup:
   - triggered deploys from `main`
 - the App Platform app is automatically created and updated from `.do/app.yaml` on deploy
 - configured custom domain:
-  - `vmswedenison.site`
+  - `app.vmswedenison.site`
 
 
 ---
@@ -390,26 +390,129 @@ After that:
 Check these in order:
 
 1. App health:
-   - `https://vmswedenison.site/healthz`
-2. Site loads:
-   - `https://vmswedenison.site`
-3. Roles endpoint returns seeded roles:
+   - `https://app.vmswedenison.site/healthz`
+2. Public homepage loads without login and links to the privacy policy:
+   - `https://app.vmswedenison.site/`
+3. Privacy policy loads without login:
+   - `https://app.vmswedenison.site/privacy`
+4. Dashboard loads:
+   - `https://app.vmswedenison.site/dashboard`
+5. Roles endpoint returns seeded roles:
    - `/api/roles`
-4. Login with the seeded admin/demo Google account
-5. Confirm role-based UI appears
-6. Confirm demo pantries, shifts, and users exist
-7. Confirm a second deploy with no migration changes does not wipe data
+6. Login with the seeded admin/demo Google account
+7. Confirm role-based UI appears
+8. Confirm demo pantries, shifts, and users exist
+9. Confirm a second deploy with no migration changes does not wipe data
+
+For Google OAuth verification, do not submit an `ondigitalocean.app` URL as the homepage. Submit the custom domain homepage and privacy policy after the domain is verified in Google Search Console:
+
+- Authorized domain: `vmswedenison.site`
+- Homepage: `https://app.vmswedenison.site/`
+- Privacy policy: `https://app.vmswedenison.site/privacy`
+- Terms: `https://app.vmswedenison.site/terms`
+- Calendar OAuth redirect: `https://app.vmswedenison.site/google-calendar/oauth/callback`
 
 ---
 
-## 16. What should I do if deploy fails again?
+## 16. How should GoDaddy, DigitalOcean, Firebase, and Google use the `app` subdomain?
+
+Use `app.vmswedenison.site` as the deployed app URL.
+
+In GoDaddy DNS, add the CNAME record at the authoritative DNS provider for `vmswedenison.site`:
+
+```text
+Type: CNAME
+Name: app
+Data: vmswedenison-prod-mtip8.ondigitalocean.app.
+TTL: 1 Hour
+```
+
+In DigitalOcean App Platform, attach this exact domain:
+
+```text
+app.vmswedenison.site
+```
+
+In Firebase Auth, add this authorized domain:
+
+```text
+app.vmswedenison.site
+```
+
+In Google Auth Platform / OAuth consent, use:
+
+```text
+Authorized domain: vmswedenison.site
+Homepage URL: https://app.vmswedenison.site/
+Privacy policy URL: https://app.vmswedenison.site/privacy
+Terms URL: https://app.vmswedenison.site/terms
+```
+
+In the Google OAuth Web Application client, add this authorized redirect URI:
+
+```text
+https://app.vmswedenison.site/google-calendar/oauth/callback
+```
+
+In GitHub repository variables/secrets:
+
+```env
+# Variables
+GOOGLE_OAUTH_CLIENT_ID=<web OAuth client id>
+GOOGLE_OAUTH_REDIRECT_URI=https://app.vmswedenison.site/google-calendar/oauth/callback
+
+# Secret
+GOOGLE_OAUTH_CLIENT_SECRET=<web OAuth client secret>
+```
+
+If Google OAuth request details still show `redirect_uri=http://localhost:5000/google-calendar/oauth/callback`, the production app is still using the local variable. Update the GitHub repository variable, make sure the deploy workflow passes it to DigitalOcean, and redeploy.
+
+---
+
+## 17. Why do I see Cloudflare 1001, TLS errors, or 404 on the custom domain?
+
+These usually mean the domain is not fully attached yet.
+
+- Cloudflare `Error 1001 DNS resolution error`: add the CNAME in the DNS provider that is actually authoritative for `vmswedenison.site`. If the domain uses Cloudflare nameservers, adding the record only in GoDaddy will not affect DNS.
+- `ERR_SSL_VERSION_OR_CIPHER_MISMATCH`: wait for DigitalOcean to issue the certificate for `app.vmswedenison.site`. If using Cloudflare, keep the record DNS-only until DigitalOcean shows the certificate as active.
+- `HTTP ERROR 404`: DNS is reaching DigitalOcean, but the App Platform app does not have `app.vmswedenison.site` attached, or the latest `.do/app.yaml` has not been deployed.
+
+---
+
+## 18. Why does Google still show "Google hasn't verified this app"?
+
+Branding approval is not the same as sensitive-scope verification. Calendar sync requests `https://www.googleapis.com/auth/calendar.events`, which Google treats as user-data access. In **Google Auth Platform -> Data access**, complete the missing fields for the Calendar scope:
+
+- scope justification
+- demo video
+
+Use a justification like:
+
+```text
+Volunteer Management uses Google Calendar access only when a signed-in user opts in to Calendar Sync. The app creates, updates, and deletes calendar events for that user's volunteer shift signups so their personal calendar matches their active volunteer commitments. The app does not read unrelated calendar events and stores only the OAuth tokens needed for sync plus the Google event IDs linked to local signup records.
+```
+
+The demo video should show the complete production flow:
+
+1. Open `https://app.vmswedenison.site/`.
+2. Sign in with Firebase/Google.
+3. Open `/dashboard` and the account Calendar Sync setting.
+4. Click connect and show the Google OAuth consent screen in English.
+5. Approve the scope.
+6. Create or confirm a volunteer signup.
+7. Show the event created or updated in Google Calendar.
+8. Disconnect Calendar Sync and show synced events are removed.
+
+---
+
+## 19. What should I do if deploy fails again?
 
 Check failures in this order:
 
 1. GitHub Actions `Deploy Production` logs
 2. DigitalOcean App Platform deploy logs
 3. DigitalOcean pre-deploy job logs for `demo-bootstrap`
-4. DNS configuration for `vmswedenison.site`
+4. DNS configuration for `app.vmswedenison.site`
 5. GitHub repository secret/variable names
 
 When debugging, always copy:
