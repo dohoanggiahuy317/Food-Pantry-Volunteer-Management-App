@@ -61,24 +61,67 @@ High-level runtime shape:
 
 ```mermaid
 flowchart LR
-    Browser[Browser / Dashboard UI]
-    Flask[Flask app.py]
-    Auth[Auth and session logic]
-    Pantry[Pantry and admin logic]
-    Shift[Shift and attendance logic]
-    Notify[Notification helpers]
-    DB[(MySQL)]
-    Email[Resend]
+    User["Volunteer / Staff / Admin"]
 
-    Browser --> Flask
-    Flask --> Auth
-    Flask --> Pantry
-    Flask --> Shift
-    Flask --> Notify
-    Auth --> DB
-    Pantry --> DB
-    Shift --> DB
-    Notify --> Email
+    subgraph Browser["Browser"]
+        Public["Public pages<br/>/ /privacy /terms"]
+        App["Dashboard app<br/>/dashboard"]
+        OAuthPopup["Calendar OAuth popup"]
+    end
+
+    subgraph Backend["Flask backend on DigitalOcean<br/>app.vmswedenison.site"]
+        Auth["Auth + session routes"]
+        Core["Core API<br/>pantries, shifts, signups, users"]
+        Calendar["Calendar sync API"]
+        Store["StoreBackend"]
+        CalendarHelper["Google Calendar helper"]
+        EmailHelper["Notification helper"]
+    end
+
+    subgraph Data["Data stores"]
+        MySQL[("Managed MySQL")]
+        Memory[("Memory backend<br/>tests only")]
+    end
+
+    subgraph Services["External services"]
+        Firebase["Firebase Auth"]
+        GoogleOAuth["Google OAuth consent"]
+        GoogleCalendar["Google Calendar API"]
+        Resend["Resend Email API"]
+    end
+
+    subgraph Delivery["Deployment"]
+        GitHub["GitHub Actions"]
+        Spec[".do/app.yaml"]
+    end
+
+    User --> Public
+    User --> App
+    App <--> Auth
+    App --> Core
+    App --> Calendar
+
+    Auth --> Firebase
+    Auth --> Store
+    Core --> Store
+    Calendar --> Store
+
+    Calendar --> OAuthPopup
+    OAuthPopup --> GoogleOAuth
+    GoogleOAuth --> Calendar
+    Calendar --> CalendarHelper
+    CalendarHelper --> GoogleCalendar
+
+    Core --> EmailHelper
+    EmailHelper --> Resend
+    EmailHelper --> Store
+
+    Store --> MySQL
+    Store -. test mode .-> Memory
+
+    GitHub --> Spec
+    Spec --> Backend
+
 ```
 
 Core responsibilities:

@@ -3353,6 +3353,7 @@ def privacy_policy() -> Any:
 
 
 @app.get("/terms")
+@app.get("/term")
 def terms() -> Any:
     """Public terms page for OAuth verification."""
     return render_template("terms.html")

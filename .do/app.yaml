@@ -6,7 +6,7 @@ alerts:
   - rule: DOMAIN_FAILED
 
 domains:
-  - domain: vmswedenison.site
+  - domain: app.vmswedenison.site
     type: PRIMARY
 
 databases:
@@ -113,7 +113,7 @@ services:
         scope: RUN_TIME
         type: GENERAL
       - key: CORS_ALLOWED_ORIGINS
-        value: https://vmswedenison.site
+        value: https://app.vmswedenison.site
         scope: RUN_TIME
         type: GENERAL
       - key: FLASK_SECRET_KEY

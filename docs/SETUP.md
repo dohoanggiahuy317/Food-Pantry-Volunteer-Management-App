@@ -272,7 +272,8 @@ Google Calendar sync is optional and only works for users who sign in through Fi
 - For local development or staging, keep the app in **Testing** and add each developer/test account as a test user.
 - For public production use, submit OAuth verification before launch. The app requests `https://www.googleapis.com/auth/calendar.events`, and Google Calendar scopes that access user data can show unverified-app warnings or user caps until approved.
 - Use a custom domain you own for verification. Do not submit the default `ondigitalocean.app` URL as the OAuth homepage because Google requires ownership of the homepage domain.
-- Set the OAuth homepage URL to `https://<your-domain>/` and the privacy policy URL to `https://<your-domain>/privacy`. The public homepage links to the privacy policy and the app dashboard is available at `/dashboard`.
+- For this deployment, use `https://app.vmswedenison.site` as the app URL. The Google authorized domain is still the top private domain, `vmswedenison.site`.
+- Set the OAuth homepage URL to `https://app.vmswedenison.site/`, the privacy policy URL to `https://app.vmswedenison.site/privacy`, and the terms URL to `https://app.vmswedenison.site/terms`. The public homepage links to the privacy policy and the app dashboard is available at `/dashboard`.
 
 **3. Create an OAuth Web Application client**
 - Go to **APIs & Services → Credentials → Create Credentials → OAuth client ID**.
@@ -286,13 +287,17 @@ Google Calendar sync is optional and only works for users who sign in through Fi
 ```env
 GOOGLE_OAUTH_CLIENT_ID=
 GOOGLE_OAUTH_CLIENT_SECRET=
-GOOGLE_OAUTH_REDIRECT_URI=https://<your-domain>/google-calendar/oauth/callback
+GOOGLE_OAUTH_REDIRECT_URI=https://app.vmswedenison.site/google-calendar/oauth/callback
 ```
 
 If `GOOGLE_OAUTH_REDIRECT_URI` is omitted, the server builds one from the current request host. In production, set it explicitly so it exactly matches the URI registered in Google Cloud.
 
 **5. Verify the custom domain before resubmitting to Google**
-- Add the custom domain to DigitalOcean App Platform and configure the DNS records DigitalOcean provides.
-- Verify the domain in Google Search Console using the same Google account, or a project owner/editor account, used for the OAuth project.
-- In Google Cloud Console, add the verified top private domain under OAuth authorized domains.
-- Resubmit OAuth verification only after `https://<your-domain>/`, `https://<your-domain>/privacy`, and the Calendar OAuth callback URL are live.
+- Add `app.vmswedenison.site` to DigitalOcean App Platform and configure the GoDaddy CNAME record `app -> <your DigitalOcean ondigitalocean.app target>`.
+- Verify `vmswedenison.site` in Google Search Console using the same Google account, or a project owner/editor account, used for the OAuth project.
+- In Google Cloud Console, add `vmswedenison.site` under OAuth authorized domains.
+- Resubmit OAuth verification only after `https://app.vmswedenison.site/`, `https://app.vmswedenison.site/privacy`, and the Calendar OAuth callback URL are live.
+
+If Google returns `Error 403: access_denied` and the request details show `redirect_uri=http://localhost:5000/google-calendar/oauth/callback`, production is still using the local redirect URI. Update the GitHub repository variable `GOOGLE_OAUTH_REDIRECT_URI` to `https://app.vmswedenison.site/google-calendar/oauth/callback`, redeploy, and make sure the same URI is registered on the Google OAuth Web Application client.
+
+If Google still shows "Google hasn't verified this app", branding alone is not complete. In **Google Auth Platform -> Data access**, add the scope justification and demo video for `https://www.googleapis.com/auth/calendar.events`, then submit verification.
