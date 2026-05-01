@@ -23,7 +23,8 @@ Reduce volunteer no-shows and last-minute understaffing at food pantries by maki
 
 #### Defer (V1.1+)
 - Auto overbooking based on history  
-- Multi-location pantries, complex roles permissions, recurring shift templates, deep analytics dashboards, integrations (Google Calendar), etc.
+- Multi-location pantries, complex role permissions, deep analytics dashboards, and additional integrations.
+- Google Calendar auto sync is now implemented as an optional account-level integration, but public production use still requires Google OAuth verification on a custom verified domain.
 
 ## 2. Personas and core jobs-to-be-done
 ### 2.1. Pantry Manager (Admin)
@@ -125,6 +126,7 @@ Use:
 - Admin authentication (email/password or Google OAuth)
 - Store only necessary PII (name, phone, email), encrypt at rest if possible
 - Basic audit log: who changed shift, who marked attendance
+- Public homepage and privacy policy are available without login for Google OAuth verification; the authenticated app remains under `/dashboard`.
 
 ### 4.3. Compliance notes (pragmatic)
 - SMS opt-out language (“Reply STOP”) if using providers like Twilio

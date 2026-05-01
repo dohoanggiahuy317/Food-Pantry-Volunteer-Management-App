@@ -4,6 +4,8 @@ A volunteer scheduling and coordination app for food pantries.
 
 The goal of this project is to make shift planning easier for pantry teams, reduce missed coverage, and give volunteers a simple way to find, track, and manage opportunities. It also serves as a practical full-stack project that shows how a real scheduling workflow can connect people, roles, and notifications in one place.
 
+The deployed site serves a public homepage and privacy policy for Google OAuth verification, while the authenticated app dashboard is available at `/dashboard`.
+
 ## Why This Exists
 
 Food pantry scheduling often breaks down because the work spans too many manual steps: finding volunteers, filling open roles, following up on changes, and keeping everyone informed. This app is built to reduce that friction.
@@ -39,7 +41,7 @@ This README intentionally stays high level. For the full details, see the docs f
 - [Knowledge Transfer](docs/knowledge_transfer.md) - system design, architecture notes, and future direction
 - [Deployment Guide](docs/DEPLOY_DIGITALOCEAN.md) - production deployment on DigitalOcean
 - [Deployment FAQ](docs/DEPLOYMENT_FAQ.md) - common deployment issues and fixes
-- [MVP Features](docs/mvp_feature.md) - product scope and feature priorities
+- [MVP Features](docs/MVP_FEATURES.md) - product scope and feature priorities
 
 ## Getting Started
 

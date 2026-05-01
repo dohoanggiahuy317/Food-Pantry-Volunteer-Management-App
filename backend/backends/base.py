@@ -264,5 +264,33 @@ class StoreBackend(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_google_calendar_connection(self, user_id: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def upsert_google_calendar_connection(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_google_calendar_connection(self, user_id: int) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_google_calendar_event_link(self, signup_id: int) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def upsert_google_calendar_event_link(self, signup_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_google_calendar_event_link(self, signup_id: int) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_google_calendar_event_links(self, signup_ids: list[int]) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def is_empty(self) -> bool:
         raise NotImplementedError

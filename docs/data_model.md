@@ -30,6 +30,9 @@ At backend startup:
 - `SEED_MYSQL_FROM_JSON_ON_EMPTY=true`
 - `RESEND_API_KEY=<your resend api key>`
 - `RESEND_FROM_EMAIL=noreply@updates.example.com`
+- `GOOGLE_OAUTH_CLIENT_ID=<google oauth web client id>`
+- `GOOGLE_OAUTH_CLIENT_SECRET=<google oauth web client secret>`
+- `GOOGLE_OAUTH_REDIRECT_URI=https://<your-domain>/google-calendar/oauth/callback`
 
 ## Notification flow
 
@@ -70,6 +73,11 @@ Defined in `backend/db/migrations/001_initial.sql`:
 - `shift_signups`
 - `help_broadcasts`
 
+Defined in `backend/db/migrations/002_google_calendar_sync.sql`:
+
+- `google_calendar_connections`
+- `google_calendar_event_links`
+
 Important constraints:
 - `roles.role_id` is seeded explicitly; the protected `SUPER_ADMIN` role uses `role_id = 0`.
 - `users.email` is unique.
@@ -80,6 +88,8 @@ Important constraints:
 - `shift_signups` stores `reservation_expires_at` for 48-hour reconfirmation reservation windows.
 - `shift_signups` has index `idx_shift_signups_role_status_reservation (shift_role_id, signup_status, reservation_expires_at)` for reservation-aware capacity checks.
 - `help_broadcasts` stores shift help broadcast history with the sender, target shift, recipient count, and send timestamp.
+- `google_calendar_connections` stores one optional Google Calendar OAuth connection per user.
+- `google_calendar_event_links` stores the Google event ID linked to each synced local signup.
 - `shift_series` stores recurring weekly schedule metadata (`timezone`, `interval_weeks`, `weekdays_csv`, finite end rule).
 - `shifts.shift_series_id` is nullable so one-off shifts remain simple while recurring occurrences link back to a series.
 - `shifts.series_position` preserves the occurrence order inside the current recurring slice.
@@ -99,6 +109,10 @@ Account lifecycle notes:
 - The frontend also syncs the detected browser timezone through `PATCH /api/me` after authenticated app boot when it is missing or changed.
 - Account deletion deletes the linked Firebase user first and then removes the local user row.
 - The protected seeded `SUPER_ADMIN` account (`user_id = 1`) cannot delete itself.
+
+Google Calendar sync notes:
+- `google_calendar_connections` stores one optional OAuth connection per user, including Google subject/email, granted scopes, refresh token, current access token, and access-token expiry.
+- `google_calendar_event_links` maps local signup IDs to Google Calendar event IDs so signup updates, cancellations, disconnects, and account deletion can update or remove the corresponding calendar event.
 
 ## Concurrency safety
 `backend/backends/mysql_backend.py` uses transactions for signup creation, full shift/role replacement, and reconfirmation:

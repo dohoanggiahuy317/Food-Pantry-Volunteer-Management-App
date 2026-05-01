@@ -391,14 +391,24 @@ Check these in order:
 
 1. App health:
    - `https://vmswedenison.site/healthz`
-2. Site loads:
-   - `https://vmswedenison.site`
-3. Roles endpoint returns seeded roles:
+2. Public homepage loads without login and links to the privacy policy:
+   - `https://vmswedenison.site/`
+3. Privacy policy loads without login:
+   - `https://vmswedenison.site/privacy`
+4. Dashboard loads:
+   - `https://vmswedenison.site/dashboard`
+5. Roles endpoint returns seeded roles:
    - `/api/roles`
-4. Login with the seeded admin/demo Google account
-5. Confirm role-based UI appears
-6. Confirm demo pantries, shifts, and users exist
-7. Confirm a second deploy with no migration changes does not wipe data
+6. Login with the seeded admin/demo Google account
+7. Confirm role-based UI appears
+8. Confirm demo pantries, shifts, and users exist
+9. Confirm a second deploy with no migration changes does not wipe data
+
+For Google OAuth verification, do not submit an `ondigitalocean.app` URL as the homepage. Submit the custom domain homepage and privacy policy after the domain is verified in Google Search Console:
+
+- Homepage: `https://vmswedenison.site/`
+- Privacy policy: `https://vmswedenison.site/privacy`
+- Calendar OAuth redirect: `https://vmswedenison.site/google-calendar/oauth/callback`
 
 ---
 

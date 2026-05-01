@@ -2693,8 +2693,19 @@ function renderCalendarSyncUi() {
     const configured = Boolean(currentGoogleCalendarStatus?.configured);
     const connected = Boolean(currentGoogleCalendarStatus?.connected);
     const connectedEmail = currentGoogleCalendarStatus?.google_email || '';
+    const statusError = currentGoogleCalendarStatus?.error || '';
 
-    if (!configured) {
+    if (statusError) {
+        note.className = 'account-note memory-note';
+        note.textContent = 'Google Calendar sync status could not be loaded.';
+        status.className = 'account-note';
+        status.textContent = statusError;
+        connectButton.disabled = true;
+        connectButton.hidden = false;
+        connectButton.textContent = 'Google Calendar Unavailable';
+        disconnectButton.hidden = true;
+        disconnectButton.disabled = true;
+    } else if (!configured) {
         note.className = 'account-note memory-note';
         note.textContent = 'Server setup for Google Calendar OAuth is incomplete. Add Google OAuth client settings before volunteers can enable full sync.';
         status.className = 'account-note';
@@ -2841,7 +2852,7 @@ async function connectGoogleCalendarFromAccount() {
                 return;
             }
             window.clearInterval(popupPoll);
-            finish(event.data.message, false);
+            finish(event.data.message, event.data.ok !== true);
         };
 
         window.addEventListener('message', handleMessage);
@@ -4474,28 +4485,32 @@ function setupEventListeners() {
         });
     });
 
-    document.getElementById('connect-google-calendar-btn')?.addEventListener('click', async () => {
-        try {
-            const message = await connectGoogleCalendarFromAccount();
-            showMessage('my-account', message || 'Google Calendar sync connected.', 'success');
-        } catch (error) {
-            showMessage('my-account', `Failed to connect Google Calendar: ${error.message}`, 'error');
-        }
+    document.getElementById('connect-google-calendar-btn')?.addEventListener('click', async (event) => {
+        await withButtonLock(event.currentTarget, async () => {
+            try {
+                const message = await connectGoogleCalendarFromAccount();
+                showMessage('my-account', message || 'Google Calendar sync connected.', 'success');
+            } catch (error) {
+                showMessage('my-account', `Failed to connect Google Calendar: ${error.message}`, 'error');
+            }
+        });
     });
 
-    document.getElementById('disconnect-google-calendar-btn')?.addEventListener('click', async () => {
+    document.getElementById('disconnect-google-calendar-btn')?.addEventListener('click', async (event) => {
         const confirmed = confirm('Turn off automatic Google Calendar sync for this account? Existing synced events will be removed from Google Calendar.');
         if (!confirmed) {
             return;
         }
 
-        try {
-            await disconnectGoogleCalendar();
-            await loadGoogleCalendarStatus();
-            showMessage('my-account', 'Automatic Google Calendar sync has been disconnected.', 'success');
-        } catch (error) {
-            showMessage('my-account', `Failed to disconnect Google Calendar: ${error.message}`, 'error');
-        }
+        await withButtonLock(event.currentTarget, async () => {
+            try {
+                await disconnectGoogleCalendar();
+                await loadGoogleCalendarStatus();
+                showMessage('my-account', 'Automatic Google Calendar sync has been disconnected.', 'success');
+            } catch (error) {
+                showMessage('my-account', `Failed to disconnect Google Calendar: ${error.message}`, 'error');
+            }
+        });
     });
 
     document.getElementById('delete-account-btn').addEventListener('click', async () => {

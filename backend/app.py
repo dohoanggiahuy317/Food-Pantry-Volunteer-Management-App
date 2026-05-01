@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
-import json
 import os
 from pathlib import Path
 import re
 import secrets
 from typing import Any
-from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode
-from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
@@ -20,7 +16,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from auth import AuthError, create_auth_service
 from backends.base import StoreBackend
 from backends.factory import create_backend
-from db.mysql import get_connection as get_mysql_connection
+import google_calendar
 from notifications import (
     send_new_shift_series_subscriber_notification,
     send_new_shift_subscriber_notification,
@@ -84,8 +80,6 @@ elif not IS_PRODUCTION:
 
 backend: StoreBackend = create_backend()
 auth_service = create_auth_service()
-GOOGLE_CALENDAR_MEMORY_CONNECTIONS: dict[int, dict[str, Any]] = {}
-GOOGLE_CALENDAR_MEMORY_EVENT_LINKS: dict[int, dict[str, Any]] = {}
 
 ATTENDANCE_STATUSES = {"SHOW_UP", "NO_SHOW"}
 SIGNUP_STATUS_PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
@@ -111,8 +105,6 @@ WEEKDAY_CODES = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 WEEKDAY_TO_INDEX = {code: index for index, code in enumerate(WEEKDAY_CODES)}
 INDEX_TO_WEEKDAY = {index: code for code, index in WEEKDAY_TO_INDEX.items()}
 MAX_RECURRING_OCCURRENCES = 260
-GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
-GOOGLE_OPENID_SCOPES = ["openid", "email", GOOGLE_CALENDAR_SCOPE]
 AUTH_EXEMPT_API_PATHS = {
     "/api/auth/config",
     "/api/auth/login/google",
@@ -221,418 +213,6 @@ def serialize_user_for_client(user: dict[str, Any] | None, include_roles: bool =
     if include_roles:
         payload["roles"] = get_user_roles(int(user.get("user_id")))
     return payload
-
-
-def google_calendar_client_id() -> str:
-    return str(os.getenv("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
-
-
-def google_calendar_client_secret() -> str:
-    return str(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip()
-
-
-def google_calendar_redirect_uri() -> str:
-    configured = str(os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or "").strip()
-    if configured:
-        return configured
-    return url_for("google_calendar_oauth_callback", _external=True)
-
-
-def google_calendar_is_configured() -> bool:
-    return bool(google_calendar_client_id() and google_calendar_client_secret())
-
-
-def google_calendar_uses_mysql_storage() -> bool:
-    return str(os.getenv("DATA_BACKEND", "mysql") or "mysql").strip().lower() == "mysql"
-
-
-def google_calendar_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def google_calendar_parse_iso_to_naive_utc(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    normalized = str(value).replace("Z", "+00:00")
-    dt = datetime.fromisoformat(normalized)
-    if dt.tzinfo is None:
-        return dt
-    return dt.astimezone(timezone.utc).replace(tzinfo=None)
-
-
-def google_calendar_datetime_to_iso(value: Any) -> str | None:
-    if not value:
-        return None
-    if isinstance(value, datetime):
-        dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
-    if isinstance(value, str):
-        return value
-    return None
-
-
-def get_google_calendar_connection(user_id: int) -> dict[str, Any] | None:
-    if google_calendar_uses_mysql_storage():
-        with get_mysql_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT * FROM google_calendar_connections WHERE user_id = %s LIMIT 1",
-                (user_id,),
-            )
-            row = cursor.fetchone()
-        if not row:
-            return None
-        return {
-            "user_id": int(row["user_id"]),
-            "google_subject": row.get("google_subject"),
-            "google_email": row.get("google_email"),
-            "scopes_csv": row.get("scopes_csv"),
-            "refresh_token": row.get("refresh_token"),
-            "access_token": row.get("access_token"),
-            "token_expires_at": google_calendar_datetime_to_iso(row.get("token_expires_at")),
-            "created_at": google_calendar_datetime_to_iso(row.get("created_at")),
-            "updated_at": google_calendar_datetime_to_iso(row.get("updated_at")),
-        }
-    row = GOOGLE_CALENDAR_MEMORY_CONNECTIONS.get(user_id)
-    return dict(row) if row else None
-
-
-def upsert_google_calendar_connection(user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    if google_calendar_uses_mysql_storage():
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        with get_mysql_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO google_calendar_connections (
-                    user_id,
-                    google_subject,
-                    google_email,
-                    scopes_csv,
-                    refresh_token,
-                    access_token,
-                    token_expires_at,
-                    created_at,
-                    updated_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    google_subject = VALUES(google_subject),
-                    google_email = VALUES(google_email),
-                    scopes_csv = VALUES(scopes_csv),
-                    refresh_token = COALESCE(VALUES(refresh_token), refresh_token),
-                    access_token = VALUES(access_token),
-                    token_expires_at = VALUES(token_expires_at),
-                    updated_at = VALUES(updated_at)
-                """,
-                (
-                    user_id,
-                    payload.get("google_subject"),
-                    payload.get("google_email"),
-                    payload.get("scopes_csv"),
-                    payload.get("refresh_token"),
-                    payload.get("access_token"),
-                    google_calendar_parse_iso_to_naive_utc(payload.get("token_expires_at")),
-                    now,
-                    now,
-                ),
-            )
-            conn.commit()
-        return get_google_calendar_connection(user_id) or {"user_id": user_id}
-
-    existing = GOOGLE_CALENDAR_MEMORY_CONNECTIONS.get(user_id)
-    timestamp = google_calendar_now_iso()
-    if existing:
-        existing.update(payload)
-        existing["updated_at"] = timestamp
-        return dict(existing)
-    row = {"user_id": user_id, "created_at": timestamp, "updated_at": timestamp, **payload}
-    GOOGLE_CALENDAR_MEMORY_CONNECTIONS[user_id] = row
-    return dict(row)
-
-
-def delete_google_calendar_connection(user_id: int) -> None:
-    if google_calendar_uses_mysql_storage():
-        with get_mysql_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM google_calendar_connections WHERE user_id = %s", (user_id,))
-            conn.commit()
-        return
-    GOOGLE_CALENDAR_MEMORY_CONNECTIONS.pop(user_id, None)
-
-
-def get_google_calendar_event_link(signup_id: int) -> dict[str, Any] | None:
-    if google_calendar_uses_mysql_storage():
-        with get_mysql_connection() as conn:
-            cursor = conn.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT * FROM google_calendar_event_links WHERE signup_id = %s LIMIT 1",
-                (signup_id,),
-            )
-            row = cursor.fetchone()
-        if not row:
-            return None
-        return {
-            "signup_id": int(row["signup_id"]),
-            "user_id": int(row["user_id"]),
-            "calendar_id": row.get("calendar_id"),
-            "google_event_id": row.get("google_event_id"),
-            "created_at": google_calendar_datetime_to_iso(row.get("created_at")),
-            "updated_at": google_calendar_datetime_to_iso(row.get("updated_at")),
-        }
-    row = GOOGLE_CALENDAR_MEMORY_EVENT_LINKS.get(signup_id)
-    return dict(row) if row else None
-
-
-def upsert_google_calendar_event_link(signup_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    if google_calendar_uses_mysql_storage():
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        with get_mysql_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO google_calendar_event_links (
-                    signup_id,
-                    user_id,
-                    calendar_id,
-                    google_event_id,
-                    created_at,
-                    updated_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    user_id = VALUES(user_id),
-                    calendar_id = VALUES(calendar_id),
-                    google_event_id = VALUES(google_event_id),
-                    updated_at = VALUES(updated_at)
-                """,
-                (
-                    signup_id,
-                    int(payload.get("user_id")),
-                    payload.get("calendar_id"),
-                    payload.get("google_event_id"),
-                    now,
-                    now,
-                ),
-            )
-            conn.commit()
-        return get_google_calendar_event_link(signup_id) or {"signup_id": signup_id}
-
-    existing = GOOGLE_CALENDAR_MEMORY_EVENT_LINKS.get(signup_id)
-    timestamp = google_calendar_now_iso()
-    if existing:
-        existing.update(payload)
-        existing["updated_at"] = timestamp
-        return dict(existing)
-    row = {"signup_id": signup_id, "created_at": timestamp, "updated_at": timestamp, **payload}
-    GOOGLE_CALENDAR_MEMORY_EVENT_LINKS[signup_id] = row
-    return dict(row)
-
-
-def delete_google_calendar_event_link(signup_id: int) -> None:
-    if google_calendar_uses_mysql_storage():
-        with get_mysql_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM google_calendar_event_links WHERE signup_id = %s", (signup_id,))
-            conn.commit()
-        return
-    GOOGLE_CALENDAR_MEMORY_EVENT_LINKS.pop(signup_id, None)
-
-
-def delete_google_calendar_event_links(signup_ids: list[int]) -> None:
-    normalized_ids = [int(signup_id) for signup_id in signup_ids if signup_id is not None]
-    if not normalized_ids:
-        return
-    if google_calendar_uses_mysql_storage():
-        placeholders = ", ".join(["%s"] * len(normalized_ids))
-        with get_mysql_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                f"DELETE FROM google_calendar_event_links WHERE signup_id IN ({placeholders})",
-                tuple(normalized_ids),
-            )
-            conn.commit()
-        return
-    for signup_id in normalized_ids:
-        GOOGLE_CALENDAR_MEMORY_EVENT_LINKS.pop(signup_id, None)
-
-
-def google_calendar_status_payload(user: dict[str, Any]) -> dict[str, Any]:
-    connection = get_google_calendar_connection(int(user.get("user_id")))
-    return {
-        "configured": google_calendar_is_configured(),
-        "connected": bool(connection),
-        "google_email": connection.get("google_email") if connection else None,
-        "google_subject": connection.get("google_subject") if connection else None,
-        "scopes": str(connection.get("scopes_csv") or "").split(",") if connection and connection.get("scopes_csv") else [],
-        "updated_at": connection.get("updated_at") if connection else None,
-    }
-
-
-def google_calendar_http_json(
-    method: str,
-    url: str,
-    *,
-    data: dict[str, Any] | None = None,
-    headers: dict[str, str] | None = None,
-) -> dict[str, Any]:
-    request_headers = {"Accept": "application/json"}
-    if headers:
-        request_headers.update(headers)
-
-    payload_bytes: bytes | None = None
-    if data is not None:
-        if request_headers.get("Content-Type") == "application/x-www-form-urlencoded":
-            payload_bytes = urlencode(data).encode("utf-8")
-        else:
-            request_headers.setdefault("Content-Type", "application/json")
-            payload_bytes = json.dumps(data).encode("utf-8")
-
-    outgoing_request = Request(url, data=payload_bytes, headers=request_headers, method=method.upper())
-    try:
-        with urlopen(outgoing_request, timeout=20) as response:
-            body = response.read().decode("utf-8")
-    except HTTPError as exc:
-        raw_body = exc.read().decode("utf-8", errors="replace")
-        try:
-            error_payload = json.loads(raw_body) if raw_body else {}
-        except json.JSONDecodeError:
-            error_payload = {"error": {"message": raw_body}}
-        message = (
-            error_payload.get("error_description")
-            or (error_payload.get("error") or {}).get("message")
-            or "Google request failed"
-        )
-        raise AuthError(message, 502, "GOOGLE_API_ERROR") from exc
-    except URLError as exc:
-        raise AuthError("Unable to reach Google Calendar services", 502, "GOOGLE_API_UNREACHABLE") from exc
-
-    if not body:
-        return {}
-    parsed = json.loads(body)
-    if isinstance(parsed, dict):
-        return parsed
-    raise AuthError("Google returned an unexpected response format", 502, "GOOGLE_API_INVALID_PAYLOAD")
-
-
-def google_calendar_exchange_code_for_tokens(code: str) -> dict[str, Any]:
-    return google_calendar_http_json(
-        "POST",
-        "https://oauth2.googleapis.com/token",
-        data={
-            "code": code,
-            "client_id": google_calendar_client_id(),
-            "client_secret": google_calendar_client_secret(),
-            "redirect_uri": google_calendar_redirect_uri(),
-            "grant_type": "authorization_code",
-        },
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-
-
-def google_calendar_refresh_access_token(refresh_token: str) -> dict[str, Any]:
-    return google_calendar_http_json(
-        "POST",
-        "https://oauth2.googleapis.com/token",
-        data={
-            "refresh_token": refresh_token,
-            "client_id": google_calendar_client_id(),
-            "client_secret": google_calendar_client_secret(),
-            "grant_type": "refresh_token",
-        },
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-
-
-def google_calendar_fetch_user_info(access_token: str) -> dict[str, Any]:
-    return google_calendar_http_json(
-        "GET",
-        "https://openidconnect.googleapis.com/v1/userinfo",
-        headers={"Authorization": f"Bearer {access_token}"},
-    )
-
-
-def google_calendar_connection_token_expiry(expires_in_seconds: Any) -> str | None:
-    try:
-        expires_in = int(expires_in_seconds)
-    except (TypeError, ValueError):
-        return None
-    return (datetime.now(timezone.utc) + timedelta(seconds=max(0, expires_in - 30))).isoformat().replace("+00:00", "Z")
-
-
-def google_calendar_authorization_url(state: str) -> str:
-    return "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(
-        {
-            "client_id": google_calendar_client_id(),
-            "redirect_uri": google_calendar_redirect_uri(),
-            "response_type": "code",
-            "scope": " ".join(GOOGLE_OPENID_SCOPES),
-            "access_type": "offline",
-            "include_granted_scopes": "true",
-            "prompt": "consent",
-            "state": state,
-        }
-    )
-
-
-def google_calendar_access_token_for_user(user_id: int) -> str:
-    connection = get_google_calendar_connection(user_id)
-    if not connection:
-        raise AuthError("Google Calendar is not connected for this user", 409, "GOOGLE_CALENDAR_NOT_CONNECTED")
-
-    expires_at = parse_iso_datetime_to_utc(connection.get("token_expires_at"))
-    access_token = str(connection.get("access_token") or "").strip()
-    refresh_token = str(connection.get("refresh_token") or "").strip()
-
-    if access_token and expires_at and expires_at > datetime.now(timezone.utc):
-        return access_token
-    if not refresh_token:
-        raise AuthError("Google Calendar connection is missing a refresh token", 409, "GOOGLE_CALENDAR_REFRESH_MISSING")
-
-    refreshed = google_calendar_refresh_access_token(refresh_token)
-    next_access_token = str(refreshed.get("access_token") or "").strip()
-    if not next_access_token:
-        raise AuthError("Google did not return a new access token", 502, "GOOGLE_CALENDAR_REFRESH_FAILED")
-
-    upsert_google_calendar_connection(
-        user_id,
-        {
-            "google_subject": connection.get("google_subject"),
-            "google_email": connection.get("google_email"),
-            "scopes_csv": str(refreshed.get("scope") or connection.get("scopes_csv") or "").strip(),
-            "refresh_token": refresh_token,
-            "access_token": next_access_token,
-            "token_expires_at": google_calendar_connection_token_expiry(refreshed.get("expires_in")),
-        },
-    )
-    return next_access_token
-
-
-def google_calendar_event_payload(signup: dict[str, Any], status_note: str | None = None) -> dict[str, Any]:
-    pantry_name = str(signup.get("pantry_name") or "Pantry").strip()
-    shift_name = str(signup.get("shift_name") or "Volunteer Shift").strip()
-    role_title = str(signup.get("role_title") or "Volunteer").strip()
-    pantry_location = str(signup.get("pantry_location") or "").strip()
-    signup_status = str(signup.get("signup_status") or "CONFIRMED").strip().upper()
-    summary_prefix = "[Needs Confirmation] " if signup_status == SIGNUP_STATUS_PENDING_CONFIRMATION else ""
-    description_lines = [
-        "Volunteer shift from Volunteer Management System",
-        f"Pantry: {pantry_name}",
-        f"Role: {role_title}",
-        f"Signup status: {signup_status}",
-    ]
-    if pantry_location:
-        description_lines.append(f"Location: {pantry_location}")
-    if status_note:
-        description_lines.append(status_note)
-
-    return {
-        "summary": f"{summary_prefix}{shift_name} ({role_title}) - {pantry_name}",
-        "location": pantry_location or None,
-        "description": "\n".join(description_lines),
-        "start": {"dateTime": signup.get("start_time"), "timeZone": "UTC"},
-        "end": {"dateTime": signup.get("end_time"), "timeZone": "UTC"},
-    }
 
 
 def login_user_session(user: dict[str, Any]) -> None:
@@ -757,8 +337,8 @@ def delete_current_user_account_with_identity(user: dict[str, Any], payload: dic
     except Exception:
         app.logger.exception("Failed to delete Google Calendar events before deleting user_id=%s", user_id)
 
-    delete_google_calendar_event_links(linked_signup_ids)
-    delete_google_calendar_connection(user_id)
+    backend.delete_google_calendar_event_links(linked_signup_ids)
+    backend.delete_google_calendar_connection(user_id)
     backend.delete_user(user_id)
     logout_user_session()
     return jsonify({"ok": True}), 200
@@ -1884,28 +1464,12 @@ def hydrate_signup_for_google_calendar(signup_id: int) -> dict[str, Any] | None:
 
 
 def create_google_calendar_event_for_signup(signup: dict[str, Any], *, status_note: str | None = None) -> dict[str, Any] | None:
-    user_id = int(signup.get("user_id", 0))
-    if not get_google_calendar_connection(user_id):
-        return None
-    access_token = google_calendar_access_token_for_user(user_id)
-    created = google_calendar_http_json(
-        "POST",
-        "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-        data=google_calendar_event_payload(signup, status_note=status_note),
-        headers={"Authorization": f"Bearer {access_token}"},
+    return google_calendar.create_event(
+        backend,
+        signup,
+        pending_confirmation_status=SIGNUP_STATUS_PENDING_CONFIRMATION,
+        status_note=status_note,
     )
-    event_id = str(created.get("id") or "").strip()
-    if not event_id:
-        raise AuthError("Google Calendar did not return an event id", 502, "GOOGLE_EVENT_ID_MISSING")
-    upsert_google_calendar_event_link(
-        int(signup.get("signup_id")),
-        {
-            "user_id": user_id,
-            "calendar_id": "primary",
-            "google_event_id": event_id,
-        },
-    )
-    return created
 
 
 def update_google_calendar_event_for_signup(
@@ -1914,57 +1478,17 @@ def update_google_calendar_event_for_signup(
     status_note: str | None = None,
     create_if_missing: bool = True,
 ) -> dict[str, Any] | None:
-    user_id = int(signup.get("user_id", 0))
-    if not get_google_calendar_connection(user_id):
-        return None
-    link = get_google_calendar_event_link(int(signup.get("signup_id")))
-    if not link:
-        return create_google_calendar_event_for_signup(signup, status_note=status_note) if create_if_missing else None
-
-    access_token = google_calendar_access_token_for_user(user_id)
-    event_id = str(link.get("google_event_id") or "").strip()
-    if not event_id:
-        return create_google_calendar_event_for_signup(signup, status_note=status_note) if create_if_missing else None
-
-    try:
-        return google_calendar_http_json(
-            "PATCH",
-            f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{quote(event_id, safe='')}",
-            data=google_calendar_event_payload(signup, status_note=status_note),
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-    except AuthError as error:
-        if error.code == "GOOGLE_API_ERROR":
-            delete_google_calendar_event_link(int(signup.get("signup_id")))
-            return create_google_calendar_event_for_signup(signup, status_note=status_note) if create_if_missing else None
-        raise
+    return google_calendar.update_event(
+        backend,
+        signup,
+        pending_confirmation_status=SIGNUP_STATUS_PENDING_CONFIRMATION,
+        status_note=status_note,
+        create_if_missing=create_if_missing,
+    )
 
 
 def delete_google_calendar_event_for_signup_id(signup_id: int, user_id: int | None = None) -> None:
-    link = get_google_calendar_event_link(signup_id)
-    if not link:
-        return
-    resolved_user_id = int(user_id or link.get("user_id") or 0)
-    if resolved_user_id <= 0:
-        delete_google_calendar_event_link(signup_id)
-        return
-
-    if not get_google_calendar_connection(resolved_user_id):
-        delete_google_calendar_event_link(signup_id)
-        return
-
-    access_token = google_calendar_access_token_for_user(resolved_user_id)
-    event_id = str(link.get("google_event_id") or "").strip()
-    if event_id:
-        try:
-            google_calendar_http_json(
-                "DELETE",
-                f"https://www.googleapis.com/calendar/v3/calendars/primary/events/{quote(event_id, safe='')}",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-        except AuthError:
-            pass
-    delete_google_calendar_event_link(signup_id)
+    google_calendar.delete_event_for_signup_id(backend, signup_id, user_id)
 
 
 def sync_signup_create_to_google_calendar(signup_id: int) -> None:
@@ -2231,7 +1755,7 @@ def get_google_calendar_status() -> Any:
     user = current_user()
     if not user:
         return jsonify({"error": "No user"}), 401
-    return jsonify(google_calendar_status_payload(user))
+    return jsonify(google_calendar.status_payload(backend, user))
 
 
 @app.post("/api/google-calendar/connect/start")
@@ -2241,13 +1765,18 @@ def start_google_calendar_connect() -> Any:
         return jsonify({"error": "No user"}), 401
     if auth_service.mode != "firebase" or str(user.get("auth_provider") or "") != "firebase":
         return jsonify({"error": "Google Calendar sync requires a Google/Firebase login"}), 400
-    if not google_calendar_is_configured():
+    if not google_calendar.configured():
         return jsonify({"error": "Google Calendar OAuth is not configured on the server"}), 503
 
     state = secrets.token_urlsafe(24)
     session["google_calendar_oauth_state"] = state
     session["google_calendar_oauth_user_id"] = int(user.get("user_id"))
-    return jsonify({"auth_url": google_calendar_authorization_url(state)})
+    return jsonify({
+        "auth_url": google_calendar.authorization_url(
+            state,
+            url_for("google_calendar_oauth_callback", _external=True),
+        )
+    })
 
 
 @app.post("/api/google-calendar/disconnect")
@@ -2266,11 +1795,11 @@ def disconnect_google_calendar() -> Any:
     except Exception:
         app.logger.exception("Failed to delete Google Calendar events during disconnect for user_id=%s", user_id)
 
-    delete_google_calendar_event_links(
+    backend.delete_google_calendar_event_links(
         [int(signup.get("signup_id")) for signup in linked_signups if signup.get("signup_id") is not None]
     )
-    delete_google_calendar_connection(user_id)
-    return jsonify({"ok": True, "status": google_calendar_status_payload(user)}), 200
+    backend.delete_google_calendar_connection(user_id)
+    return jsonify({"ok": True, "status": google_calendar.status_payload(backend, user)}), 200
 
 
 @app.patch("/api/me")
@@ -2353,36 +1882,40 @@ def google_calendar_oauth_callback() -> Any:
     current = current_user()
     current_user_id = int(current.get("user_id")) if current else None
 
-    def popup_close_html(message: str) -> str:
+    def popup_close_html(message: str, ok: bool) -> str:
         safe_message = message.replace("\\", "\\\\").replace("'", "\\'")
+        ok_literal = "true" if ok else "false"
         return (
             "<!DOCTYPE html><html><body><script>"
-            f"if (window.opener) window.opener.postMessage({{ type: 'google-calendar-oauth-complete', message: '{safe_message}' }}, window.location.origin);"
+            f"if (window.opener) window.opener.postMessage({{ type: 'google-calendar-oauth-complete', ok: {ok_literal}, message: '{safe_message}' }}, window.location.origin);"
             "window.close();"
             "</script><p>You can close this window.</p></body></html>"
         )
 
     if not state or not expected_state or state != expected_state:
-        return popup_close_html("Google Calendar connection failed because the authorization state was invalid."), 400
+        return popup_close_html("Google Calendar connection failed because the authorization state was invalid.", False), 400
     if oauth_user_id is None or current_user_id is None or int(oauth_user_id) != current_user_id:
-        return popup_close_html("Google Calendar connection failed because your login session changed."), 403
+        return popup_close_html("Google Calendar connection failed because your login session changed.", False), 403
 
     if request.args.get("error"):
         description = str(request.args.get("error_description") or request.args.get("error") or "").strip()
-        return popup_close_html(description or "Google Calendar authorization was cancelled."), 400
+        return popup_close_html(description or "Google Calendar authorization was cancelled.", False), 400
 
     code = str(request.args.get("code") or "").strip()
     if not code:
-        return popup_close_html("Google Calendar did not return an authorization code."), 400
+        return popup_close_html("Google Calendar did not return an authorization code.", False), 400
 
     try:
-        tokens = google_calendar_exchange_code_for_tokens(code)
+        tokens = google_calendar.exchange_code_for_tokens(
+            code,
+            url_for("google_calendar_oauth_callback", _external=True),
+        )
         access_token = str(tokens.get("access_token") or "").strip()
         refresh_token = str(tokens.get("refresh_token") or "").strip()
         if not access_token:
             raise AuthError("Google did not return an access token", 502, "GOOGLE_ACCESS_TOKEN_MISSING")
         if not refresh_token:
-            existing = get_google_calendar_connection(current_user_id)
+            existing = backend.get_google_calendar_connection(current_user_id)
             refresh_token = str(existing.get("refresh_token") or "").strip() if existing else ""
         if not refresh_token:
             raise AuthError(
@@ -2391,8 +1924,8 @@ def google_calendar_oauth_callback() -> Any:
                 "GOOGLE_REFRESH_TOKEN_MISSING",
             )
 
-        user_info = google_calendar_fetch_user_info(access_token)
-        upsert_google_calendar_connection(
+        user_info = google_calendar.fetch_user_info(access_token)
+        backend.upsert_google_calendar_connection(
             current_user_id,
             {
                 "google_subject": str(user_info.get("sub") or "").strip() or None,
@@ -2400,7 +1933,7 @@ def google_calendar_oauth_callback() -> Any:
                 "scopes_csv": str(tokens.get("scope") or "").strip(),
                 "refresh_token": refresh_token,
                 "access_token": access_token,
-                "token_expires_at": google_calendar_connection_token_expiry(tokens.get("expires_in")),
+                "token_expires_at": google_calendar.token_expiry(tokens.get("expires_in")),
             },
         )
 
@@ -2413,12 +1946,12 @@ def google_calendar_oauth_callback() -> Any:
     except Exception as error:
         app.logger.exception("Failed to complete Google Calendar OAuth callback for user_id=%s", current_user_id)
         message = error.message if isinstance(error, AuthError) else "Google Calendar connection failed."
-        return popup_close_html(message), 502
+        return popup_close_html(message, False), 502
     finally:
         session.pop("google_calendar_oauth_state", None)
         session.pop("google_calendar_oauth_user_id", None)
 
-    return popup_close_html("Google Calendar sync is now connected."), 200
+    return popup_close_html("Google Calendar sync is now connected.", True), 200
 
 
 @app.get("/api/users")
@@ -3636,7 +3169,7 @@ def delete_signup(signup_id: int) -> Any:
     except Exception:
         app.logger.exception("Failed to remove signup_id=%s from Google Calendar before deletion", signup_id)
     backend.delete_signup(signup_id)
-    delete_google_calendar_event_link(signup_id)
+    backend.delete_google_calendar_event_link(signup_id)
     return jsonify({"success": True}), 200
 
 
@@ -3681,7 +3214,7 @@ def reconfirm_signup(signup_id: int) -> Any:
         except Exception:
             app.logger.exception("Failed to remove signup_id=%s from Google Calendar during reconfirm cancel", signup_id)
         backend.delete_signup(signup_id)
-        delete_google_calendar_event_link(signup_id)
+        backend.delete_google_calendar_event_link(signup_id)
         return jsonify({"success": True, "removed_signup_id": signup_id}), 200
 
     if current_status != SIGNUP_STATUS_PENDING_CONFIRMATION:
@@ -3809,8 +3342,20 @@ def get_public_shifts(slug: str) -> Any:
 
 @app.get("/")
 def index() -> Any:
-    """Main dashboard - unified page for all roles."""
-    return render_template("dashboard.html")
+    """Public homepage for OAuth verification and app discovery."""
+    return render_template("home.html")
+
+
+@app.get("/privacy")
+def privacy_policy() -> Any:
+    """Public privacy policy for OAuth verification."""
+    return render_template("privacy.html")
+
+
+@app.get("/terms")
+def terms() -> Any:
+    """Public terms page for OAuth verification."""
+    return render_template("terms.html")
 
 
 @app.get("/healthz")

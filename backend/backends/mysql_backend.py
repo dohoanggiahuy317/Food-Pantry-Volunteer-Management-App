@@ -1608,6 +1608,148 @@ class MySQLBackend(StoreBackend):
             updated = self.get_signup_by_id(signup_id)
             return {"result": "CONFIRMED", "signup": updated}
 
+    def get_google_calendar_connection(self, user_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT * FROM google_calendar_connections WHERE user_id = %s LIMIT 1",
+                (user_id,),
+            )
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "user_id": int(row["user_id"]),
+            "google_subject": row.get("google_subject"),
+            "google_email": row.get("google_email"),
+            "scopes_csv": row.get("scopes_csv"),
+            "refresh_token": row.get("refresh_token"),
+            "access_token": row.get("access_token"),
+            "token_expires_at": _to_iso_z(row["token_expires_at"]) if row.get("token_expires_at") else None,
+            "created_at": _to_iso_z(row["created_at"]),
+            "updated_at": _to_iso_z(row["updated_at"]),
+        }
+
+    def upsert_google_calendar_connection(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        timestamp = _now_utc_naive()
+        token_expires_at = _parse_iso_to_dt(payload["token_expires_at"]) if payload.get("token_expires_at") else None
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO google_calendar_connections (
+                    user_id,
+                    google_subject,
+                    google_email,
+                    scopes_csv,
+                    refresh_token,
+                    access_token,
+                    token_expires_at,
+                    created_at,
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    google_subject = VALUES(google_subject),
+                    google_email = VALUES(google_email),
+                    scopes_csv = VALUES(scopes_csv),
+                    refresh_token = COALESCE(VALUES(refresh_token), refresh_token),
+                    access_token = VALUES(access_token),
+                    token_expires_at = VALUES(token_expires_at),
+                    updated_at = VALUES(updated_at)
+                """,
+                (
+                    user_id,
+                    payload.get("google_subject"),
+                    payload.get("google_email"),
+                    payload.get("scopes_csv"),
+                    payload.get("refresh_token"),
+                    payload.get("access_token"),
+                    token_expires_at,
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            conn.commit()
+        return self.get_google_calendar_connection(user_id) or {"user_id": user_id}
+
+    def delete_google_calendar_connection(self, user_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM google_calendar_connections WHERE user_id = %s", (user_id,))
+            conn.commit()
+
+    def get_google_calendar_event_link(self, signup_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT * FROM google_calendar_event_links WHERE signup_id = %s LIMIT 1",
+                (signup_id,),
+            )
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "signup_id": int(row["signup_id"]),
+            "user_id": int(row["user_id"]),
+            "calendar_id": row.get("calendar_id"),
+            "google_event_id": row.get("google_event_id"),
+            "created_at": _to_iso_z(row["created_at"]),
+            "updated_at": _to_iso_z(row["updated_at"]),
+        }
+
+    def upsert_google_calendar_event_link(self, signup_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        timestamp = _now_utc_naive()
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO google_calendar_event_links (
+                    signup_id,
+                    user_id,
+                    calendar_id,
+                    google_event_id,
+                    created_at,
+                    updated_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    user_id = VALUES(user_id),
+                    calendar_id = VALUES(calendar_id),
+                    google_event_id = VALUES(google_event_id),
+                    updated_at = VALUES(updated_at)
+                """,
+                (
+                    signup_id,
+                    int(payload.get("user_id")),
+                    payload.get("calendar_id") or "primary",
+                    payload.get("google_event_id"),
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            conn.commit()
+        return self.get_google_calendar_event_link(signup_id) or {"signup_id": signup_id}
+
+    def delete_google_calendar_event_link(self, signup_id: int) -> None:
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM google_calendar_event_links WHERE signup_id = %s", (signup_id,))
+            conn.commit()
+
+    def delete_google_calendar_event_links(self, signup_ids: list[int]) -> None:
+        normalized_ids = [int(signup_id) for signup_id in signup_ids if signup_id is not None]
+        if not normalized_ids:
+            return
+        placeholders = ", ".join(["%s"] * len(normalized_ids))
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"DELETE FROM google_calendar_event_links WHERE signup_id IN ({placeholders})",
+                tuple(normalized_ids),
+            )
+            conn.commit()
+
     def is_empty(self) -> bool:
         with get_connection() as conn:
             cursor = conn.cursor()
