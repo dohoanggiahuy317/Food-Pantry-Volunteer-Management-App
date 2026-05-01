@@ -55,6 +55,39 @@ async function getShiftRegistrations(shiftId) {
 }
 
 /**
+ * Get ranked volunteer candidates for a shift help broadcast.
+ */
+async function getHelpBroadcastCandidates(shiftId, query = '') {
+    try {
+        const params = new URLSearchParams();
+        if (query) {
+            params.set('q', query);
+        }
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        const candidates = await apiGet(`/api/shifts/${shiftId}/help-broadcast/candidates${suffix}`);
+        return candidates;
+    } catch (error) {
+        console.error('Failed to get help broadcast candidates:', error);
+        throw error;
+    }
+}
+
+/**
+ * Send a help broadcast email to selected volunteers.
+ */
+async function sendHelpBroadcast(shiftId, recipientUserIds) {
+    try {
+        const response = await apiPost(`/api/shifts/${shiftId}/help-broadcast`, {
+            recipient_user_ids: recipientUserIds
+        });
+        return response;
+    } catch (error) {
+        console.error('Failed to send help broadcast:', error);
+        throw error;
+    }
+}
+
+/**
  * Create a new shift (pantry lead or admin)
  */
 async function createShift(pantryId, shiftData) {

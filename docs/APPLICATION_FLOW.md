@@ -1,6 +1,6 @@
 # Application Flow
 
-A complete reference for how files, functions, and data communicate in the Volunteer Management System.
+This document describes the overall application flow of the volunteer management system, including the backend startup sequence, database initialization, request lifecycle, data serialization path, and frontend boot sequence. It serves as a high-level overview of how different components of the system interact with each other during runtime, from server startup to handling API requests and rendering the frontend. The goal is to provide a clear understanding of the end-to-end flow of data and control through the application for developers and stakeholders.
 
 ---
 
@@ -16,7 +16,7 @@ volunteer_managing/
 │   ├── .env                        # Runtime config (DB credentials, backend type)
 │   ├── notifications/
 │   │   ├── __init__.py             # Notification package exports
-│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation/subscriber notifications + timezone-aware shift windows
+│   │   └── notifications.py        # Resend email helpers for signup/update/cancellation/subscriber/help-broadcast notifications + timezone-aware shift windows
 │   │
 │   ├── backends/
 │   │   ├── base.py                 # Abstract interface: StoreBackend (ABC)
@@ -46,10 +46,10 @@ volunteer_managing/
             ├── timezone-helpers.js # Browser timezone detection + shared local time formatting
             ├── user-functions.js   # getCurrentUser(), userHasRole(), createUser()
             ├── admin-functions.js  # getPantries(), createPantry(), addPantryLead()
-            ├── lead-functions.js   # getShifts(), createFullShift(), updateShift(), updateFullShift(), cancelShiftWithScope(), markAttendance()
+            ├── lead-functions.js   # getShifts(), createFullShift(), updateShift(), updateFullShift(), cancelShiftWithScope(), markAttendance(), help-broadcast APIs
             ├── volunteer-functions.js  # signupForShift(), cancelSignup(), reconfirmSignup(), pantry subscription helpers
             ├── calendar-functions.js   # Reusable root-scoped calendar controllers for Available Shifts + My Shifts
-            └── dashboard.js        # App entry point: boot sequence, tab state, event handlers, volunteer pantry directory UI + My Shifts list filters
+            └── dashboard.js        # App entry point: boot sequence, tab state, event handlers, manage-shifts workspace, admin pantry management, volunteer pantry directory UI + My Shifts list filters
 ```
 
 ---
@@ -125,12 +125,23 @@ INDEX idx_shifts_shift_series_id (shift_series_id)
 
 shift_series
 ────────────
+ 
+help_broadcasts
+───────────────
+broadcast_id (PK, AUTO_INCREMENT)
+shift_id (FK → shifts.shift_id, ON DELETE CASCADE)
+sender_user_id (FK → users.user_id, ON DELETE CASCADE)
+recipient_count
+created_at
+INDEX idx_help_broadcasts_sender_created (sender_user_id, created_at)
+INDEX idx_help_broadcasts_shift_id (shift_id)
 shift_series_id (PK, AUTO_INCREMENT)
 pantry_id (FK → pantries.pantry_id, ON DELETE CASCADE)
 created_by (nullable FK → users.user_id, ON DELETE SET NULL)
 timezone
 frequency
 interval_weeks
+- `help_broadcasts` records which shift sent the broadcast, who sent it, how many recipients were targeted, and when it was created.
 weekdays_csv
 end_mode
 occurrence_count (nullable)
@@ -380,10 +391,8 @@ window 'load' event fires
   │         apiGet('/api/all_pantries')
   │         ← [ {pantry_id, name, ...}, ... ]
   │       sets module-level: allPublicPantries
-  │       syncs the shared Manage Shifts pantry search picker
-  │         #pantry-select-search + hidden #pantry-select
-  │       syncs the Admin pantry assignment search picker
-  │         #assign-pantry-search + hidden #assign-pantry
+  │       refreshes the Manage Shifts pantry context and Admin pantry workspace state
+  │       keeps the current pantry selection aligned across admin panels
   │
   ├─ 5. setupEventListeners()     [dashboard.js:1152]
   │       attaches click handlers to nav tabs → activateTab()
@@ -395,11 +404,9 @@ window 'load' event fires
   │         finite end controls
   │       attaches recurring edit/cancel scope modal handlers
   │       attaches submit to #create-pantry-form → createPantry()
-  │       attaches click to #assign-lead-btn → addPantryLead()
-  │       attaches search/result handlers for:
-  │         #pantry-select-search
-  │         #assign-pantry-search
-  │         #assign-lead-search
+  │       attaches Manage Shifts workspace handlers for shift selection, edit/create switching, attendance, and help broadcasts
+  │       attaches Admin pantry workspace handlers for search, pantry selection, and lead add/remove
+  │       attaches search/result handlers for pantry selectors and lead assignment inputs
   │       attaches Manage Shifts search + status filter handlers
   │       attaches Admin Users search/filter/profile/role-save handlers
   │

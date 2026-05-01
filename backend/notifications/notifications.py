@@ -415,6 +415,61 @@ def send_shift_cancellation_notification(
     )
 
 
+def send_shift_help_broadcast(
+    recipient: dict[str, Any],
+    shift: dict[str, Any],
+    pantry: dict[str, Any],
+) -> NotificationResult:
+    to_email = _normalized_text(recipient.get("email"), "")
+    if not to_email:
+        return _notification_result(
+            ok=False,
+            code="RECIPIENT_EMAIL_MISSING",
+            message="Recipient email is missing.",
+        )
+
+    recipient_name = _normalized_text(recipient.get("full_name"), DEFAULT_RECIPIENT_NAME)
+    pantry_name = _normalized_text(pantry.get("name"), DEFAULT_PANTRY_NAME)
+    location = _normalized_text(pantry.get("location_address"), DEFAULT_LOCATION)
+    shift_name = _normalized_text(shift.get("shift_name"), DEFAULT_SHIFT_NAME)
+    shift_window = _format_shift_window(shift, recipient.get("timezone"))
+    subject = f"Help needed: {shift_name}"
+
+    if not RESEND_FROM_EMAIL:
+        return _notification_result(
+            ok=False,
+            code="SENDER_EMAIL_MISSING",
+            message="Resend sender email is not configured.",
+            recipient_email=to_email,
+            subject=subject,
+        )
+
+    params = {
+        "from": RESEND_FROM_EMAIL,
+        "to": [to_email],
+        "subject": subject,
+        "html": _build_email_html(
+            recipient_name=recipient_name,
+            intro="We are understaffed and need more people for this shift.",
+            details=[
+                ("Pantry", pantry_name),
+                ("Shift", shift_name),
+                ("When", shift_window),
+                ("Where", location),
+            ],
+            outro="Please log in and register if you can help.",
+        ),
+    }
+
+    return _send_resend_email(
+        params,
+        recipient_email=to_email,
+        subject=subject,
+        success_code="SHIFT_HELP_BROADCAST_SENT",
+        success_message="Shift help broadcast email sent.",
+    )
+
+
 def send_new_shift_subscriber_notification(
     recipient: dict[str, Any],
     pantry: dict[str, Any],
