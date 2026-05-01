@@ -1,6 +1,7 @@
 import os
 import sys
 import pytest
+import types
 from pathlib import Path
 
 # Add backend directory to Python path
@@ -12,6 +13,20 @@ os.environ.setdefault("FLASK_ENV", "testing")
 os.environ.setdefault("FLASK_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DATA_BACKEND", "memory")
 os.environ.setdefault("AUTH_PROVIDER", "memory")
+os.environ["RESEND_API_KEY"] = ""
+os.environ["RESEND_FROM_EMAIL"] = "noreply@test.example.com"
+
+
+def _blocked_resend_send(*args, **kwargs):
+    raise AssertionError(
+        "Tests must mock Resend email sending instead of using the Resend API."
+    )
+
+
+sys.modules["resend"] = types.SimpleNamespace(
+    api_key=None,
+    Emails=types.SimpleNamespace(send=_blocked_resend_send),
+)
 
 
 @pytest.fixture(scope="session")

@@ -24,6 +24,10 @@ if _env_test.exists():
         if _v is not None:
             os.environ[_k] = _v  # force-set, not setdefault
 
+# Component tests must never inherit a real Resend key from local or CI config.
+os.environ["RESEND_API_KEY"] = "test-resend-key"
+os.environ["RESEND_FROM_EMAIL"] = "noreply@test.example.com"
+
 _backend_path = Path(__file__).resolve().parents[2] / "backend"
 if str(_backend_path) not in sys.path:
     sys.path.insert(0, str(_backend_path))
@@ -140,6 +144,25 @@ def mock_firebase_verify():
 
 
 # ── Resend mock ───────────────────────────────────────────────────────────────
+
+
+def _blocked_resend_send(*args, **kwargs):
+    raise AssertionError(
+        "Component tests must use mock_resend_send instead of the Resend API."
+    )
+
+
+@pytest.fixture(autouse=True)
+def block_resend_api():
+    """Protect every component test from accidentally using the real Resend SDK."""
+    fake_resend = types.SimpleNamespace(
+        api_key=None,
+        Emails=types.SimpleNamespace(send=_blocked_resend_send),
+    )
+
+    with patch.dict(sys.modules, {"resend": fake_resend}):
+        yield
+
 
 @pytest.fixture
 def mock_resend_send():

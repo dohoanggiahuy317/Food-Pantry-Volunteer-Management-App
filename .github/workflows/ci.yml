@@ -33,4 +33,6 @@ jobs:
         env:
           AUTH_PROVIDER: memory
           DATA_BACKEND: memory
+          RESEND_API_KEY: ""
+          RESEND_FROM_EMAIL: noreply@test.example.com
         run: pytest tests -m "not component"
