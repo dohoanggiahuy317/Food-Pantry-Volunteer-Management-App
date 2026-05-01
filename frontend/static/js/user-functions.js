@@ -91,6 +91,33 @@ async function updateCurrentUserProfile(profileData) {
     }
 }
 
+async function getGoogleCalendarStatus() {
+    try {
+        return await apiGet('/api/google-calendar/status');
+    } catch (error) {
+        console.error('Failed to get Google Calendar status:', error);
+        throw error;
+    }
+}
+
+async function startGoogleCalendarConnect() {
+    try {
+        return await apiPost('/api/google-calendar/connect/start', {});
+    } catch (error) {
+        console.error('Failed to start Google Calendar connect:', error);
+        throw error;
+    }
+}
+
+async function disconnectGoogleCalendar() {
+    try {
+        return await apiPost('/api/google-calendar/disconnect', {});
+    } catch (error) {
+        console.error('Failed to disconnect Google Calendar:', error);
+        throw error;
+    }
+}
+
 async function prepareCurrentUserEmailChange(newEmail) {
     try {
         return await apiPost('/api/me/email-change/prepare', { new_email: newEmail });

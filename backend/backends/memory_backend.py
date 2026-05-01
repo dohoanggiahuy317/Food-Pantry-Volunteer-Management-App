@@ -50,6 +50,8 @@ class MemoryBackend(StoreBackend):
             "shift_roles": [],
             "shift_signups": [],
             "help_broadcasts": [],
+            "google_calendar_connections": [],
+            "google_calendar_event_links": [],
         }
         self.next_shift_series_id = 1
         self.next_shift_id = 1
@@ -127,6 +129,8 @@ class MemoryBackend(StoreBackend):
             "shift_roles": list(data.get("shift_roles", [])),
             "shift_signups": list(data.get("shift_signups", [])),
             "help_broadcasts": list(data.get("help_broadcasts", [])),
+            "google_calendar_connections": list(data.get("google_calendar_connections", [])),
+            "google_calendar_event_links": list(data.get("google_calendar_event_links", [])),
         }
         for user in self.store["users"]:
             user.setdefault("updated_at", user.get("created_at"))
@@ -386,6 +390,12 @@ class MemoryBackend(StoreBackend):
             row for row in self.store["pantry_subscriptions"] if int(row.get("user_id", 0)) != user_id
         ]
         self.store["shift_signups"] = [row for row in self.store["shift_signups"] if int(row.get("user_id", 0)) != user_id]
+        self.store["google_calendar_connections"] = [
+            row for row in self.store.setdefault("google_calendar_connections", []) if int(row.get("user_id", 0)) != user_id
+        ]
+        self.store["google_calendar_event_links"] = [
+            row for row in self.store.setdefault("google_calendar_event_links", []) if int(row.get("user_id", 0)) != user_id
+        ]
         for shift in self.store["shifts"]:
             if int(shift.get("created_by", 0)) == user_id:
                 shift["created_by"] = None
@@ -952,6 +962,9 @@ class MemoryBackend(StoreBackend):
         shift_role_id = signup.get("shift_role_id")
         user_id = int(signup.get("user_id"))
         self.store["shift_signups"] = [ss for ss in self.store["shift_signups"] if ss.get("signup_id") != signup_id]
+        self.store["google_calendar_event_links"] = [
+            row for row in self.store.setdefault("google_calendar_event_links", []) if int(row.get("signup_id", 0)) != signup_id
+        ]
         self._recalculate_role_capacity(int(shift_role_id))
         self._recalculate_user_attendance_score(user_id)
 
@@ -1085,6 +1098,91 @@ class MemoryBackend(StoreBackend):
         self._recalculate_role_capacity(shift_role_id)
         self._recalculate_user_attendance_score(int(signup.get("user_id")))
         return {"result": "CONFIRMED", "signup": dict(signup)}
+
+    def get_google_calendar_connection(self, user_id: int) -> dict[str, Any] | None:
+        return self._copy(
+            next(
+                (
+                    row
+                    for row in self.store.setdefault("google_calendar_connections", [])
+                    if int(row.get("user_id", 0)) == user_id
+                ),
+                None,
+            )
+        )
+
+    def upsert_google_calendar_connection(self, user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        timestamp = _utc_now_iso()
+        row = next(
+            (
+                existing
+                for existing in self.store.setdefault("google_calendar_connections", [])
+                if int(existing.get("user_id", 0)) == user_id
+            ),
+            None,
+        )
+        if row:
+            for key, value in payload.items():
+                if key == "refresh_token" and value is None:
+                    continue
+                row[key] = value
+            row["updated_at"] = timestamp
+            return dict(row)
+
+        row = {"user_id": user_id, "created_at": timestamp, "updated_at": timestamp, **payload}
+        self.store.setdefault("google_calendar_connections", []).append(row)
+        return dict(row)
+
+    def delete_google_calendar_connection(self, user_id: int) -> None:
+        self.store["google_calendar_connections"] = [
+            row for row in self.store.setdefault("google_calendar_connections", []) if int(row.get("user_id", 0)) != user_id
+        ]
+
+    def get_google_calendar_event_link(self, signup_id: int) -> dict[str, Any] | None:
+        return self._copy(
+            next(
+                (
+                    row
+                    for row in self.store.setdefault("google_calendar_event_links", [])
+                    if int(row.get("signup_id", 0)) == signup_id
+                ),
+                None,
+            )
+        )
+
+    def upsert_google_calendar_event_link(self, signup_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        timestamp = _utc_now_iso()
+        row = next(
+            (
+                existing
+                for existing in self.store.setdefault("google_calendar_event_links", [])
+                if int(existing.get("signup_id", 0)) == signup_id
+            ),
+            None,
+        )
+        if row:
+            row.update(payload)
+            row["updated_at"] = timestamp
+            return dict(row)
+
+        row = {"signup_id": signup_id, "created_at": timestamp, "updated_at": timestamp, **payload}
+        self.store.setdefault("google_calendar_event_links", []).append(row)
+        return dict(row)
+
+    def delete_google_calendar_event_link(self, signup_id: int) -> None:
+        self.store["google_calendar_event_links"] = [
+            row for row in self.store.setdefault("google_calendar_event_links", []) if int(row.get("signup_id", 0)) != signup_id
+        ]
+
+    def delete_google_calendar_event_links(self, signup_ids: list[int]) -> None:
+        normalized_ids = {int(signup_id) for signup_id in signup_ids if signup_id is not None}
+        if not normalized_ids:
+            return
+        self.store["google_calendar_event_links"] = [
+            row
+            for row in self.store.setdefault("google_calendar_event_links", [])
+            if int(row.get("signup_id", 0)) not in normalized_ids
+        ]
 
     def is_empty(self) -> bool:
         return not self.store["users"] and not self.store["roles"]

@@ -48,10 +48,13 @@ let selectedVolunteerPantryId = null;
 let lastVolunteerPantriesCompactViewport = null;
 let myRegisteredSignups = [];
 let myShiftsViewMode = 'calendar';
+let currentGoogleCalendarStatus = null;
 let myShiftsListFilters = {
     search: '',
     pantryId: 'all',
-    timeBucket: 'all'
+    timeBucket: 'all',
+    status: 'all',
+    sort: 'date-asc'
 };
 
 const RECURRING_WEEKDAY_ORDER = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
@@ -1158,7 +1161,7 @@ function updateVolunteerPantryFilterUi() {
     const filtered = getFilteredVolunteerPantries();
     const total = volunteerPantryDirectory.length;
     const qualifier = volunteerPantrySearchQuery ? ` matching "${volunteerPantrySearchQuery}"` : '';
-    summary.textContent = `${filtered.length} of ${total} pantry${total === 1 ? '' : 'ies'} shown${qualifier}.`;
+    summary.textContent = `${filtered.length} of ${total} ${total === 1 ? 'pantry' : 'pantries'} shown${qualifier}.`;
 }
 
 function isVolunteerPantryCompactViewport() {
@@ -1217,6 +1220,14 @@ function renderVolunteerPantryList() {
     const filtered = getFilteredVolunteerPantries();
     const compactView = isVolunteerPantryCompactViewport();
     updateVolunteerPantryFilterUi();
+
+    const countEl = document.getElementById('pantry-directory-count');
+    if (countEl) {
+        const total = volunteerPantryDirectory.length;
+        countEl.textContent = filtered.length === total
+            ? `${total} pantry${total === 1 ? '' : 's'}`
+            : `${filtered.length} of ${total} pantry${total === 1 ? '' : 's'}`;
+    }
 
     if (filtered.length === 0) {
         listEl.innerHTML = '<p class="empty-state">No pantries match the current filters.</p>';
@@ -2384,6 +2395,19 @@ function formatShiftRange(startTime, endTime) {
     return formatLocalTimeRange(startTime, endTime);
 }
 
+function formatShiftDuration(startTime, endTime) {
+    const start = safeDateValue(startTime);
+    const end = safeDateValue(endTime);
+    if (!start || !end) return null;
+    const mins = Math.round((end - start) / 60000);
+    if (mins <= 0) return null;
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+}
+
 function getAttendanceInfo(signupStatus) {
     const normalized = String(signupStatus || '').toUpperCase();
     if (normalized === 'SHOW_UP') {
@@ -2449,7 +2473,15 @@ function renderMyShiftsSummary() {
         return;
     }
 
-    container.innerHTML = renderCredibilitySummary(currentUser.attendance_score);
+    const now = new Date();
+    const upcoming = myRegisteredSignups.filter((s) => {
+        const start = safeDateValue(s.start_time);
+        return start && start > now && s.signup_status !== 'CANCELLED';
+    }).length;
+
+    const upcomingHtml = `<p class="my-shifts-upcoming-count">${upcoming === 0 ? 'No upcoming shifts.' : `You have <strong>${upcoming}</strong> upcoming shift${upcoming === 1 ? '' : 's'}.`}</p>`;
+
+    container.innerHTML = upcomingHtml + renderCredibilitySummary(currentUser.attendance_score);
 }
 
 function setMyShiftsViewMode(mode = 'calendar') {
@@ -2510,6 +2542,11 @@ function syncMyShiftsListFilters() {
         || getMyShiftsListPantries().some((pantry) => String(pantry.pantry_id) === String(myShiftsListFilters.pantryId));
     myShiftsListFilters.pantryId = hasPantry ? myShiftsListFilters.pantryId : 'all';
     pantrySelect.value = myShiftsListFilters.pantryId;
+
+    const sortSelect = document.getElementById('my-shifts-list-sort');
+    if (sortSelect) {
+        sortSelect.value = myShiftsListFilters.sort;
+    }
 }
 
 function filterMyShiftList(signups) {
@@ -2534,6 +2571,10 @@ function filterMyShiftList(signups) {
             return false;
         }
 
+        if (myShiftsListFilters.status !== 'all' && signup.signup_status !== myShiftsListFilters.status) {
+            return false;
+        }
+
         return true;
     });
 }
@@ -2550,9 +2591,10 @@ function getMyRegisteredShiftBuckets(signups, now = new Date()) {
         buckets[bucket].push(signup);
     });
 
-    buckets.incoming.sort((a, b) => sortByDate(a, b, 'start_time', 'asc'));
-    buckets.ongoing.sort((a, b) => sortByDate(a, b, 'end_time', 'asc'));
-    buckets.past.sort((a, b) => sortByDate(a, b, 'end_time', 'desc'));
+    const dir = myShiftsListFilters.sort === 'date-desc' ? 'desc' : 'asc';
+    buckets.incoming.sort((a, b) => sortByDate(a, b, 'start_time', dir));
+    buckets.ongoing.sort((a, b) => sortByDate(a, b, 'end_time', dir));
+    buckets.past.sort((a, b) => sortByDate(a, b, 'end_time', dir));
     return buckets;
 }
 
@@ -2652,6 +2694,32 @@ function updateDeleteAccountUi() {
     deleteNote.textContent = 'Deleting your account removes your local app user, signs you out, and in Firebase mode also deletes the linked Firebase account after a fresh Google reauthentication.';
 }
 
+function calcShiftsThisWeek(signups) {
+    const now = new Date();
+    const weekEnd = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const count = (Array.isArray(signups) ? signups : []).filter((s) => {
+        const start = safeDateValue(s.start_time);
+        return start && start >= now && start <= weekEnd && s.signup_status !== 'CANCELLED';
+    }).length;
+    return count === 0 ? 'None this week' : `${count} shift${count === 1 ? '' : 's'}`;
+}
+
+function calcTotalVolunteerHours(signups) {
+    const attended = (Array.isArray(signups) ? signups : []).filter(
+        (s) => s.signup_status === 'SHOW_UP'
+    );
+    const totalMins = attended.reduce((sum, s) => {
+        const start = safeDateValue(s.start_time);
+        const end = safeDateValue(s.end_time);
+        if (!start || !end) return sum;
+        return sum + Math.max(0, Math.round((end - start) / 60000));
+    }, 0);
+    if (totalMins === 0) return '0h';
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
 function renderMyAccountSummary() {
     const container = document.getElementById('my-account-summary');
     if (!container || !currentUser) {
@@ -2669,6 +2737,8 @@ function renderMyAccountSummary() {
         ${renderAccountSummaryItem('Saved Timezone', formatTimeZoneDisplay(currentUser.timezone || DEFAULT_APP_TIMEZONE))}
         ${renderAccountSummaryItem('Roles', rolesText)}
         ${renderAccountSummaryItem('Attendance Score', `${Number(currentUser.attendance_score || 0)}%`)}
+        ${renderAccountSummaryItem('Total Volunteer Hours', calcTotalVolunteerHours(myRegisteredSignups))}
+        ${renderAccountSummaryItem('Shifts This Week', calcShiftsThisWeek(myRegisteredSignups))}
         ${renderAccountSummaryItem('Created At', formatAccountTimestamp(currentUser.created_at))}
         ${renderAccountSummaryItem('Updated At', formatAccountTimestamp(currentUser.updated_at))}
     `;
@@ -2677,6 +2747,84 @@ function renderMyAccountSummary() {
     if (timezoneNote) {
         timezoneNote.textContent = `Times on the web are shown in your browser timezone: ${formatTimeZoneDisplay()}.`;
     }
+}
+
+function renderCalendarSyncUi() {
+    const note = document.getElementById('my-account-calendar-note');
+    const status = document.getElementById('my-account-calendar-status');
+    const connectButton = document.getElementById('connect-google-calendar-btn');
+    const disconnectButton = document.getElementById('disconnect-google-calendar-btn');
+
+    if (!note || !status || !connectButton || !disconnectButton) {
+        return;
+    }
+
+    const configured = Boolean(currentGoogleCalendarStatus?.configured);
+    const connected = Boolean(currentGoogleCalendarStatus?.connected);
+    const connectedEmail = currentGoogleCalendarStatus?.google_email || '';
+    const statusError = currentGoogleCalendarStatus?.error || '';
+
+    if (statusError) {
+        note.className = 'account-note memory-note';
+        note.textContent = 'Google Calendar sync status could not be loaded.';
+        status.className = 'account-note';
+        status.textContent = statusError;
+        connectButton.disabled = true;
+        connectButton.hidden = false;
+        connectButton.textContent = 'Google Calendar Unavailable';
+        disconnectButton.hidden = true;
+        disconnectButton.disabled = true;
+    } else if (!configured) {
+        note.className = 'account-note memory-note';
+        note.textContent = 'Server setup for Google Calendar OAuth is incomplete. Add Google OAuth client settings before volunteers can enable full sync.';
+        status.className = 'account-note';
+        status.textContent = 'Automatic Google Calendar sync is unavailable until the server is configured.';
+        connectButton.disabled = true;
+        connectButton.hidden = false;
+        connectButton.textContent = 'Google Calendar Unavailable';
+        disconnectButton.hidden = true;
+        disconnectButton.disabled = true;
+    } else if (connected) {
+        note.className = 'account-note account-note-success';
+        note.textContent = 'Automatic sync is active. New signups and later shift changes will be pushed from the app to Google Calendar.';
+        status.className = 'account-note';
+        status.textContent = connectedEmail
+            ? `Connected Google account: ${connectedEmail}`
+            : 'Google Calendar is connected.';
+        connectButton.disabled = true;
+        connectButton.hidden = false;
+        connectButton.textContent = 'Auto Sync Enabled';
+        disconnectButton.hidden = false;
+        disconnectButton.disabled = false;
+    } else {
+        note.className = 'account-note';
+        note.textContent = 'Connect Google Calendar once to let the app create, update, and remove volunteer events automatically.';
+        status.className = 'account-note';
+        status.textContent = 'Automatic sync is not connected yet.';
+        connectButton.disabled = false;
+        connectButton.hidden = false;
+        connectButton.textContent = 'Connect Google Calendar';
+        disconnectButton.hidden = true;
+        disconnectButton.disabled = true;
+    }
+}
+
+async function loadGoogleCalendarStatus() {
+    if (!currentUser || typeof getGoogleCalendarStatus !== 'function') {
+        return;
+    }
+
+    try {
+        currentGoogleCalendarStatus = await getGoogleCalendarStatus();
+    } catch (error) {
+        currentGoogleCalendarStatus = {
+            configured: false,
+            connected: false,
+            error: error.message
+        };
+    }
+
+    renderCalendarSyncUi();
 }
 
 function syncMyAccountForms() {
@@ -2700,6 +2848,7 @@ function syncMyAccountForms() {
 
     updateAccountEmailUi();
     updateDeleteAccountUi();
+    renderCalendarSyncUi();
 }
 
 async function refreshCurrentUserState() {
@@ -2709,14 +2858,80 @@ async function refreshCurrentUserState() {
     setupRoleBasedUI();
     renderMyAccountSummary();
     syncMyAccountForms();
+    await loadGoogleCalendarStatus();
 }
 
 async function loadMyAccount() {
     if (!currentUser) {
         return;
     }
+    if (myRegisteredSignups.length === 0) {
+        try {
+            const signups = await getUserSignups(currentUser.user_id);
+            myRegisteredSignups = Array.isArray(signups) ? signups : [];
+        } catch (_) {}
+    }
     renderMyAccountSummary();
     syncMyAccountForms();
+    await loadGoogleCalendarStatus();
+}
+
+async function connectGoogleCalendarFromAccount() {
+    if (typeof startGoogleCalendarConnect !== 'function') {
+        throw new Error('Google Calendar sync is unavailable right now.');
+    }
+
+    const response = await startGoogleCalendarConnect();
+    if (!response?.auth_url) {
+        throw new Error('Google Calendar authorization URL was not returned by the server.');
+    }
+
+    const popup = window.open(response.auth_url, 'google-calendar-connect', 'width=620,height=760');
+    if (!popup) {
+        throw new Error('Popup blocked. Allow popups for this site and try again.');
+    }
+
+    return await new Promise((resolve, reject) => {
+        let settled = false;
+
+        const finish = async (message, isError = false) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            window.removeEventListener('message', handleMessage);
+            try {
+                await loadGoogleCalendarStatus();
+            } catch (error) {
+                console.error('Failed to refresh Google Calendar status:', error);
+            }
+            if (isError) {
+                reject(new Error(message || 'Google Calendar authorization failed.'));
+            } else {
+                resolve(message || 'Google Calendar sync connected.');
+            }
+        };
+
+        const popupPoll = window.setInterval(() => {
+            if (popup.closed) {
+                window.clearInterval(popupPoll);
+                finish('Google Calendar authorization window was closed before finishing.', true);
+            }
+        }, 500);
+
+        const handleMessage = (event) => {
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+            if (event.data?.type !== 'google-calendar-oauth-complete') {
+                return;
+            }
+            window.clearInterval(popupPoll);
+            finish(event.data.message, event.data.ok !== true);
+        };
+
+        window.addEventListener('message', handleMessage);
+    });
 }
 
 function renderMyShiftCard(signup, now) {
@@ -2756,7 +2971,7 @@ function renderMyShiftCard(signup, now) {
             <div class="my-shift-card-header">
                 <div>
                     <h4 class="my-shift-title">${escapeHtml(signup.shift_name || 'Untitled Shift')}</h4>
-                    <p class="my-shift-role">Role: ${escapeHtml(signup.role_title || 'Unassigned')}</p>
+                    <p class="my-shift-role">Role: ${escapeHtml(signup.role_title || 'Unassigned')}${signup.filled_count != null && signup.required_count != null ? ` <span style="color:#718096;font-size:0.82rem;">(${signup.filled_count}/${signup.required_count} filled)</span>` : ''}</p>
                 </div>
                 <div class="my-shift-badges">
                     <span class="status-badge attendance-badge ${attendanceInfo.className}">${escapeHtml(attendanceInfo.label)}</span>
@@ -2768,7 +2983,7 @@ function renderMyShiftCard(signup, now) {
                 </div>
             </div>
             <div class="my-shift-meta">
-                <p><strong>When:</strong> ${escapeHtml(formatShiftRange(signup.start_time, signup.end_time))}</p>
+                <p><strong>When:</strong> ${escapeHtml(formatShiftRange(signup.start_time, signup.end_time))}${formatShiftDuration(signup.start_time, signup.end_time) ? ` <span style="color:#718096;">(${escapeHtml(formatShiftDuration(signup.start_time, signup.end_time))})</span>` : ''}</p>
                 <p><strong>Pantry:</strong> ${escapeHtml(signup.pantry_name || 'Unknown Pantry')}</p>
                 <p><strong>Location:</strong> ${escapeHtml(signup.pantry_location || 'No location listed')}</p>
             </div>
@@ -4244,8 +4459,19 @@ function setupEventListeners() {
         renderMyShiftList(myRegisteredSignups);
     });
 
+    document.getElementById('my-shifts-list-status-filter')?.addEventListener('change', () => {
+        myShiftsListFilters.status = document.getElementById('my-shifts-list-status-filter')?.value || 'all';
+        renderMyShiftList(myRegisteredSignups);
+    });
+
+    document.getElementById('my-shifts-list-sort')?.addEventListener('change', () => {
+        myShiftsListFilters.sort = document.getElementById('my-shifts-list-sort')?.value || 'date-asc';
+        renderMyShiftList(myRegisteredSignups);
+    });
+
     document.getElementById('my-shifts-list-clear-filters')?.addEventListener('click', () => {
-        myShiftsListFilters = { search: '', pantryId: 'all', timeBucket: 'all' };
+        myShiftsListFilters = { search: '', pantryId: 'all', timeBucket: 'all', status: 'all', sort: 'date-asc' };
+        document.getElementById('my-shifts-list-status-filter').value = 'all';
         syncMyShiftsListFilters();
         renderMyShiftList(myRegisteredSignups);
     });
@@ -4345,7 +4571,35 @@ function setupEventListeners() {
         });
     });
 
-    document.getElementById('delete-account-btn').addEventListener('click', async (event) => {
+    document.getElementById('connect-google-calendar-btn')?.addEventListener('click', async (event) => {
+        await withButtonLock(event.currentTarget, async () => {
+            try {
+                const message = await connectGoogleCalendarFromAccount();
+                showMessage('my-account', message || 'Google Calendar sync connected.', 'success');
+            } catch (error) {
+                showMessage('my-account', `Failed to connect Google Calendar: ${error.message}`, 'error');
+            }
+        });
+    });
+
+    document.getElementById('disconnect-google-calendar-btn')?.addEventListener('click', async (event) => {
+        const confirmed = confirm('Turn off automatic Google Calendar sync for this account? Existing synced events will be removed from Google Calendar.');
+        if (!confirmed) {
+            return;
+        }
+
+        await withButtonLock(event.currentTarget, async () => {
+            try {
+                await disconnectGoogleCalendar();
+                await loadGoogleCalendarStatus();
+                showMessage('my-account', 'Automatic Google Calendar sync has been disconnected.', 'success');
+            } catch (error) {
+                showMessage('my-account', `Failed to disconnect Google Calendar: ${error.message}`, 'error');
+            }
+        });
+    });
+
+    document.getElementById('delete-account-btn').addEventListener('click', async () => {
         if (!currentUser) {
             showMessage('my-account', 'No user is loaded.', 'error');
             return;

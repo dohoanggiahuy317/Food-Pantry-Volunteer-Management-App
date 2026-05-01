@@ -212,6 +212,7 @@
                         <h2 class="card-title">Pantry Directory</h2>
                         <p class="calendar-shell-copy">Browse pantry details, preview upcoming shifts, and subscribe for new shift emails.</p>
                     </div>
+                    <span id="pantry-directory-count" class="volunteer-pantries-count"></span>
                 </div>
                 <div id="message-pantries" class="message"></div>
                 <div class="volunteer-pantries-toolbar">
@@ -373,6 +374,22 @@
                                 <option value="evening">Evening</option>
                             </select>
                         </div>
+                        <div class="my-shifts-list-filter-group">
+                            <label for="my-shifts-list-status-filter">Status</label>
+                            <select id="my-shifts-list-status-filter">
+                                <option value="all">All statuses</option>
+                                <option value="CONFIRMED">Confirmed</option>
+                                <option value="PENDING_CONFIRMATION">Pending Confirmation</option>
+                                <option value="WAITLISTED">Waitlisted</option>
+                            </select>
+                        </div>
+                        <div class="my-shifts-list-filter-group">
+                            <label for="my-shifts-list-sort">Sort</label>
+                            <select id="my-shifts-list-sort">
+                                <option value="date-asc">Date (Soonest)</option>
+                                <option value="date-desc">Date (Latest)</option>
+                            </select>
+                        </div>
                         <div class="my-shifts-list-filter-actions">
                             <button type="button" class="btn btn-secondary btn-sm" id="my-shifts-list-clear-filters">Clear Filters</button>
                         </div>
@@ -439,6 +456,18 @@
                     </div>
                     <button type="submit" class="btn btn-primary" id="account-email-submit-btn">Start Email Change</button>
                 </form>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Calendar Sync</h2>
+                </div>
+                <div id="my-account-calendar-note" class="account-note"></div>
+                <div id="my-account-calendar-status" class="account-note"></div>
+                <div class="auth-action-row">
+                    <button type="button" class="btn btn-primary" id="connect-google-calendar-btn">Connect Google Calendar</button>
+                    <button type="button" class="btn btn-secondary" id="disconnect-google-calendar-btn">Disconnect Auto Sync</button>
+                </div>
             </div>
 
             <div class="card">
