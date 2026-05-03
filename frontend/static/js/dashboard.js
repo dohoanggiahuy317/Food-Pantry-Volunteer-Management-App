@@ -894,7 +894,8 @@ async function renderAppTourStep(index) {
     appTourCurrentIndex = index;
     const step = appTourSteps[index];
     if (step.tab) {
-        await activateTab(step.tab);
+        const currentActiveTab = getActiveDashboardTab();
+        await activateTab(step.tab, { forceReload: currentActiveTab !== step.tab });
     }
 
     const highlight = document.getElementById('app-tour-highlighter');
@@ -1014,7 +1015,14 @@ function setupRoleBasedUI() {
     return defaultTab;
 }
 
-async function activateTab(targetTab) {
+function getActiveDashboardTab() {
+    const activeContent = document.querySelector('.tab-content.active[id^="content-"]');
+    return activeContent?.id ? activeContent.id.replace(/^content-/, '') : null;
+}
+
+async function activateTab(targetTab, options = {}) {
+    const forceReload = options.forceReload !== false;
+
     // Update active tab style
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     const targetButton = document.querySelector(`.nav-tab[data-tab="${targetTab}"]`);
@@ -1031,6 +1039,10 @@ async function activateTab(targetTab) {
     if (pantrySelector) {
         const shouldHideSelector = targetTab === 'calendar' || targetTab === 'pantries' || targetTab === 'my-shifts' || targetTab === 'my-account' || targetTab === 'admin';
         pantrySelector.classList.toggle('app-hidden', shouldHideSelector);
+    }
+
+    if (!forceReload) {
+        return;
     }
 
     // Load tab-specific data
