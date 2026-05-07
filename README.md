@@ -42,6 +42,8 @@ This README intentionally stays high level. For the full details, see the docs f
 - [Deployment Guide](docs/DEPLOY_DIGITALOCEAN.md) - production deployment on DigitalOcean
 - [Deployment FAQ](docs/DEPLOYMENT_FAQ.md) - common deployment issues and fixes
 - [MVP Features](docs/MVP_FEATURES.md) - product scope and feature priorities
+- [SYSTEM_LEVEL](docs/SYSTEM_LEVEL.md) - system-level design notes and architecture decisions
+- [USER_LEVEL](docs/USER_LEVEL.md) - user-level design notes and UI/UX decisions
 
 ## Getting Started
 

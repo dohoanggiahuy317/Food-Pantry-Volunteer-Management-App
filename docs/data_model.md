@@ -147,3 +147,4 @@ Pantry-subscription note:
 
 Dev note:
 - This branch keeps account and recurring-shift schema changes in `001_initial.sql`. Recreate older dev databases if they were initialized before the current auth/timezone/recurring-shift model.
+
