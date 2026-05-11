@@ -675,6 +675,67 @@ class TestShifts:
         ]
         assert backend.list_non_expired_shifts_in_range("not-a-date", "2030-01-04T00:00:00Z") == []
 
+    def test_list_shifts_in_range_includes_past_and_filters_cancelled(self):
+        """Test calendar range listing includes past shifts without cancelled rows."""
+        backend = create_backend()
+        pantry = backend.create_pantry(
+            name="All Range Pantry",
+            location_address="902 Range St",
+            lead_ids=[]
+        )
+        lead = backend.create_user(
+            full_name="All Range Lead",
+            email="all-range-lead@example.com",
+            phone_number=None,
+            roles=["PANTRY_LEAD"]
+        )
+
+        later = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Later All Range Shift",
+            start_time="2020-01-03T10:00:00Z",
+            end_time="2020-01-03T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        earlier = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Earlier All Range Shift",
+            start_time="2020-01-02T10:00:00Z",
+            end_time="2020-01-02T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+        cancelled = backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Cancelled All Range Shift",
+            start_time="2020-01-02T13:00:00Z",
+            end_time="2020-01-02T15:00:00Z",
+            status="CANCELLED",
+            created_by=lead["user_id"]
+        )
+        backend.create_shift(
+            pantry_id=pantry["pantry_id"],
+            shift_name="Outside All Range Shift",
+            start_time="2020-01-05T10:00:00Z",
+            end_time="2020-01-05T12:00:00Z",
+            status="ACTIVE",
+            created_by=lead["user_id"]
+        )
+
+        shifts = backend.list_shifts_in_range(
+            "2020-01-01T00:00:00Z",
+            "2020-01-04T00:00:00Z",
+            include_cancelled=False,
+        )
+
+        assert [shift["shift_id"] for shift in shifts if shift["pantry_id"] == pantry["pantry_id"]] == [
+            earlier["shift_id"],
+            later["shift_id"],
+        ]
+        assert cancelled["shift_id"] not in [shift["shift_id"] for shift in shifts]
+        assert backend.list_shifts_in_range("not-a-date", "2020-01-04T00:00:00Z") == []
+
     def test_replace_shift_and_roles_updates_creates_deletes_and_cancels(self):
         """Test replacing a shift role set handles every existing-role branch."""
         backend = create_backend()

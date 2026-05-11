@@ -545,6 +545,7 @@ function buildAvailableCalendarConfig() {
         },
         normalizeEvents: normalizeAvailableCalendarEvents,
         getDayCountText: (count) => `${count} shift${count === 1 ? '' : 's'} available`,
+        getEventBadgeText: (event) => event.isPast ? 'Past' : '',
         getEventMetaLines: (event, view) => {
             if (view === 'week') {
                 return [event.pantry_name];
@@ -702,6 +703,7 @@ function normalizeAvailableCalendarEvents(items) {
             const roleTitles = Array.isArray(shift.roles)
                 ? shift.roles.map((role) => role.role_title || '').filter(Boolean)
                 : [];
+            const isPast = endDate < new Date();
 
             return {
                 ...shift,
@@ -723,7 +725,7 @@ function normalizeAvailableCalendarEvents(items) {
                     location,
                     roleTitles.join(' ')
                 ].filter(Boolean).join(' ').toLowerCase(),
-                isPast: false
+                isPast
             };
         })
         .filter(Boolean)
@@ -1181,11 +1183,15 @@ function renderAvailableCalendarModalRole(role, event) {
         || String(event.status || 'OPEN').toUpperCase() === 'CANCELLED';
     const capacityPercent = getCalendarRoleCapacityPercent(filled, required);
     const canVolunteerSignup = currentUserHasRole('VOLUNTEER');
+    const isPast = Boolean(event.isPast);
 
     let buttonLabel = 'Sign Up';
     let disabled = false;
     if (!canVolunteerSignup) {
         buttonLabel = 'Volunteer Only';
+        disabled = true;
+    } else if (isPast) {
+        buttonLabel = 'Past';
         disabled = true;
     } else if (isCancelled) {
         buttonLabel = 'Unavailable';

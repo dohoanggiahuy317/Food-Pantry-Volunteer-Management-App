@@ -37,6 +37,7 @@ STORE_BACKEND_METHOD_CALLS = [
     ("list_shifts_by_pantry", (1,)),
     ("list_non_expired_shifts_by_pantry", (1,)),
     ("list_non_expired_shifts_in_range", ("2030-01-01T00:00:00Z", "2030-01-02T00:00:00Z")),
+    ("list_shifts_in_range", ("2030-01-01T00:00:00Z", "2030-01-02T00:00:00Z")),
     ("get_shift_by_id", (1,)),
     ("list_shifts_by_series", (1,)),
     ("get_shift_series_by_id", (1,)),

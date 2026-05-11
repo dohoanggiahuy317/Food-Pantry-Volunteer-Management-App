@@ -823,6 +823,28 @@ class MySQLBackend(StoreBackend):
             cursor.execute(query, (start_dt, end_dt))
             return [_serialize_shift(row) for row in cursor.fetchall()]
 
+    def list_shifts_in_range(
+        self,
+        start_time: str,
+        end_time: str,
+        include_cancelled: bool = True,
+    ) -> list[dict[str, Any]]:
+        start_dt = _parse_iso_to_dt(start_time)
+        end_dt = _parse_iso_to_dt(end_time)
+        with get_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            query = """
+                SELECT *
+                FROM shifts
+                WHERE end_time >= %s
+                  AND start_time <= %s
+            """
+            if not include_cancelled:
+                query += " AND status != 'CANCELLED'"
+            query += " ORDER BY start_time, shift_id"
+            cursor.execute(query, (start_dt, end_dt))
+            return [_serialize_shift(row) for row in cursor.fetchall()]
+
     def create_shift(
         self,
         pantry_id: int,

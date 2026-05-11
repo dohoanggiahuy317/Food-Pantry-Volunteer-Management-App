@@ -2360,7 +2360,7 @@ def get_calendar_shifts() -> Any:
     if end_time < start_time:
         return jsonify({"error": "end must be greater than or equal to start"}), 400
 
-    shifts = backend.list_non_expired_shifts_in_range(
+    shifts = backend.list_shifts_in_range(
         start_time=start_time.isoformat().replace("+00:00", "Z"),
         end_time=end_time.isoformat().replace("+00:00", "Z"),
         include_cancelled=False,

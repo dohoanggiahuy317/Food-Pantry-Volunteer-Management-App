@@ -748,6 +748,23 @@ class TestShiftListingRoutes:
         assert r.status_code == 200
         assert isinstance(r.get_json(), list)
 
+    def test_get_calendar_shifts_includes_past_range_shift(self, client, reset_backend):
+        _login(client, SUPER_ADMIN_ID)
+        past_shift = _app().backend.create_shift(
+            pantry_id=PANTRY_1,
+            shift_name="Past Calendar Route Shift",
+            start_time="2026-04-01T10:00:00Z",
+            end_time="2026-04-01T12:00:00Z",
+            status="ACTIVE",
+            created_by=SUPER_ADMIN_ID,
+        )
+
+        r = client.get("/api/calendar/shifts?start=2026-04-01T00:00:00Z&end=2026-04-02T00:00:00Z")
+
+        assert r.status_code == 200
+        shift_ids = [shift["shift_id"] for shift in r.get_json()]
+        assert past_shift["shift_id"] in shift_ids
+
     def test_get_calendar_shifts_missing_params(self, client, reset_backend):
         _login(client, SUPER_ADMIN_ID)
         r = client.get("/api/calendar/shifts")

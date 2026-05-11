@@ -1,946 +1,942 @@
 # User-Level Documentation
 
-This guide explains how to use the Volunteer Management System from the perspective of volunteers, pantry leads, administrators, and super administrators. It focuses on what users see, what each role can do, and how to complete common tasks in the dashboard.
+This document explains the Volunteer Management System by user role. It describes what each role can do, where to do it in the dashboard, and the key rules that affect each action.
 
-## 1. Product Overview
+## 0. Table of Contents
+- [User-Level Documentation](#user-level-documentation)
+  - [0. Table of Contents](#0-table-of-contents)
+  - [1. Audience and Scope](#1-audience-and-scope)
+  - [2. Accessing the App](#2-accessing-the-app)
+  - [3. Role Summary](#3-role-summary)
+  - [4. Volunteer Role](#4-volunteer-role)
+    - [4.1 What Volunteers Can Do](#41-what-volunteers-can-do)
+    - [4.2 Volunteer: Sign Up or Log In](#42-volunteer-sign-up-or-log-in)
+    - [4.3 Volunteer: Browse Available Shifts](#43-volunteer-browse-available-shifts)
+    - [4.4 Volunteer: Sign Up for a Shift](#44-volunteer-sign-up-for-a-shift)
+    - [4.5 Volunteer: Manage Registered Shifts](#45-volunteer-manage-registered-shifts)
+    - [4.6 Volunteer: Cancel a Signup](#46-volunteer-cancel-a-signup)
+    - [4.7 Volunteer: Reconfirm a Changed Shift](#47-volunteer-reconfirm-a-changed-shift)
+    - [4.8 Volunteer: Use the Pantry Directory](#48-volunteer-use-the-pantry-directory)
+    - [4.9 Volunteer: Manage Account](#49-volunteer-manage-account)
+    - [4.10 Volunteer: Google Calendar Sync](#410-volunteer-google-calendar-sync)
+    - [4.11 Volunteer: Attendance and Score](#411-volunteer-attendance-and-score)
+  - [5. Pantry Lead Role](#5-pantry-lead-role)
+    - [5.1 What Pantry Leads Can Do](#51-what-pantry-leads-can-do)
+    - [5.2 Pantry Lead: Assigned Pantry Scope](#52-pantry-lead-assigned-pantry-scope)
+    - [5.3 Pantry Lead: Create a One-Time Shift](#53-pantry-lead-create-a-one-time-shift)
+    - [5.4 Pantry Lead: Create a Recurring Shift](#54-pantry-lead-create-a-recurring-shift)
+    - [5.5 Pantry Lead: Review Shift Coverage](#55-pantry-lead-review-shift-coverage)
+    - [5.6 Pantry Lead: Edit a Shift](#56-pantry-lead-edit-a-shift)
+    - [5.7 Pantry Lead: Cancel a Shift](#57-pantry-lead-cancel-a-shift)
+    - [5.8 Pantry Lead: Send a Help Broadcast](#58-pantry-lead-send-a-help-broadcast)
+    - [5.9 Pantry Lead: Take Attendance](#59-pantry-lead-take-attendance)
+  - [6. Admin Role](#6-admin-role)
+    - [6.1 What Admins Can Do](#61-what-admins-can-do)
+    - [6.2 Admin: Manage Pantries](#62-admin-manage-pantries)
+    - [6.3 Admin: Assign Pantry Leads](#63-admin-assign-pantry-leads)
+    - [6.4 Admin: Manage Users](#64-admin-manage-users)
+    - [6.5 Admin: Change User Roles](#65-admin-change-user-roles)
+    - [6.6 Admin: Manage Shifts Across Pantries](#66-admin-manage-shifts-across-pantries)
+  - [7. Super Admin Role](#7-super-admin-role)
+    - [7.1 What Super Admins Can Do](#71-what-super-admins-can-do)
+    - [7.2 Protected Super Admin Account](#72-protected-super-admin-account)
+    - [7.3 Super Admin Best Practices](#73-super-admin-best-practices)
+  - [8. Shared Account Capabilities](#8-shared-account-capabilities)
+    - [8.1 Timezone Behavior](#81-timezone-behavior)
+    - [8.2 Account Deletion](#82-account-deletion)
+  - [9. Public User Capabilities](#9-public-user-capabilities)
+  - [10. Capability Matrix](#10-capability-matrix)
+  - [11. Common Error Messages by Role](#11-common-error-messages-by-role)
+    - [Volunteer Errors](#volunteer-errors)
+    - [Pantry Lead Errors](#pantry-lead-errors)
+    - [Admin Errors](#admin-errors)
+  - [12. Role-Based Best Practices](#12-role-based-best-practices)
+    - [Volunteer Best Practices](#volunteer-best-practices)
+    - [Pantry Lead Best Practices](#pantry-lead-best-practices)
+    - [Admin Best Practices](#admin-best-practices)
+    - [Super Admin Best Practices](#super-admin-best-practices)
 
-The Volunteer Management System helps food pantry teams publish volunteer shifts, fill required roles, track registrations, notify volunteers, and record attendance. Volunteers use the system to find open shifts, sign up, manage upcoming commitments, and keep their personal details current.
+## 1. Audience and Scope
 
-The app has two main areas:
+This guide is for people who use the application, not developers maintaining the code. It is organized by role:
 
-- Public pages: homepage, privacy policy, terms, and public pantry shift listings.
-- Authenticated dashboard: the main workspace at `/dashboard`.
+- Volunteer
+- Pantry Lead
+- Admin
+- Super Admin
 
-The dashboard adapts to the logged-in user's role. A volunteer sees volunteer-focused tabs, while pantry leads and admins also see shift-management and administration tools.
+Each role section lists the capabilities available to that role and the practical workflows attached to those capabilities.
 
-## 2. User Roles
+## 2. Accessing the App
 
-### Volunteer
+The main application is available at `/dashboard`.
+
+The dashboard starts with an authentication screen. Depending on the environment, users may see:
+
+- Demo sample accounts in memory-auth mode.
+- Google login and Google signup in Firebase auth mode.
+
+After login, the dashboard shows only the tabs and actions that match the user's role.
+
+Common dashboard tabs:
+
+- `Calendar`
+- `My Shifts`
+- `Pantries`
+- `My Account`
+- `Manage Shifts`
+- `Admin Panel`
+
+Not every user sees every tab.
+
+## 3. Role Summary
+
+| Role | Main Purpose | Main Tabs |
+| --- | --- | --- |
+| Volunteer | Find shifts, sign up, manage personal commitments, subscribe to pantry updates. | Calendar, My Shifts, Pantries, My Account |
+| Pantry Lead | Manage shifts and registrations for assigned pantries. | Calendar, Manage Shifts, My Account |
+| Admin | Manage pantries, pantry leads, users, roles, and shifts across the system. | Calendar, Manage Shifts, Admin Panel, My Account |
+| Super Admin | Highest administrative role with protected access controls. | Calendar, Manage Shifts, Admin Panel, My Account |
+
+Users can technically have role combinations, but the admin user-management workflow treats normal users as having one editable role at a time.
+
+## 4. Volunteer Role
+
+Volunteers are the primary users who browse shifts and register for pantry work.
+
+### 4.1 What Volunteers Can Do
 
 Volunteers can:
 
-- Browse available shifts.
-- Search and filter the shift calendar.
-- Sign up for open shift roles.
-- View their registered shifts.
+- Log in or sign up with Google when Firebase auth is enabled.
+- Use sample-account login when the app is running in demo memory-auth mode.
+- View available shifts in the calendar.
+- Search and filter available shifts.
+- Open shift details.
+- Sign up for an open role in a shift.
+- View all of their registered shifts.
 - Cancel their own signups.
-- Reconfirm shifts after schedule or capacity changes.
-- Subscribe or unsubscribe from pantry updates.
-- Maintain their account name, phone number, email, and timezone.
-- Connect Google Calendar sync when Google/Firebase auth and server OAuth are configured.
-- Delete their account, unless they are the protected super admin account.
+- Reconfirm changed shifts.
+- Browse the pantry directory.
+- Subscribe to pantry update emails.
+- Unsubscribe from pantry update emails.
+- Update basic account information.
+- View account summary and attendance score.
+- Connect Google Calendar auto sync when available.
+- Disconnect Google Calendar auto sync.
+- Start a supported email-change flow.
+- Delete their own account, except for the protected super admin account.
+- Log out.
 
-### Pantry Lead
+### 4.2 Volunteer: Sign Up or Log In
 
-Pantry leads can:
+Google signup creates a volunteer account by default.
 
-- Manage shifts for pantries assigned to them.
-- Create one-time and recurring shifts.
-- Add roles and required volunteer counts.
-- Edit upcoming shifts.
-- Cancel single shifts or future recurring shifts.
-- View registrations for managed shifts.
-- Send help broadcasts to selected volunteers.
-- Mark attendance during the allowed attendance window.
-
-Pantry leads cannot manage pantries unless they also have an admin-capable role.
-
-### Admin
-
-Admins can:
-
-- Manage all pantries.
-- Create, edit, and delete pantries.
-- Assign and remove pantry leads.
-- Search and monitor users.
-- Edit normal user roles within system restrictions.
-- Manage shifts across all pantries.
-- View user profiles and user signup history.
-
-Admins cannot assign the `SUPER_ADMIN` role.
-
-### Super Admin
-
-Super admins have admin-capable access plus higher protection authority.
-
-The protected seeded super admin account:
-
-- Cannot have its roles edited through the app.
-- Cannot delete itself.
-- Is intended to prevent accidental loss of administrative access.
-
-## 3. Signing In
-
-The sign-in experience depends on the environment configuration.
-
-### Demo or Local Memory Login
-
-In memory-auth mode, the login page shows sample accounts.
-
-Steps:
-
-1. Open `/dashboard`.
-2. Wait for the login panel to load.
-3. Choose one sample account from the list.
-4. The page reloads into the dashboard.
-
-Sample accounts are intended for local development and demonstrations.
-
-### Google Login
-
-In Firebase/Google auth mode, the login panel shows Google login buttons.
-
-Steps:
-
-1. Open `/dashboard`.
-2. Select `Log In With Google`.
-3. Choose a Google account in the popup.
-4. If the account already exists in the app, the dashboard opens.
-5. If the account is new, the app may ask you to complete volunteer signup.
-
-Google login requires the Google account email to be verified.
-
-### Google Volunteer Signup
-
-Steps:
+Volunteer Google signup steps:
 
 1. Open `/dashboard`.
 2. Select `Sign Up With Google`.
-3. Choose a Google account in the popup.
-4. Enter your full name.
-5. Enter your phone number.
-6. Submit the signup form.
-7. The app creates your volunteer account and opens the dashboard.
+3. Choose a Google account.
+4. Enter full name.
+5. Enter phone number.
+6. Complete signup.
+7. Return to the dashboard.
 
-New Google signups receive the `VOLUNTEER` role by default.
+Volunteer Google login steps:
 
-## 4. Dashboard Layout
+1. Open `/dashboard`.
+2. Select `Log In With Google`.
+3. Choose the Google account linked to the app user.
+4. Wait for the dashboard to load.
 
-The main dashboard contains a top header, role-aware navigation tabs, and the selected tab content.
+Demo login steps:
 
-Common tabs:
+1. Open `/dashboard`.
+2. Choose a sample account from the login panel.
+3. Wait for the dashboard to load.
 
-- `Calendar`: available shifts across pantries.
-- `My Shifts`: shifts you registered for.
-- `Pantries`: volunteer pantry directory and subscription controls.
-- `My Account`: profile, email, calendar sync, and account deletion.
+### 4.3 Volunteer: Browse Available Shifts
 
-Manager and admin tabs:
+Volunteers use the `Calendar` tab to browse available shifts.
 
-- `Manage Shifts`: create, edit, cancel, inspect, broadcast, and take attendance for shifts.
-- `Admin Panel`: manage pantries, pantry leads, users, and roles.
+Available calendar actions:
 
-Some tabs are hidden if your role does not allow that workflow.
+- Switch between month, week, and day views.
+- Move to previous or next calendar ranges.
+- Jump to today.
+- Search shifts, pantry names, and role names.
+- Filter by pantry.
+- Filter by time bucket.
+- Clear filters.
+- Open shift details.
 
-## 5. Calendar Tab
-
-The Calendar tab is the main place to discover available shifts.
-
-### What You Can See
-
-Each shift can show:
+Shift details can include:
 
 - Shift name.
 - Pantry name.
-- Pantry location.
-- Start and end time.
-- Available roles.
-- Required and filled capacity.
-- Shift status.
-- Recurring-shift information when applicable.
+- Pantry address.
+- Shift date and time.
+- Roles or positions.
+- Required volunteer count.
+- Filled count.
+- Capacity status.
+- Recurring shift information.
 
-### Calendar Views
+### 4.4 Volunteer: Sign Up for a Shift
 
-The calendar supports:
+Volunteers can sign up for open shift roles.
 
-- Month view.
-- Week view.
-- Day view.
-
-Use the view switcher to change how shifts are displayed.
-
-### Calendar Filters
-
-You can filter available shifts by:
-
-- Search text for shift, pantry, or role.
-- Pantry.
-- Time bucket.
-
-Use `Clear Filters` to return to the default view.
-
-### Signing Up From the Calendar
-
-Steps:
+Signup steps:
 
 1. Open the `Calendar` tab.
-2. Find a shift using the calendar or filters.
+2. Find a shift.
 3. Open the shift details.
-4. Review the pantry, time, and available roles.
-5. Choose an open role.
-6. Select the signup action.
+4. Review the pantry, date, time, and role list.
+5. Select an available role.
+6. Confirm the signup action.
 7. Wait for the success message.
+8. Confirm the shift appears in `My Shifts`.
 
-After signup, the shift appears in `My Shifts`.
+Signup rules:
 
-Signup restrictions:
+- The user must have the `VOLUNTEER` role.
+- Volunteers can only sign themselves up.
+- The shift must not be cancelled.
+- The shift must not have ended.
+- The selected role must not be cancelled.
+- The selected role must have capacity.
+- The user cannot sign up for overlapping active shifts.
+- The user cannot exceed the rolling signup limit.
 
-- You must be logged in as a volunteer.
-- You can only sign yourself up.
-- You cannot sign up for cancelled shifts.
-- You cannot sign up for ended shifts.
-- You cannot sign up for overlapping active shifts.
-- You may be rate-limited if you sign up for too many shifts in a 24-hour period.
-- A role may become full before your signup completes.
+Current rolling signup limit:
 
-## 6. My Shifts Tab
+- At most 5 signups in 24 hours.
 
-The My Shifts tab shows your registered shifts.
+### 4.5 Volunteer: Manage Registered Shifts
 
-### Views
+Volunteers use the `My Shifts` tab to manage existing commitments.
 
-You can switch between:
+Available actions:
 
-- Calendar view.
-- List view.
-
-Calendar view is useful for date-based planning. List view is useful for searching and reviewing status.
-
-### List Filters
-
-The list view supports:
-
-- Search by shift, pantry, or role.
-- Pantry filter.
-- Time filter.
-- Status filter.
-- Sort order.
-
-Use `Clear Filters` to reset the list.
-
-### Signup Statuses
+- View registered shifts in calendar format.
+- View registered shifts in list format.
+- Search registered shifts.
+- Filter by pantry.
+- Filter by time bucket.
+- Filter by status.
+- Sort the list.
+- Open registered shift details.
+- Cancel a signup.
+- Reconfirm a pending signup.
 
 Common signup statuses:
 
-- `CONFIRMED`: you are registered for the shift.
-- `PENDING_CONFIRMATION`: the shift changed and you must reconfirm.
-- `WAITLISTED`: the role could not be reconfirmed because capacity became unavailable.
+- `CONFIRMED`: the volunteer has an active slot.
+- `PENDING_CONFIRMATION`: the shift changed and the volunteer must reconfirm.
+- `WAITLISTED`: reconfirmation could not preserve the slot.
 - `SHOW_UP`: attendance was marked as present.
 - `NO_SHOW`: attendance was marked as absent.
 
-### Cancelling a Signup
+### 4.6 Volunteer: Cancel a Signup
 
-Steps:
+Cancellation steps:
 
 1. Open `My Shifts`.
 2. Find the signup.
 3. Select the cancel action.
-4. Confirm the cancellation prompt.
+4. Confirm the browser prompt.
 5. Wait for the success message.
 
-Cancellation removes the signup from your active commitments. If Google Calendar sync is connected, the linked calendar event is removed when possible.
+Cancellation effects:
 
-### Reconfirming a Shift
+- The signup is removed from the volunteer's active commitments.
+- The role capacity is recalculated.
+- If Google Calendar sync is connected, the app tries to remove the linked calendar event.
 
-You may need to reconfirm when a pantry lead or admin changes a shift's time, status, role, or capacity.
+### 4.7 Volunteer: Reconfirm a Changed Shift
 
-Steps:
+A shift may require reconfirmation after a pantry lead or admin changes the shift time, status, roles, or capacity.
+
+Reconfirmation steps:
 
 1. Open `My Shifts`.
-2. Find the shift marked `PENDING_CONFIRMATION`.
-3. Review the changed shift details.
-4. Choose to confirm or cancel.
+2. Find the signup marked `PENDING_CONFIRMATION`.
+3. Review the changed shift information.
+4. Choose confirm or cancel.
 5. Confirm the browser prompt.
 6. Wait for the result message.
 
 Possible outcomes:
 
-- Reconfirmed successfully: your signup returns to `CONFIRMED`.
-- Role full or unavailable: the role no longer has capacity.
-- Reservation expired: the reconfirmation window passed or the shift started.
-- Cancelled: your signup is removed.
+- Confirmed successfully: the signup returns to `CONFIRMED`.
+- Cancelled successfully: the signup is removed.
+- Role full or unavailable: capacity is no longer available.
+- Reservation expired: the reconfirmation window ended.
 
-Pending signups reserve capacity only for a limited window. If the window expires, sign up again if a role is still available.
+Important rule:
 
-## 7. Pantry Directory Tab
+- Pending signups reserve capacity for a limited time. If the reservation expires, the volunteer must sign up again if capacity remains.
 
-The Pantry Directory helps volunteers browse pantry locations and choose which pantries they want updates from.
+### 4.8 Volunteer: Use the Pantry Directory
 
-### Browsing Pantries
+Volunteers use the `Pantries` tab to browse pantry locations and manage subscription preferences.
 
-You can:
+Available actions:
 
-- Search by pantry name or address.
-- Sort the pantry list.
-- Filter by subscription status.
-- Select a pantry to view details.
+- Search pantries by name or address.
+- Sort pantry listings.
+- Filter by all, subscribed, or unsubscribed pantries.
+- Select a pantry and view details.
 - Preview upcoming shifts for a pantry.
+- Subscribe to a pantry.
+- Unsubscribe from a pantry.
 
-### Subscribing to Pantry Updates
+Subscription behavior:
 
-Steps:
+- Subscribing allows the app to send new-shift emails for that pantry when notifications are configured.
+- Unsubscribing stops new-shift subscription emails for that pantry.
+- Unsubscribing does not cancel existing shift signups.
 
-1. Open the `Pantries` tab.
-2. Select a pantry.
-3. Choose the subscribe action.
-4. Wait for the success message.
+### 4.9 Volunteer: Manage Account
 
-When subscribed, you can receive new-shift emails for that pantry if email notifications are configured.
+Volunteers use the `My Account` tab for personal settings.
 
-### Unsubscribing
+Available actions:
 
-Steps:
+- View account summary.
+- Update full name.
+- Update phone number.
+- View saved email address.
+- Start an email-change flow when supported.
+- View browser timezone information.
+- Connect Google Calendar sync.
+- Disconnect Google Calendar sync.
+- Delete account.
 
-1. Open the `Pantries` tab.
-2. Select a subscribed pantry.
-3. Choose the unsubscribe action.
-4. Wait for the success message.
+Account rules:
 
-Unsubscribing stops new-shift subscription emails for that pantry. It does not cancel any existing shift signups.
+- Full name is required.
+- Phone number can be changed from the account form.
+- Email changes are supported only in eligible Firebase-linked account states.
+- Account deletion is permanent.
 
-## 8. My Account Tab
+### 4.10 Volunteer: Google Calendar Sync
 
-The My Account tab is where users manage profile details, email, calendar sync, and account deletion.
+When enabled and configured, Google Calendar sync can:
 
-### Account Summary
+- Create an event when the volunteer signs up for a shift.
+- Update an event when the signup or shift changes.
+- Remove an event when the signup is cancelled.
+- Remove an event when the signup becomes waitlisted or expired.
+- Remove synced events when the volunteer disconnects Google Calendar.
 
-The account summary can show:
+Calendar sync requirements:
 
-- Name.
-- Email.
-- Phone number.
-- Role.
-- Timezone.
-- Attendance or credibility information.
-- Upcoming registered shift summary.
+- The account must use Google/Firebase login.
+- The server must have Google OAuth configured.
+- The user must complete the Google Calendar OAuth popup.
 
-Times on the web are shown in your browser timezone.
+### 4.11 Volunteer: Attendance and Score
 
-### Updating Basic Information
+Volunteers cannot mark their own attendance.
 
-Steps:
+Attendance can be marked by:
 
-1. Open `My Account`.
-2. Go to `Basic Information`.
-3. Update full name or phone number.
-4. Select `Save Basic Information`.
-5. Wait for the success message.
+- A pantry lead assigned to the shift's pantry.
+- An admin-capable user.
 
-Full name is required. Phone number can be blank unless required by the signup flow.
+Attendance statuses:
 
-### Timezone Behavior
+- `SHOW_UP`
+- `NO_SHOW`
 
-The app detects your browser timezone and sends it to the backend on API requests.
+The volunteer's attendance score is shown in account and admin views.
 
-Timezone is used for:
+## 5. Pantry Lead Role
 
-- Displaying web times in your browser timezone.
-- Saving your preferred timezone to your profile.
-- Formatting notification email shift times.
+Pantry leads manage operational shifts for assigned pantries.
 
-If no timezone is saved, notification emails fall back to `America/New_York`.
+### 5.1 What Pantry Leads Can Do
 
-### Changing Email Address
+Pantry leads can:
 
-Email-change support depends on auth mode.
+- View shifts for pantries they manage.
+- Create one-time shifts for assigned pantries.
+- Create recurring shifts for assigned pantries.
+- Add roles or positions to shifts.
+- Set required volunteer counts.
+- Edit upcoming shifts for assigned pantries.
+- Edit roles and required counts for assigned pantry shifts.
+- Cancel shifts for assigned pantries.
+- Cancel only one recurring occurrence.
+- Cancel this and following recurring occurrences.
+- View registrations for assigned pantry shifts.
+- See role coverage and pending reconfirmation counts.
+- Send help broadcasts for assigned pantry shifts.
+- Take attendance for assigned pantry shifts.
+- Mark registered volunteers as `SHOW_UP` or `NO_SHOW`.
+- Use their own `My Account` tab.
+- Log out.
 
-In Firebase mode:
+Pantry leads cannot:
 
-1. Open `My Account`.
-2. Go to `Email Address`.
-3. Enter the new email.
-4. Select `Start Email Change`.
-5. Reauthenticate with Google when prompted.
-6. Follow Firebase verification steps.
-7. Log out and sign back in after verification.
+- Manage pantries unless they are also admin-capable.
+- Assign themselves to pantries.
+- Edit users or roles unless they are also admin-capable.
+- Manage shifts for pantries where they are not assigned.
 
-In memory auth mode or unsupported account states, email changes may be unavailable.
+### 5.2 Pantry Lead: Assigned Pantry Scope
 
-### Connecting Google Calendar Sync
+Pantry lead permissions are pantry-specific.
 
-Google Calendar sync is optional and available only when:
+The lead can manage a shift only when:
 
-- You are using a Google/Firebase-backed account.
-- The server has Google OAuth configured.
+- The user has the `PANTRY_LEAD` role.
+- The user is assigned as a lead for that shift's pantry.
 
-Steps:
+If a pantry lead sees a forbidden message, the most common reason is that they are not assigned to the selected pantry.
 
-1. Open `My Account`.
-2. Go to `Calendar Sync`.
-3. Select `Connect Google Calendar`.
-4. Complete the Google OAuth popup.
-5. Return to the dashboard.
-6. Confirm the status says sync is active.
+### 5.3 Pantry Lead: Create a One-Time Shift
 
-When connected:
-
-- New signups create Google Calendar events.
-- Signup updates can update existing events.
-- Signup cancellations remove events.
-- Reconfirmed shifts update events.
-- Waitlisted, expired, or deleted signups remove events when possible.
-
-### Disconnecting Google Calendar Sync
-
-Steps:
-
-1. Open `My Account`.
-2. Go to `Calendar Sync`.
-3. Select `Disconnect Auto Sync`.
-4. Confirm the prompt.
-5. Wait for the success message.
-
-Disconnecting removes existing synced events from Google Calendar when possible and deletes the app's stored Google Calendar connection.
-
-### Deleting Your Account
-
-Steps:
-
-1. Open `My Account`.
-2. Go to `Delete Account`.
-3. Select `Delete My Account`.
-4. Confirm the permanent deletion prompt.
-5. In Firebase mode, reauthenticate with Google if prompted.
-
-Deletion removes your local app account and signs you out. In Firebase mode, it also deletes the linked Firebase account after fresh Google reauthentication.
-
-The protected super admin account cannot delete itself.
-
-## 9. Manage Shifts Tab
-
-The Manage Shifts tab is for pantry leads, admins, and super admins.
-
-Pantry leads see and manage assigned pantries. Admin-capable users can manage all pantries.
-
-### Selecting a Pantry
-
-If the pantry selector is visible:
-
-1. Choose a pantry from the dropdown.
-2. The shift list refreshes for that pantry.
-3. The create and management panels use the selected pantry.
-
-If no pantry is selected, shift creation and listing may be unavailable.
-
-### Shift Queue
-
-The shift queue can be filtered by:
-
-- Incoming.
-- Ongoing.
-- Past.
-- Cancelled.
-- Search text.
-
-Select a shift from the queue to inspect details and registrations.
-
-### Creating a One-Time Shift
-
-Steps:
+Create-shift steps:
 
 1. Open `Manage Shifts`.
-2. Select a pantry if needed.
+2. Select an assigned pantry if the pantry selector is visible.
 3. Select `Create Shift`.
-4. Enter the shift name.
+4. Enter shift name.
 5. Enter start date and time.
 6. Enter end date and time.
-7. Add at least one role or position.
-8. For each role, enter a role title and required count.
-9. Select `Create Shift with Roles`.
-10. Wait for the success message.
+7. Add at least one role.
+8. Enter each role title.
+9. Enter each required count.
+10. Select `Create Shift with Roles`.
+11. Wait for the success message.
 
-Each role must have:
+Role rules:
 
-- A non-empty title.
-- Required count of at least 1.
+- Each role must have a title.
+- Each role must have required count of at least 1.
+- A shift created through full-create must include at least one role.
 
-If pantry subscribers exist and email is configured, they may receive a new-shift notification.
+### 5.4 Pantry Lead: Create a Recurring Shift
 
-### Creating a Recurring Shift
-
-Steps:
-
-1. Start a normal shift creation.
-2. Turn on `Repeat`.
-3. Set the interval in weeks.
-4. Select weekdays.
-5. Choose an end rule:
-   - A fixed number of occurrences.
-   - An until date.
-6. Add roles.
-7. Select `Create Shift with Roles`.
-
-Recurring shifts create individual shift occurrences linked to the same recurring series.
-
-Notes:
-
-- The app currently supports weekly recurrence.
-- Recurring shifts must have a finite end rule.
-- The starting weekday is included automatically when applicable.
-- The system caps the number of generated occurrences.
-
-### Viewing Shift Details
-
-Select a shift from the queue to view:
-
-- Shift name.
-- Pantry.
-- Time window.
-- Status.
-- Recurring-series information.
-- Role coverage.
-- Registration details.
-- Available management actions.
-
-### Viewing Registrations
-
-Steps:
+Recurring-shift steps:
 
 1. Open `Manage Shifts`.
-2. Select a shift.
-3. Use the registrations or details area.
-4. Review volunteers by role.
+2. Start creating a shift.
+3. Turn on `Repeat`.
+4. Set the weekly interval.
+5. Select weekdays.
+6. Choose how the series ends:
+   - After a fixed number of occurrences.
+   - On an until date.
+7. Add roles and required counts.
+8. Select `Create Shift with Roles`.
+9. Wait for the success message.
 
-Registration details can include:
+Recurring rules:
 
-- Volunteer name.
-- Email.
-- Phone number.
-- Signup status.
-- Role.
+- Current recurrence is weekly.
+- The recurrence must have a finite end.
+- The app creates concrete shift rows for each occurrence.
+- Each occurrence links back to the same series.
+
+### 5.5 Pantry Lead: Review Shift Coverage
+
+Pantry leads can inspect coverage in `Manage Shifts`.
+
+Coverage information can include:
+
+- Shift status.
+- Role names.
+- Required counts.
+- Filled counts.
+- Open or full role status.
+- Registered volunteers.
 - Pending reconfirmation count.
 
-### Editing a Shift
+This helps pantry leads identify understaffed shifts.
 
-Steps:
+### 5.6 Pantry Lead: Edit a Shift
+
+Edit steps:
 
 1. Open `Manage Shifts`.
 2. Select a shift.
-3. Choose the edit action.
-4. Update shift name, time, status, recurrence settings, or roles.
+3. Open the edit panel.
+4. Change shift details or roles.
 5. Select `Save Shift Changes`.
-6. If the shift is recurring, choose whether to apply to:
+6. If prompted for recurring scope, choose:
    - This event only.
    - This and following events.
 7. Wait for the success message.
 
-Important behavior:
+Shift edits can affect existing volunteers.
 
-- Ended shifts are locked and cannot be edited.
-- Reducing capacity or changing shift details can move existing signups to `PENDING_CONFIRMATION`.
-- Affected volunteers may receive update emails.
-- Volunteers must reconfirm to keep their slot.
+Actions that may require volunteer reconfirmation:
 
-### Cancelling a Shift
+- Changing shift start or end time.
+- Cancelling a shift.
+- Changing role capacity.
+- Removing a role with signups.
+- Cancelling a role with signups.
+- Updating a recurring series slice.
 
-Steps:
+When reconfirmation is required:
+
+- Affected signups move to `PENDING_CONFIRMATION`.
+- Volunteers may receive update emails.
+- Volunteers must reconfirm before the reservation expires.
+
+### 5.7 Pantry Lead: Cancel a Shift
+
+Cancel steps:
+
+1. Open `Manage Shifts`.
+2. Select the target shift.
+3. Choose the cancel action.
+4. If recurring, choose the cancellation scope.
+5. Confirm the browser prompt.
+6. Wait for the success message.
+
+Cancellation effects:
+
+- The shift status changes to cancelled.
+- New signups are blocked.
+- Affected volunteers may be notified.
+- Existing signups may require action or become unavailable depending on the flow.
+
+### 5.8 Pantry Lead: Send a Help Broadcast
+
+Help broadcasts are used when a shift needs more coverage.
+
+Broadcast steps:
+
+1. Open `Manage Shifts`.
+2. Select the understaffed shift.
+3. Select `Broadcast Help`.
+4. Review suggested volunteers.
+5. Search by name or email if needed.
+6. Select recipients.
+7. Select `Send Broadcast`.
+8. Review the result message.
+
+Broadcast rules:
+
+- The sender must be allowed to manage the shift.
+- The shift cannot be ended.
+- The shift cannot be cancelled.
+- Recipients must be volunteers.
+- The recipient limit is 25 volunteers.
+- A sender cooldown prevents repeated broadcasts too quickly.
+
+### 5.9 Pantry Lead: Take Attendance
+
+Attendance steps:
 
 1. Open `Manage Shifts`.
 2. Select a shift.
-3. Choose the cancel action.
-4. If the shift is recurring, choose whether to cancel only this event or this and following events.
-5. Confirm the prompt.
-6. Wait for the success message.
-
-Cancelling a shift prevents new signups and may notify affected volunteers.
-
-### Reopening or Revoking Cancellation
-
-If the UI offers a revoke or reopen action for a cancelled shift:
-
-1. Select the cancelled shift.
-2. Choose the revoke action.
-3. Confirm the prompt.
-4. Wait for the success message.
-
-Previously signed-up volunteers may remain pending until they reconfirm.
-
-### Managing Roles
-
-During create or edit, each role represents a volunteer position needed for that shift.
-
-Examples:
-
-- Food Distribution.
-- Check In.
-- Sorting.
-- Packing.
-- Driver.
-
-Rules:
-
-- A shift must include at least one role for full creation.
-- Required count must be at least 1.
-- Removing or reducing a role with existing signups can require volunteer reconfirmation.
-- Cancelled roles do not accept new signups.
-
-### Sending a Help Broadcast
-
-Help broadcasts contact selected volunteers when a shift needs more coverage.
-
-Steps:
-
-1. Open `Manage Shifts`.
-2. Select the shift that needs help.
-3. Choose `Broadcast Help`.
-4. Review suggested volunteers.
-5. Search by name or email if needed.
-6. Select up to 25 volunteers.
-7. Select `Send Broadcast`.
-8. Wait for the result message.
-
-Rules:
-
-- You must be allowed to manage the shift.
-- You cannot send broadcasts for ended shifts.
-- You cannot send broadcasts for cancelled shifts.
-- There is a per-sender cooldown.
-- Recipients must be existing volunteers.
-
-### Taking Attendance
-
-Attendance can be marked by pantry leads for their pantries and by admin-capable users.
-
-Steps:
-
-1. Open `Manage Shifts`.
-2. Select the shift.
-3. Choose `Take Attendance`.
+3. Select `Take Attendance`.
 4. Search registrants if needed.
 5. Mark each volunteer as `SHOW_UP` or `NO_SHOW`.
-6. Close the modal when finished.
+6. Close the modal.
 
 Attendance window:
 
 - Opens 15 minutes before shift start.
 - Closes 6 hours after shift end.
 
-Attendance updates the volunteer's attendance score.
+Attendance effects:
 
-## 10. Admin Panel
+- The signup status changes.
+- The volunteer attendance score updates.
+- Attendance outcomes remain visible to managers.
 
-The Admin Panel has two main subtabs:
+## 6. Admin Role
 
-- `Manage Pantries`.
-- `Manage Users`.
+Admins manage the overall system. They can perform pantry administration, user management, and cross-pantry shift management.
 
-Only admin-capable users can use the Admin Panel.
+### 6.1 What Admins Can Do
 
-## 11. Admin: Manage Pantries
+Admins can:
 
-### Creating a Pantry
+- View all pantries.
+- Create pantries.
+- Edit pantries.
+- Delete pantries.
+- Assign pantry leads.
+- Remove pantry leads.
+- Search users.
+- View user profiles.
+- View user signup history.
+- Filter users by role.
+- Update normal user roles.
+- Create shifts for any pantry.
+- Edit shifts for any pantry.
+- Cancel shifts for any pantry.
+- View registrations for any shift.
+- Send help broadcasts for any shift.
+- Take attendance for any shift.
+- Manage their own account.
+- Connect or disconnect Google Calendar sync for their own account when eligible.
+- Log out.
 
-Steps:
+Admins cannot:
+
+- Assign `SUPER_ADMIN` through the normal role-management endpoint.
+- Edit the protected super admin account.
+- Remove `ADMIN` from another admin unless they are a super admin.
+
+### 6.2 Admin: Manage Pantries
+
+Admins use `Admin Panel` -> `Manage Pantries`.
+
+Available pantry actions:
+
+- Create a pantry.
+- Search pantries.
+- Select a pantry.
+- Edit pantry name.
+- Edit pantry address.
+- Delete a pantry.
+- View assigned pantry leads.
+- Assign eligible pantry leads.
+- Remove pantry leads.
+
+Create-pantry steps:
 
 1. Open `Admin Panel`.
 2. Select `Manage Pantries`.
-3. In `Create Pantry`, enter pantry name.
+3. Enter pantry name.
 4. Enter pantry address.
 5. Select `Create Pantry`.
 6. Wait for the success message.
 
-The new pantry becomes available for shift management and volunteer browsing.
+Edit-pantry steps:
 
-### Searching Pantries
+1. Search or select the pantry.
+2. Open the edit action.
+3. Update name or address.
+4. Save.
+5. Wait for the success message.
 
-Use the pantry search field to filter by:
+Delete-pantry steps:
 
-- Pantry name.
-- Pantry address.
+1. Search or select the pantry.
+2. Choose delete.
+3. Confirm the browser prompt.
+4. Wait for the success message.
 
-Select a pantry to view and manage its assigned leads.
+Important deletion effect:
 
-### Editing a Pantry
+- Deleting a pantry removes dependent pantry leads, subscriptions, shifts, shift roles, and shift signups through cascade behavior.
 
-Steps:
+### 6.3 Admin: Assign Pantry Leads
 
-1. Open `Admin Panel`.
-2. Select `Manage Pantries`.
-3. Find the pantry.
-4. Choose the edit action.
-5. Update name or address.
-6. Save.
-7. Wait for the success message.
+A user must have the `PANTRY_LEAD` role before being assigned to a pantry.
 
-### Deleting a Pantry
-
-Steps:
-
-1. Open `Admin Panel`.
-2. Select `Manage Pantries`.
-3. Find the pantry.
-4. Choose the delete action.
-5. Confirm the deletion prompt.
-
-Deleting a pantry removes its dependent shifts, roles, signups, subscriptions, and lead assignments.
-
-Use this action carefully.
-
-### Assigning Pantry Leads
-
-Before a user can be assigned as a pantry lead, that user must have the `PANTRY_LEAD` role.
-
-Steps:
+Assign-lead steps:
 
 1. Open `Admin Panel`.
 2. Select `Manage Pantries`.
 3. Select a pantry.
 4. Search eligible pantry lead users.
 5. Select the lead.
-6. Add the lead to the pantry.
+6. Add the lead.
 7. Wait for the success message.
 
-### Removing Pantry Leads
+Remove-lead steps:
 
-Steps:
+1. Select the pantry.
+2. Find the assigned lead.
+3. Choose remove.
+4. Confirm the browser prompt.
+5. Wait for the success message.
 
-1. Open `Admin Panel`.
-2. Select `Manage Pantries`.
-3. Select a pantry.
-4. Find the assigned lead.
-5. Choose remove.
-6. Confirm the prompt.
-7. Wait for the success message.
+Removing a lead assignment does not delete the user's account.
 
-Removing a pantry lead only removes their assignment to that pantry. It does not delete the user account.
+### 6.4 Admin: Manage Users
 
-## 12. Admin: Manage Users
+Admins use `Admin Panel` -> `Manage Users`.
 
-### Searching Users
+Available user actions:
 
-Steps:
+- Search by full name.
+- Search by email.
+- Filter by role.
+- View user result table.
+- Open a user profile.
+- Review user account details.
+- Review user signup history.
+- Review attendance score.
+- Update editable user role.
+
+Search-user steps:
 
 1. Open `Admin Panel`.
 2. Select `Manage Users`.
-3. Search by full name or email.
-4. Optionally filter by role.
+3. Enter name or email search text.
+4. Optionally choose a role filter.
 5. Select `Search Users`.
 
-The results table lists matching users.
+Open-profile steps:
 
-### Viewing a User Profile
-
-Steps:
-
-1. Search for users.
+1. Search users.
 2. Select a user from the results.
-3. Review the profile panel.
+3. Review the user profile panel.
 
-The profile can show:
+### 6.5 Admin: Change User Roles
 
-- Basic user identity.
-- Email.
-- Phone number.
-- Roles.
-- Attendance score.
-- Signup history.
-
-### Updating User Roles
-
-Steps:
+Role-change steps:
 
 1. Open a user profile.
-2. Select exactly one editable role.
+2. Select one editable role.
 3. Save the role change.
 4. Wait for the success message.
 
-Restrictions:
+Role-change rules:
 
-- Users can have only one editable role through this admin flow.
+- Exactly one editable role must be selected.
+- `SUPER_ADMIN` cannot be assigned through this flow.
 - The protected super admin account cannot be edited.
-- `SUPER_ADMIN` cannot be assigned through this endpoint.
-- Only a super admin can remove `ADMIN` from another admin.
+- A non-super-admin cannot remove `ADMIN` from another admin.
+- Role changes affect what tabs and actions the user sees after refresh or next login.
 
-## 13. Public Pages
+### 6.6 Admin: Manage Shifts Across Pantries
 
-The app includes public pages that do not require login:
+Admins can use `Manage Shifts` for any pantry.
 
-- `/`: homepage.
-- `/privacy`: privacy policy.
-- `/terms`: terms page.
-- `/term`: alternate terms route.
+Admin shift capabilities:
 
-Public API endpoints can list pantries and public shifts:
+- Select any pantry.
+- Create one-time shifts.
+- Create recurring shifts.
+- Edit shift details.
+- Edit shift roles.
+- Cancel shifts.
+- Cancel future recurring occurrences.
+- View registrations.
+- Send help broadcasts.
+- Take attendance.
 
-- `/api/public/pantries`
-- `/api/public/pantries/{slug}/shifts`
+The shift-management rules are the same as pantry lead rules, but admins are not limited to assigned pantries.
+
+## 7. Super Admin Role
+
+Super admins are admin-capable users with the highest operational authority.
+
+### 7.1 What Super Admins Can Do
+
+Super admins can do everything admins can do, including:
+
+- Manage all pantries.
+- Manage all shift workflows.
+- Search and monitor users.
+- Update normal user roles.
+- Remove `ADMIN` from another admin.
+- Preserve top-level access when normal admin permissions need to be corrected.
+
+### 7.2 Protected Super Admin Account
+
+The protected seeded super admin account has special restrictions.
+
+Protected account rules:
+
+- Its roles cannot be edited through the dashboard.
+- It cannot delete itself.
+- It should remain available as a recovery account.
+
+### 7.3 Super Admin Best Practices
+
+Super admins should:
+
+- Keep at least one trusted super admin account available.
+- Avoid using the protected account for routine daily work if another admin account is available.
+- Use role changes carefully because they directly change access.
+- Remove admin access from users only when operationally necessary.
+
+## 8. Shared Account Capabilities
+
+All logged-in users can use `My Account`.
+
+Shared account actions:
+
+- View account summary.
+- Update full name.
+- Update phone number.
+- View account email.
+- View current roles.
+- View attendance score when available.
+- View timezone note.
+- Start email change when supported.
+- Connect Google Calendar when eligible.
+- Disconnect Google Calendar when connected.
+- Delete own account when allowed.
+- Log out.
+
+### 8.1 Timezone Behavior
+
+The browser sends timezone information with API requests.
+
+Timezone is used for:
+
+- Showing times in the browser's local timezone.
+- Saving the user's preferred timezone.
+- Formatting email notification shift times.
+
+If a user has no saved timezone, notification emails use `America/New_York` as a fallback.
+
+### 8.2 Account Deletion
+
+Account deletion:
+
+- Removes the local app user.
+- Signs the user out.
+- Deletes the linked Firebase user in Firebase mode after fresh reauthentication.
+- Removes dependent records according to database cascade rules.
+
+The protected super admin account cannot delete itself.
+
+## 9. Public User Capabilities
+
+People who are not logged in can still access public pages.
+
+Public pages:
+
+- `/`
+- `/privacy`
+- `/terms`
+- `/term`
+
+Public API visibility:
+
+- Public pantry listing.
+- Public shifts for a pantry slug.
 
 Public pages support product discovery and Google OAuth verification.
 
-## 14. Notifications
+## 10. Capability Matrix
 
-The app can send email notifications when Resend is configured.
+| Capability | Volunteer | Pantry Lead | Admin | Super Admin |
+| --- | --- | --- | --- | --- |
+| Log in | Yes | Yes | Yes | Yes |
+| Browse available shifts | Yes | Yes | Yes | Yes |
+| Sign up for shifts | Yes | Only if also volunteer | Only if also volunteer | Only if also volunteer |
+| Cancel own signup | Yes | Yes, for own signup | Yes | Yes |
+| Reconfirm own signup | Yes | Yes, for own signup | Yes | Yes |
+| Browse pantry directory | Yes | Yes | Yes | Yes |
+| Subscribe to pantry updates | Yes | Only if also volunteer | Only if also volunteer | Only if also volunteer |
+| Update own profile | Yes | Yes | Yes | Yes |
+| Connect own Google Calendar | If eligible | If eligible | If eligible | If eligible |
+| Create shifts | No | Assigned pantries | All pantries | All pantries |
+| Edit shifts | No | Assigned pantries | All pantries | All pantries |
+| Cancel shifts | No | Assigned pantries | All pantries | All pantries |
+| View registrations | No | Assigned pantries | All pantries | All pantries |
+| Send help broadcasts | No | Assigned pantries | All pantries | All pantries |
+| Mark attendance | No | Assigned pantries | All pantries | All pantries |
+| Create pantries | No | No | Yes | Yes |
+| Edit pantries | No | No | Yes | Yes |
+| Delete pantries | No | No | Yes | Yes |
+| Assign pantry leads | No | No | Yes | Yes |
+| Search users | No | No | Yes | Yes |
+| Edit user roles | No | No | Restricted | Restricted, highest authority |
+| Assign SUPER_ADMIN | No | No | No | No through dashboard |
+| Edit protected super admin | No | No | No | No |
 
-Notification types:
+## 11. Common Error Messages by Role
 
-- Signup confirmation.
-- Shift update requiring reconfirmation.
-- Shift cancellation.
-- New one-time shift for pantry subscribers.
-- New recurring shift series for pantry subscribers.
-- Help broadcast for selected volunteers.
+### Volunteer Errors
 
-Notifications are side effects. If an email provider is unavailable, the shift or signup action may still complete in the app.
+`Forbidden or not a volunteer`
 
-## 15. Common Messages and What They Mean
+- The account does not have the `VOLUNTEER` role for signup.
 
-### Authentication required
+`Already signed up`
 
-Your session is missing or expired.
+- The volunteer already has a signup for the selected role.
 
-What to do:
+`Can't register for overlapping shift`
 
-- Log in again.
-- Refresh the page if you recently logged in.
+- The volunteer has another active signup that overlaps the selected shift.
 
-### Forbidden
+`SIGNUP_RATE_LIMITED`
 
-Your account does not have permission for the action.
+- The volunteer reached the rolling 24-hour signup limit.
 
-What to do:
+`ROLE_FULL_OR_UNAVAILABLE`
 
-- Confirm you are using the correct account.
-- Ask an admin to check your role or pantry lead assignment.
+- The role is full, cancelled, or unavailable during reconfirmation.
 
-### Not a lead for this pantry
+`RESERVATION_EXPIRED`
 
-You have a pantry lead role but are not assigned to that specific pantry.
+- The pending reconfirmation window expired.
 
-What to do:
+### Pantry Lead Errors
 
-- Ask an admin to assign you as a lead for that pantry.
+`Not a lead for this pantry`
 
-### Shift has ended
+- The pantry lead role exists, but the user is not assigned to that pantry.
 
-The shift is in the past and no longer accepts signups or edits.
+`Forbidden`
 
-What to do:
+- The user is missing permission for the action.
 
-- Choose a future shift.
-- For attendance, verify you are inside the allowed attendance window.
+`PAST_SHIFT_LOCKED`
 
-### Past shift locked
+- The shift has ended and can no longer be edited.
 
-The app prevents edits to ended shifts.
+`Cannot broadcast help for a cancelled shift`
 
-What to do:
+- Help broadcasts are blocked for cancelled shifts.
 
-- Manage only upcoming or currently allowed shifts.
+### Admin Errors
 
-### Already signed up
+`The protected super admin account cannot have its roles edited`
 
-You already have a signup for that role.
+- The selected account is protected.
 
-What to do:
+`The SUPER_ADMIN role cannot be assigned through this endpoint`
 
-- Check `My Shifts`.
-- Cancel your existing signup before choosing another role if needed.
+- Super admin assignment is blocked in normal role management.
 
-### Can't register for overlapping shift
+`Only the super admin can remove ADMIN from another admin`
 
-You are already signed up for another active shift that overlaps this time.
+- A normal admin attempted to remove another admin's admin role.
 
-What to do:
+## 12. Role-Based Best Practices
 
-- Pick a different time.
-- Cancel the conflicting signup first if appropriate.
+### Volunteer Best Practices
 
-### Signup rate limited
-
-You signed up for too many shifts in a rolling 24-hour window.
-
-What to do:
-
-- Wait until the cooldown time shown in the message.
-
-### Role full or unavailable
-
-The role has no remaining capacity or is not available.
-
-What to do:
-
-- Pick another role or shift.
-- If reconfirming, cancel or choose a new available shift.
-
-### Reservation expired
-
-Your pending reconfirmation window expired.
-
-What to do:
-
-- Sign up again if slots are still available.
-
-### Google Calendar unavailable
-
-The server is missing Google OAuth setup or your account is not eligible for Calendar sync.
-
-What to do:
-
-- Use a Google/Firebase login.
-- Ask an administrator to confirm Google OAuth configuration.
-
-## 16. Best Practices
-
-### For Volunteers
-
-- Keep your phone number and email current.
+- Keep contact information current.
 - Check `My Shifts` after signing up.
-- Reconfirm promptly when a shift changes.
-- Cancel early if you can no longer attend.
-- Connect Google Calendar if available and useful.
-- Subscribe only to pantries where you want new-shift updates.
+- Reconfirm changed shifts promptly.
+- Cancel as early as possible if unable to attend.
+- Subscribe only to pantries where updates are useful.
+- Use Google Calendar sync if available and helpful.
 
-### For Pantry Leads
+### Pantry Lead Best Practices
 
-- Create shifts early enough for volunteers to plan.
-- Use clear shift names and role titles.
+- Create shifts early.
+- Use clear shift names.
+- Use role names that volunteers understand.
 - Set realistic required counts.
-- Review registrations before the shift starts.
-- Use help broadcasts only when extra coverage is needed.
-- Mark attendance within the attendance window.
-- Be careful when reducing role capacity because volunteers may need to reconfirm.
+- Review coverage before shift day.
+- Use help broadcasts only when coverage is genuinely needed.
+- Mark attendance during the allowed attendance window.
+- Avoid late changes unless necessary because volunteers may need to reconfirm.
 
-### For Admins
+### Admin Best Practices
 
-- Assign pantry leads only to the pantries they should manage.
-- Keep user roles simple and intentional.
-- Avoid deleting pantries unless the data should really be removed.
-- Verify notification and Google Calendar settings before relying on them operationally.
-- Preserve access to the protected super admin account.
+- Assign pantry leads deliberately.
+- Keep user roles simple.
+- Avoid deleting pantries unless dependent data should be removed.
+- Confirm notification and calendar configuration before operational reliance.
+- Review user role changes carefully.
 
-## 17. Quick Task Reference
+### Super Admin Best Practices
 
-| Task                        | Where To Go   | Role Needed                             |
-| --------------------------- | ------------- | --------------------------------------- |
-| Browse available shifts     | Calendar      | Logged-in user                          |
-| Sign up for a shift         | Calendar      | Volunteer                               |
-| Cancel your signup          | My Shifts     | Signup owner or admin                   |
-| Reconfirm changed shift     | My Shifts     | Signup owner or admin                   |
-| Subscribe to pantry updates | Pantries      | Volunteer                               |
-| Update profile              | My Account    | Logged-in user                          |
-| Connect Google Calendar     | My Account    | Google/Firebase user                    |
-| Create shift                | Manage Shifts | Pantry lead for pantry or admin         |
-| Create recurring shift      | Manage Shifts | Pantry lead for pantry or admin         |
-| Edit shift                  | Manage Shifts | Pantry lead for pantry or admin         |
-| Cancel shift                | Manage Shifts | Pantry lead for pantry or admin         |
-| Send help broadcast         | Manage Shifts | Pantry lead for pantry or admin         |
-| Mark attendance             | Manage Shifts | Pantry lead for pantry or admin         |
-| Create pantry               | Admin Panel   | Admin or super admin                    |
-| Assign pantry lead          | Admin Panel   | Admin or super admin                    |
-| Search users                | Admin Panel   | Admin or super admin                    |
-| Change user role            | Admin Panel   | Admin or super admin, with restrictions |
+- Preserve recovery access.
+- Use elevated actions sparingly.
+- Do not use the protected account for routine work when another admin account is available.
+- Keep role changes auditable through operational practice.
 
-## 18. Support Checklist
-
-When reporting a problem, include:
-
-- The tab or screen you were using.
-- The action you tried.
-- The exact error message.
-- Your role.
-- The pantry name, if relevant.
-- The shift name and time, if relevant.
-- Whether you were using Google login or demo login.
-- Whether Google Calendar sync was connected.
-
-This helps admins or developers identify whether the issue is permissions, configuration, shift state, capacity, or an external integration.
